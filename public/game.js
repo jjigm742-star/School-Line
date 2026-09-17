@@ -9,6 +9,7 @@ const CHARACTER_META = {
   iron: { role:'탱커', name:'아이언', icon:'⚙️', mini:'HP 600 · 느림', stat:'HP 600 · 속도 4.0 · 사거리 24 · 65 DPS', summary:'가장 단단한 정통 탱커', mechanic:'높은 체력으로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.' },
   mecha: { role:'탱커', name:'메카', icon:'🤖', mini:'HP 550 · 빠름', stat:'HP 550 · 속도 6.0 · 사거리 16 · 45 DPS', summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커', mechanic:'별도 변신이나 조종사 상태가 없는 단일 상태 탱커. 사거리는 16으로 짧고 화력은 낮지만, HP 550과 속도 6.0으로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.' },
   dia: { role:'탱커', name:'다이아', icon:'💎', mini:'HP 350 · 변신', stat:'HP 350 · 속도 4.0 · 기본 65 DPS · 변신 6초', summary:'타이밍을 잡아 강해지는 변신 탱커', mechanic:'기본형은 투사체로 싸운다. Space 또는 변신 버튼을 누르면 6초간 HP 400, 속도 5.0, 80 DPS 광선폼이 된다. 변신 쿨은 16초이며 폼 중 직접 처치하면 6초 감소한다.' },
+  solar: { role:'탱커', name:'솔라', icon:'☀️', mini:'광선 · 태양탄 자힐', stat:'HP 375 · 속도 4.0 · 사거리 16 광선 80 DPS', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커', mechanic:'공격하는 동안 조준 방향으로 사거리 16의 80 DPS 광선을 유지한다. 동시에 1초마다 같은 조준 방향으로 사거리 24의 태양탄을 발사하며, 태양탄이 적에게 실제 피해를 주면 HP를 25 회복한다. 이 자가회복은 포이즌의 외부 치유 감소 영향을 받지 않는다.' },
   shooter: { role:'딜러', name:'슈터', icon:'🎯', mini:'100 DPS · 안정적', stat:'HP 250 · 속도 5.0 · 사거리 24 · 100 DPS', summary:'가장 표준적인 원거리 딜러', mechanic:'빠르고 작은 탄을 초당 5발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.' },
   sniper: { role:'딜러', name:'스나이퍼', icon:'🔭', mini:'장거리 · 거리비례 피해', stat:'HP 150 · 속도 4.0 · 사거리 36 · 초당 1발', summary:'멀수록 한 발이 강해지는 초장거리 딜러', mechanic:'매우 빠른 작은 투사체를 초당 1발 발사한다. 실제로 날아가 충돌한 거리 기준으로 16 이하는 65, 16 초과~32 이하는 85, 32 초과~36 이하는 105 피해를 준다. 가까이 붙으면 약해진다.' },
   cannon: { role:'딜러', name:'캐논', icon:'💥', mini:'140 DPS · 느림', stat:'HP 275 · 속도 3.2 · 사거리 24 · 140 DPS', summary:'기동성을 버리고 화력을 얻은 중화기 딜러', mechanic:'초당 10발을 퍼붓는 최고 수준의 지속 화력. 대신 이동속도가 매우 느려 위치를 잘못 잡으면 도망치기 어렵다.' },
@@ -18,6 +19,7 @@ const CHARACTER_META = {
   ice: { role:'딜러', name:'아이스', icon:'🧊', mini:'80 DPS · 감속', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 DPS', summary:'적의 움직임을 묶는 제어형 광선 딜러', mechanic:'광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 감속은 마지막 적중 후 1.5초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.' },
   water: { role:'힐러', name:'워터', icon:'💧', mini:'70 HPS · 안정 치유', stat:'HP 250 · 속도 5.0 · 사거리 24 · 70 HPS', summary:'가장 단순하고 안정적인 기본 힐러', mechanic:'오른쪽 스틱으로 아군을 조준해 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.' },
   wind: { role:'힐러', name:'윈드', icon:'🌪️', mini:'55 HPS · 순풍', stat:'HP 225 · 속도 6.0 · 사거리 24 · 55 HPS', summary:'치유와 기동력 지원을 함께 주는 힐러', mechanic:'치유탄에 맞은 아군은 2초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.' },
+  star: { role:'힐러', name:'스타', icon:'⭐', mini:'80 HPS · 초장거리', stat:'HP 175 · 속도 4.0 · 사거리 30 · 80 HPS', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러', mechanic:'초당 2발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 40 회복한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시키며 자신은 치유할 수 없다. 공격 능력은 없다.' },
   light: { role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜', stat:'HP 225 · 속도 5.0 · 사거리 16 · 50 HPS / 60 DPS', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러', mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.' }
 };
 
@@ -33,6 +35,10 @@ const CHARACTER_STORIES = {
   dia: {
     title:'다이아', icon:'💎',
     text:'광선 자매들의 엄마. 반짝이는 것을 너무 좋아한 나머지 특별한 기술을 이용해 잠시 동안 자기 몸을 다이아몬드처럼 변화시키는 능력을 얻었다. 문제는 이제 평범한 모습보다 다이아몬드 모습의 자신을 훨씬 더 마음에 들어 한다는 것이다.'
+  },
+  solar: {
+    title:'솔라', icon:'☀️',
+    text:'광선 자매들의 아버지. 광선 자매들을 강하게 키우기 위해 혹독한 훈련을 시켰고, 자신 역시 수련을 게을리하지 않았다. 그 결과 광선과 투사체 공격을 동시에 다룰 줄 아는 엄청난 존재가 되었다.'
   },
   cannon: {
     title:'캐논', icon:'💥',
@@ -73,6 +79,10 @@ const CHARACTER_STORIES = {
   wind: {
     title:'윈드', icon:'🌪️',
     text:'스스로를 바람의 요정이라고 소개하며 다른 사람에게 더 빨리 움직이라고 힘을 준다. 하지만 아무리 조사해도 그가 요정이라는 증거는 발견되지 않았다. 주변에서는 그냥 남들에게 빨리 움직이라고 재촉하는 평범한 잔소리쟁이라고 생각한다.'
+  },
+  star: {
+    title:'스타', icon:'⭐',
+    text:'오랫동안 별을 바라보다가 어느 순간부터 자신이 별이라고 착각하고 있다. 멀리서 싸우는 사람들을 지켜보며 치유탄을 쏴 주는데, 가끔은 그 사람들이 자신을 바라보며 감사해 주기를 은근히 기대한다.'
   }
 };
 
@@ -156,6 +166,8 @@ let lastAimDir = { x: 0, y: 1 }; // world direction, A->B by default
 
 // Alpha 0.6: lightweight Web Audio + haptics. No external audio assets are required.
 const AUDIO_VOLUME_MULTIPLIER = 9;
+const HIT_VOLUME_MULTIPLIER = 0.5;
+const BGM_VOLUME_MULTIPLIER = 1.5;
 let audioCtx = null;
 let masterGain = null;
 let bgmGain = null;
@@ -174,7 +186,7 @@ function ensureAudio() {
     bgmGain = audioCtx.createGain();
     sfxGain = audioCtx.createGain();
     masterGain.gain.value = audioEnabled ? AUDIO_VOLUME_MULTIPLIER : 0;
-    bgmGain.gain.value = 0.050;
+    bgmGain.gain.value = 0.050 * BGM_VOLUME_MULTIPLIER;
     sfxGain.gain.value = 0.72;
     bgmGain.connect(masterGain);
     sfxGain.connect(masterGain);
@@ -200,9 +212,9 @@ function synthTone({freq=440, endFreq=null, duration=.1, type='sine', gain=.12, 
   osc.start(t); osc.stop(t + duration + .02);
 }
 
-function noiseBurst(duration=.07, gain=.08) {
+function noiseBurst(duration=.07, gain=.08, target=sfxGain) {
   const ac = ensureAudio();
-  if (!ac || !sfxGain || !audioEnabled) return;
+  if (!ac || !target || !audioEnabled) return;
   const count = Math.max(1, Math.floor(ac.sampleRate * duration));
   const buffer = ac.createBuffer(1, count, ac.sampleRate);
   const data = buffer.getChannelData(0);
@@ -210,7 +222,7 @@ function noiseBurst(duration=.07, gain=.08) {
   const src = ac.createBufferSource();
   const amp = ac.createGain();
   amp.gain.value = gain;
-  src.buffer = buffer; src.connect(amp); amp.connect(sfxGain); src.start();
+  src.buffer = buffer; src.connect(amp); amp.connect(target); src.start();
 }
 
 function playHitFeedback() {
@@ -218,9 +230,9 @@ function playHitFeedback() {
   if (now - lastHitFeedbackAt < 180) return;
   lastHitFeedbackAt = now;
   if (navigator.vibrate) navigator.vibrate(38);
-  synthTone({freq:165, endFreq:88, duration:.095, type:'square', gain:.22});
-  synthTone({freq:310, endFreq:170, duration:.055, type:'triangle', gain:.11, when:.008});
-  noiseBurst(.060, .16);
+  synthTone({freq:165, endFreq:88, duration:.095, type:'square', gain:.22 * HIT_VOLUME_MULTIPLIER});
+  synthTone({freq:310, endFreq:170, duration:.055, type:'triangle', gain:.11 * HIT_VOLUME_MULTIPLIER, when:.008});
+  noiseBurst(.060, .16 * HIT_VOLUME_MULTIPLIER);
 }
 
 function playDeathFeedback() {
@@ -232,14 +244,19 @@ function playDeathFeedback() {
   noiseBurst(.22, .24);
 }
 
-const BGM_NOTES = [220,0,277.18,0,329.63,0,277.18,0,196,0,246.94,0,293.66,0,246.94,0];
-const BGM_BASS  = [110,0,0,0,98,0,0,0,82.41,0,0,0,98,0,0,0];
+// Upbeat arcade loop: 16-step pattern at ~100 BPM, with a light kick/hat pulse.
+const BGM_NOTES = [440,0,523.25,659.25,587.33,0,523.25,493.88,392,0,493.88,587.33,523.25,0,493.88,440];
+const BGM_BASS  = [110,0,110,0,130.81,0,130.81,0,98,0,98,0,110,0,110,0];
 function bgmTick() {
   if (!audioEnabled || !state || state.state !== 'playing') return;
-  const n = BGM_NOTES[bgmStep % BGM_NOTES.length];
-  const b = BGM_BASS[bgmStep % BGM_BASS.length];
-  if (n) synthTone({freq:n, duration:.16, type:'triangle', gain:.055, target:bgmGain});
-  if (b) synthTone({freq:b, duration:.30, type:'sine', gain:.075, target:bgmGain});
+  const step = bgmStep % BGM_NOTES.length;
+  const n = BGM_NOTES[step];
+  const b = BGM_BASS[step];
+  if (n) synthTone({freq:n, duration:.12, type:'triangle', gain:.055, target:bgmGain});
+  if (b) synthTone({freq:b, duration:.22, type:'sine', gain:.070, target:bgmGain});
+  if (step % 4 === 0) synthTone({freq:105, endFreq:48, duration:.085, type:'sine', gain:.115, target:bgmGain});
+  if (step % 2 === 1) noiseBurst(.025, .020, bgmGain);
+  if (step === 4 || step === 12) noiseBurst(.045, .032, bgmGain);
   bgmStep++;
 }
 function startBgm() {
@@ -247,7 +264,7 @@ function startBgm() {
   if (bgmTimer || !audioEnabled) return;
   bgmStep = 0;
   bgmTick();
-  bgmTimer = setInterval(bgmTick, 190);
+  bgmTimer = setInterval(bgmTick, 150);
 }
 function stopBgm() {
   if (bgmTimer) clearInterval(bgmTimer);
@@ -681,8 +698,8 @@ function renderGame() {
 
   for (const b of (state.beams || [])) {
     const a=worldToScreen(b.x1,b.y1), z=worldToScreen(b.x2,b.y2);
-    const beamColor = b.character === 'ice' ? '#78e9ff' : (b.character === 'dia' ? '#8df6ff' : (b.character === 'light' ? '#ffe66d' : (b.character === 'poison' ? '#b878ff' : '#ff477e')));
-    const glowColor = b.character === 'laser' ? 'rgba(255,70,120,.28)' : (b.character === 'light' ? 'rgba(255,230,109,.32)' : (b.character === 'poison' ? 'rgba(184,120,255,.30)' : 'rgba(120,235,255,.30)'));
+    const beamColor = b.character === 'solar' ? '#ffd45c' : (b.character === 'ice' ? '#78e9ff' : (b.character === 'dia' ? '#8df6ff' : (b.character === 'light' ? '#ffe66d' : (b.character === 'poison' ? '#b878ff' : '#ff477e'))));
+    const glowColor = b.character === 'solar' ? 'rgba(255,196,64,.32)' : (b.character === 'laser' ? 'rgba(255,70,120,.28)' : (b.character === 'light' ? 'rgba(255,230,109,.32)' : (b.character === 'poison' ? 'rgba(184,120,255,.30)' : 'rgba(120,235,255,.30)')));
     ctx.save();
     ctx.lineCap='round';
     ctx.strokeStyle=glowColor; ctx.lineWidth=8;
@@ -695,20 +712,21 @@ function renderGame() {
   for (const p of state.projectiles) {
     const s=worldToScreen(p.x,p.y), r=Math.max(2,p.radius*SCALE);
     ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2);
-    if (p.type === 'heal') ctx.fillStyle = p.character === 'wind' ? '#9ef7d5' : '#65d7ff';
+    if (p.type === 'heal') ctx.fillStyle = p.character === 'wind' ? '#9ef7d5' : (p.character === 'star' ? '#fff3a8' : '#65d7ff');
     else if (p.character === 'fire') ctx.fillStyle = '#ff9a45';
     else if (p.character === 'sniper') ctx.fillStyle = '#e6d5ff';
     else if (p.character === 'mecha') ctx.fillStyle = '#b7ffd1';
+    else if (p.character === 'solar') ctx.fillStyle = '#ffd45c';
     else ctx.fillStyle = p.team === 'A' ? '#8bbcff' : '#ff9c9c';
     ctx.fill();
   }
 
   for (const p of state.players) {
     if (!p.alive) continue;
-    const radius = ({iron:.65,mecha:.65,shooter:.5,sniper:.4,cannon:.65,fire:.5,poison:.5,water:.4,wind:.4,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
+    const radius = ({iron:.65,mecha:.65,solar:.65,shooter:.5,sniper:.4,cannon:.65,fire:.5,poison:.5,water:.4,wind:.4,star:.5,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
     const s=worldToScreen(p.x,p.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',water:'#4cc9f0',wind:'#73d6a6',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
+    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
     if (p.burning) { ctx.lineWidth=2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); }

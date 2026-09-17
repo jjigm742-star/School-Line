@@ -43,6 +43,12 @@ const CHARACTERS = {
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.12,
     projectileType: 'attack', damage: 9
   },
+  solar: {
+    name: '솔라', role: '탱커', hp: 375, speed: 4.0, radius: 0.65,
+    attackType: 'beam', range: 16, beamDps: 80,
+    solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
+    solarProjectileRadius: 0.20, solarProjectileDamage: 25, solarSelfHeal: 25
+  },
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 5.0, radius: 0.50,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.12,
@@ -77,6 +83,11 @@ const CHARACTERS = {
     name: '윈드', role: '힐러', hp: 225, speed: 6.0, radius: 0.40,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.35,
     projectileType: 'heal', heal: 11, tailwindDuration: 2
+  },
+  star: {
+    name: '스타', role: '힐러', hp: 175, speed: 4.0, radius: 0.50,
+    fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.12,
+    projectileType: 'heal', heal: 40
   },
   light: {
     name: '라이트', role: '힐러', hp: 225, speed: 5.0, radius: 0.40,
@@ -815,6 +826,34 @@ function spawnProjectile(room, player, def, now) {
   });
 }
 
+function spawnSolarProjectile(room, player, def, now) {
+  let dx = player.aimX - player.x, dy = player.aimY - player.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.001) return;
+  dx /= len; dy /= len;
+  const startOffset = def.radius + def.solarProjectileRadius + 0.04;
+  const id = `B${room.projectileCounter++}`;
+  room.projectiles.set(id, {
+    id, ownerId: player.id, team: player.team, character: player.character,
+    type: 'attack',
+    x: player.x + dx * startOffset,
+    y: player.y + dy * startOffset,
+    vx: dx * def.solarProjectileSpeed,
+    vy: dy * def.solarProjectileSpeed,
+    radius: def.solarProjectileRadius,
+    damage: def.solarProjectileDamage,
+    distanceDamage: false,
+    heal: 0,
+    selfHealOnHit: def.solarSelfHeal,
+    range: def.solarProjectileRange,
+    traveled: 0,
+    burnDps: 0,
+    burnDuration: 0,
+    tailwindDuration: 0,
+    bornAt: now
+  });
+}
+
 function updateProjectiles(room, dt, now) {
   for (const [id, p] of [...room.projectiles.entries()]) {
     const step = p.range - p.traveled;
@@ -850,7 +889,11 @@ function updateProjectiles(room, dt, now) {
           if (t.invulnerableUntil <= now) {
             const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
             const hitDamage = p.distanceDamage ? (impactDistance <= 16 ? 65 : (impactDistance <= 32 ? 85 : 105)) : p.damage;
-            dealDamage(room, p.ownerId, t, hitDamage, now);
+            const actualDamage = dealDamage(room, p.ownerId, t, hitDamage, now);
+            if (actualDamage > 0 && p.selfHealOnHit > 0) {
+              const owner = room.players.get(p.ownerId);
+              if (owner && owner.alive) applyHealing(room, owner, owner, p.selfHealOnHit, now);
+            }
             if (p.burnDps > 0) { t.burnDps = p.burnDps; t.burnUntil = now + p.burnDuration * 1000; t.burnSourceId = p.ownerId; }
             if (t.hp <= 0) {
               registerDirectKill(room, p.ownerId, now);
@@ -919,6 +962,10 @@ function updateRoom(room, dt, now) {
       const attackDef = currentAttackDef(player, now);
       if (attackDef.attackType === 'beam') {
         traceBeam(room, player, attackDef, dt, now);
+        if (player.character === 'solar' && now >= player.nextFireAt) {
+          spawnSolarProjectile(room, player, attackDef, now);
+          player.nextFireAt = now + 1000 / attackDef.solarFireRate;
+        }
       } else if (attackDef.attackType === 'lightBeam') {
         traceLightBeam(room, player, attackDef, dt, now);
       } else if (now >= player.nextFireAt) {
@@ -986,7 +1033,7 @@ setInterval(() => {
 }, 1000 / SNAPSHOT_RATE);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\nSchool Line Mobile Alpha 0.8`);
+  console.log(`\nSchool Line Mobile Alpha 0.9`);
   console.log(`Local: http://localhost:${PORT}`);
   console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}\n`);
 });

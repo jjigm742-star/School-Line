@@ -15,9 +15,9 @@ const CHARACTER_META = {
   fire: { role:'딜러', name:'파이어', icon:'🔥', mini:'80 DPS · 화상', stat:'HP 200 · 속도 6.0 · 사거리 24 · 80 DPS + 화상', summary:'빠르게 움직이며 지속 피해를 남기는 딜러', mechanic:'적중한 적에게 2초 동안 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.' },
   laser: { role:'딜러', name:'레이저', icon:'🔴', mini:'광선 · 탱커 압박', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 + 최대HP 10% DPS', summary:'체력이 높은 적일수록 더 아픈 광선 딜러', mechanic:'조준한 방향으로 즉시 광선을 연결한다. 기본 80 DPS에 대상 최대 체력의 10%만큼 DPS가 추가되어 탱커를 상대할 때 특히 강하다.' },
   ice: { role:'딜러', name:'아이스', icon:'🧊', mini:'80 DPS · 감속', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 DPS', summary:'적의 움직임을 묶는 제어형 광선 딜러', mechanic:'광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 감속은 마지막 적중 후 1.5초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.' },
-  water: { role:'힐러', name:'워터', icon:'💧', mini:'65 HPS · 안정 치유', stat:'HP 250 · 속도 5.0 · 사거리 24 · 65 HPS', summary:'가장 단순하고 안정적인 기본 힐러', mechanic:'오른쪽 스틱으로 아군을 조준해 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.' },
+  water: { role:'힐러', name:'워터', icon:'💧', mini:'70 HPS · 안정 치유', stat:'HP 250 · 속도 5.0 · 사거리 24 · 70 HPS', summary:'가장 단순하고 안정적인 기본 힐러', mechanic:'오른쪽 스틱으로 아군을 조준해 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.' },
   wind: { role:'힐러', name:'윈드', icon:'🌪️', mini:'55 HPS · 순풍', stat:'HP 225 · 속도 6.0 · 사거리 24 · 55 HPS', summary:'치유와 기동력 지원을 함께 주는 힐러', mechanic:'치유탄에 맞은 아군은 2초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.' },
-  light: { role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜', stat:'HP 225 · 속도 6.0 · 사거리 16 · 55 HPS / 60 DPS', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러', mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.' }
+  light: { role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜', stat:'HP 225 · 속도 5.0 · 사거리 16 · 50 HPS / 60 DPS', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러', mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.' }
 };
 
 const ROLE_ORDER = ['탱커','딜러','힐러'];
@@ -85,7 +85,7 @@ let lastAimDir = { x: 0, y: 1 }; // world direction, A->B by default
 
 
 // Alpha 0.6: lightweight Web Audio + haptics. No external audio assets are required.
-const AUDIO_VOLUME_MULTIPLIER = 3;
+const AUDIO_VOLUME_MULTIPLIER = 9;
 let audioCtx = null;
 let masterGain = null;
 let bgmGain = null;

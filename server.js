@@ -60,7 +60,7 @@ const CHARACTERS = {
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 5.0, radius: 0.40,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.12,
-    projectileType: 'heal', heal: 13
+    projectileType: 'heal', heal: 14
   },
   wind: {
     name: '윈드', role: '힐러', hp: 225, speed: 6.0, radius: 0.40,
@@ -68,8 +68,8 @@ const CHARACTERS = {
     projectileType: 'heal', heal: 11, tailwindDuration: 2
   },
   light: {
-    name: '라이트', role: '힐러', hp: 225, speed: 6.0, radius: 0.40,
-    attackType: 'lightBeam', range: 16, healHps: 55, beamDps: 60
+    name: '라이트', role: '힐러', hp: 225, speed: 5.0, radius: 0.40,
+    attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 60
   },
   laser: {
     name: '레이저', role: '딜러', hp: 275, speed: 5.0, radius: 0.50,

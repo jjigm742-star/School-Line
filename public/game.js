@@ -13,6 +13,7 @@ const CHARACTER_META = {
   sniper: { role:'딜러', name:'스나이퍼', icon:'🔭', mini:'장거리 · 거리비례 피해', stat:'HP 150 · 속도 4.0 · 사거리 36 · 초당 1발', summary:'멀수록 한 발이 강해지는 초장거리 딜러', mechanic:'매우 빠른 작은 투사체를 초당 1발 발사한다. 실제로 날아가 충돌한 거리 기준으로 16 이하는 65, 16 초과~32 이하는 85, 32 초과~36 이하는 105 피해를 준다. 가까이 붙으면 약해진다.' },
   cannon: { role:'딜러', name:'캐논', icon:'💥', mini:'140 DPS · 느림', stat:'HP 275 · 속도 3.2 · 사거리 24 · 140 DPS', summary:'기동성을 버리고 화력을 얻은 중화기 딜러', mechanic:'초당 10발을 퍼붓는 최고 수준의 지속 화력. 대신 이동속도가 매우 느려 위치를 잘못 잡으면 도망치기 어렵다.' },
   fire: { role:'딜러', name:'파이어', icon:'🔥', mini:'80 DPS · 화상', stat:'HP 200 · 속도 6.0 · 사거리 24 · 80 DPS + 화상', summary:'빠르게 움직이며 지속 피해를 남기는 딜러', mechanic:'적중한 적에게 2초 동안 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.' },
+  poison: { role:'딜러', name:'포이즌', icon:'☠️', mini:'85 DPS · 치유 감소', stat:'HP 250 · 속도 5.0 · 사거리 16 · 85 DPS', summary:'외부 치유를 약화시키는 안티힐 광선 딜러', mechanic:'광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 50% 감소한다. 중독은 마지막 적중 후 1.5초 유지되며 다시 맞으면 갱신된다. 비전투 회복에는 영향을 주지 않는다.' },
   laser: { role:'딜러', name:'레이저', icon:'🔴', mini:'광선 · 탱커 압박', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 + 최대HP 10% DPS', summary:'체력이 높은 적일수록 더 아픈 광선 딜러', mechanic:'조준한 방향으로 즉시 광선을 연결한다. 기본 80 DPS에 대상 최대 체력의 10%만큼 DPS가 추가되어 탱커를 상대할 때 특히 강하다.' },
   ice: { role:'딜러', name:'아이스', icon:'🧊', mini:'80 DPS · 감속', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 DPS', summary:'적의 움직임을 묶는 제어형 광선 딜러', mechanic:'광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 감속은 마지막 적중 후 1.5초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.' },
   water: { role:'힐러', name:'워터', icon:'💧', mini:'70 HPS · 안정 치유', stat:'HP 250 · 속도 5.0 · 사거리 24 · 70 HPS', summary:'가장 단순하고 안정적인 기본 힐러', mechanic:'오른쪽 스틱으로 아군을 조준해 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.' },
@@ -20,14 +21,76 @@ const CHARACTER_META = {
   light: { role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜', stat:'HP 225 · 속도 5.0 · 사거리 16 · 50 HPS / 60 DPS', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러', mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.' }
 };
 
+const CHARACTER_STORIES = {
+  iron: {
+    title:'아이언', icon:'⚙️',
+    text:'엄청난 맷집을 자랑하는 보디빌더. 강한 상대와 힘을 겨루는 것을 좋아해서 언제나 가장 앞에 서지만, 정작 공격을 맞을 때마다 속으로는 “아프잖아!”라고 생각한다.'
+  },
+  mecha: {
+    title:'메카', icon:'🤖',
+    text:'오랫동안 창고에 방치되어 있던 기계에 어느 날 갑자기 영혼이 깃들었다. 깨어나자마자 세상을 구경하고 싶어졌고, 튼튼한 몸과 빠른 다리를 이용해 여기저기 돌아다니며 싸움에도 끼어들고 있다. 자신이 왜 깨어났는지는 메카 자신도 모른다.'
+  },
+  dia: {
+    title:'다이아', icon:'💎',
+    text:'광선 자매들의 엄마. 반짝이는 것을 너무 좋아한 나머지 특별한 기술을 이용해 잠시 동안 자기 몸을 다이아몬드처럼 변화시키는 능력을 얻었다. 문제는 이제 평범한 모습보다 다이아몬드 모습의 자신을 훨씬 더 마음에 들어 한다는 것이다.'
+  },
+  cannon: {
+    title:'캐논', icon:'💥',
+    text:'싸우기 위해 만들어진 인공지능 대포. 엄청난 공격 능력을 가진 대신 움직이는 것이 매우 느리다. 본인은 이것을 단점이라고 생각하지 않는다. 상대가 먼저 사라지면 따라갈 필요도 없다고 생각하기 때문이다.'
+  },
+  shooter: {
+    title:'슈터', icon:'🎯',
+    text:'무슨 일이든 총으로 해결하려는 단순한 성격. 정확하고 꾸준한 공격이 장점이며, 특별한 기술이 없다는 말을 들을 때마다 “잘 쏘는 게 특별한 기술이야!”라고 반박한다. 워터와는 오래된 친구지만 서로 싸우는 방식이 너무 달라 자주 티격태격한다.'
+  },
+  water: {
+    title:'워터', icon:'💧',
+    text:'예전에는 슈터와 함께 이것저것 경쟁했지만, 어느 순간부터 상대를 맞히는 것보다 아군을 맞혀 회복시키는 것이 더 재미있다는 사실을 깨달았다. 지금도 슈터와 만나면 누가 팀에 더 도움이 되는지를 가지고 자주 말다툼한다.'
+  },
+  fire: {
+    title:'파이어', icon:'🔥',
+    text:'워터의 형. 뜨거운 성격답게 뭐든 먼저 달려들고 보는 편이다. 자신이 슈터를 좋아하기 때문에, 워터가 슈터와 사귈까봐 항상 걱정한다.'
+  },
+  sniper: {
+    title:'스나이퍼', icon:'🔭',
+    text:'멀리서 쏘는 것만큼은 자신이 최고라고 생각하며 실제로도 꽤 잘한다. 항상 혼자 멀찍이 떨어져 있는 이유는 좋은 사격 위치를 찾기 위해서라고 주장하지만, 사실 사람들 사이에 끼어 대화하는 것이 조금 부담스러울 뿐이다.'
+  },
+  laser: {
+    title:'레이저 — 첫째', icon:'🔴',
+    text:'광선 자매의 첫째. 여섯 자매 중 힘이 가장 세고 목소리도 가장 크다. 엄청난 괴력을 갖고 있기 때문에, 여동생들은 부모님보다 레이저에게 혼나는 것을 더 무서워한다.'
+  },
+  ice: {
+    title:'아이스 — 둘째', icon:'🧊',
+    text:'광선 자매의 둘째. 차가운 분위기를 좋아하고 언젠가는 모든 것을 꽁꽁 얼려버리는 것이 목표다. 하지만 아직 실력이 부족해서 상대의 이동속도를 조금 느리게 만드는 것밖에 못 한다. 본인은 이 사실을 부끄러워 한다.'
+  },
+  poison: {
+    title:'포이즌 — 셋째', icon:'☠️',
+    text:'광선 자매의 셋째. 언니들처럼 눈에 띄는 재능이 없다는 말을 듣자 독기를 품고 혼자 열심히 연습했다. 그 결과 상대를 직접 쓰러뜨리는 것보다 상대가 치료받는 것을 방해하는 심술궂은 능력을 터득했다.'
+  },
+  light: {
+    title:'라이트 — 넷째', icon:'✨',
+    text:'광선 자매의 넷째. 언니들과 달리 싸우는 것보다 남을 도와주는 데 관심이 많다. 결국 광선을 이용해 공격과 치유를 동시에 하는 자기만의 기술을 만들었고, 자매들 중 가장 먼저 독립해서 살기 시작했다. 언니들은 아직도 라이트가 집을 나간 것을 싫어한다.'
+  },
+  wind: {
+    title:'윈드', icon:'🌪️',
+    text:'스스로를 바람의 요정이라고 소개하며 다른 사람에게 더 빨리 움직이라고 힘을 준다. 하지만 아무리 조사해도 그가 요정이라는 증거는 발견되지 않았다. 주변에서는 그냥 남들에게 빨리 움직이라고 재촉하는 평범한 잔소리쟁이라고 생각한다.'
+  }
+};
+
 const ROLE_ORDER = ['탱커','딜러','힐러'];
 const ROLE_LABEL = { '탱커':'🛡️ 탱커', '딜러':'⚔️ 딜러', '힐러':'💚 힐러' };
 const savedCharacter = localStorage.getItem('schoolLineCharacter');
-const initialCharacter = CHARACTER_META[savedCharacter] ? savedCharacter : 'shooter';
+const initialRole = CHARACTER_META[savedCharacter]?.role || '딜러';
 const pickerState = {
-  join: { selected: initialCharacter, role: CHARACTER_META[initialCharacter].role },
-  lobby: { selected: initialCharacter, role: CHARACTER_META[initialCharacter].role }
+  lobby: { selected: null, role: initialRole }
 };
+let selectedJoinTeam = null;
+
+function isTeamCharacterTaken(id) {
+  if (!state || !myId) return false;
+  const me = state.players.find(p => p.id === myId);
+  if (!me) return false;
+  return state.players.some(p => p.id !== myId && p.team === me.team && p.character === id);
+}
 
 function renderPicker(kind) {
   const tabs = $(`${kind}RoleTabs`);
@@ -44,20 +107,21 @@ function renderPicker(kind) {
     btn.textContent = ROLE_LABEL[role];
     btn.onclick = () => {
       ps.role = role;
-      const candidates = Object.keys(CHARACTER_META).filter(id => CHARACTER_META[id].role === role);
-      if (!candidates.includes(ps.selected)) ps.selected = candidates[0];
       renderPicker(kind);
-      if (kind === 'lobby') selectLobbyCharacter(ps.selected);
     };
     tabs.appendChild(btn);
   }
 
-  for (const [id, m] of Object.entries(CHARACTER_META).filter(([,m]) => m.role === ps.role)) {
+  const roleEntries = Object.entries(CHARACTER_META).filter(([,m]) => m.role === ps.role);
+  for (const [id, m] of roleEntries) {
+    const taken = kind === 'lobby' && isTeamCharacterTaken(id);
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'character-choice' + (ps.selected === id ? ' selected' : '');
-    btn.innerHTML = `<span class="char-name">${m.icon} ${m.name}</span><span class="char-mini">${m.mini}</span>`;
+    btn.disabled = taken;
+    btn.className = 'character-choice' + (ps.selected === id ? ' selected' : '') + (taken ? ' unavailable' : '');
+    btn.innerHTML = `<span class="char-name">${m.icon} ${m.name}</span><span class="char-mini">${taken ? '🔒 사용 중' : m.mini}</span>`;
     btn.onclick = () => {
+      if (taken) return;
       ps.selected = id;
       localStorage.setItem('schoolLineCharacter', id);
       renderPicker(kind);
@@ -66,18 +130,22 @@ function renderPicker(kind) {
     choices.appendChild(btn);
   }
 
-  const m = CHARACTER_META[ps.selected];
-  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${m.name}</div><span class="role-badge">${m.role}</span></div><div class="character-statline">${m.stat}</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${m.mechanic}</div>`;
+  const visibleIds = roleEntries.map(([id]) => id);
+  let detailId = visibleIds.includes(ps.selected) ? ps.selected : null;
+  if (!detailId) detailId = visibleIds.find(id => kind !== 'lobby' || !isTeamCharacterTaken(id)) || visibleIds[0];
+  const m = CHARACTER_META[detailId];
+  const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
+  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${m.name}</div><span class="role-badge">${m.role}</span></div><div class="character-statline">${m.stat}</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${m.mechanic}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
 }
 
 function selectLobbyCharacter(id) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'select', character:id }));
 }
 
-renderPicker('join');
 renderPicker('lobby');
 
 let ws = null, myId = null, config = null, state = null;
+let spectatorMode = false;
 let keys = { up:false, down:false, left:false, right:false };
 let mouseWorld = { x: 21, y: 34 };
 let firing = false;
@@ -214,6 +282,14 @@ function processCombatFeedback(previousState, nextState) {
 $('nameInput').value = localStorage.getItem('schoolLineName') || '';
 $('roomInput').value = localStorage.getItem('schoolLineRoom') || '6-1';
 
+function selectJoinTeam(team) {
+  selectedJoinTeam = team;
+  $('joinTeamA').classList.toggle('selected', team === 'A');
+  $('joinTeamB').classList.toggle('selected', team === 'B');
+}
+$('joinTeamA').onclick = () => selectJoinTeam('A');
+$('joinTeamB').onclick = () => selectJoinTeam('B');
+
 function show(which) {
   joinScreen.classList.toggle('hidden', which !== 'join');
   lobbyScreen.classList.toggle('hidden', which !== 'lobby');
@@ -222,32 +298,85 @@ function show(which) {
 
 function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`; }
 
+function openConnection(onOpen) {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  ws = new WebSocket(wsUrl());
+  ws.onopen = onOpen;
+  ws.onmessage = ev => handleMessage(JSON.parse(ev.data));
+  ws.onerror = () => $('joinError').textContent = '서버에 연결하지 못했습니다.';
+  ws.onclose = () => {
+    if (myId || spectatorMode) { alert('서버 연결이 끊겼습니다.'); location.reload(); }
+  };
+}
+
 $('joinButton').onclick = () => {
   ensureAudio();
   updateSoundButton();
   $('joinError').textContent = '';
+  if (!selectedJoinTeam) {
+    $('joinError').textContent = 'A팀 또는 B팀을 먼저 선택하세요.';
+    return;
+  }
   localStorage.setItem('schoolLineName', $('nameInput').value);
   localStorage.setItem('schoolLineRoom', $('roomInput').value);
-  ws = new WebSocket(wsUrl());
-  ws.onopen = () => ws.send(JSON.stringify({ type:'join', name:$('nameInput').value, room:$('roomInput').value, character:pickerState.join.selected }));
-  ws.onmessage = ev => handleMessage(JSON.parse(ev.data));
-  ws.onerror = () => $('joinError').textContent = '서버에 연결하지 못했습니다.';
-  ws.onclose = () => { if (myId) { alert('서버 연결이 끊겼습니다.'); location.reload(); } };
+  openConnection(() => ws.send(JSON.stringify({ type:'join', name:$('nameInput').value, room:$('roomInput').value, team:selectedJoinTeam })));
+};
+
+$('spectatorJoinButton').onclick = () => {
+  ensureAudio();
+  updateSoundButton();
+  $('joinError').textContent = '';
+  const pin = String($('spectatorPinInput').value || '').replace(/\D/g, '').slice(0, 4);
+  if (pin.length !== 4) {
+    $('joinError').textContent = '관전자 PIN 4자리를 입력하세요.';
+    return;
+  }
+  localStorage.setItem('schoolLineRoom', $('roomInput').value);
+  openConnection(() => ws.send(JSON.stringify({ type:'spectator_join', room:$('roomInput').value, pin })));
 };
 
 function handleMessage(msg) {
   if (msg.type === 'error') { $('joinError').textContent = msg.message; if (ws) ws.close(); return; }
   if (msg.type === 'joined') {
-    myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room; show('lobby'); return;
+    myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room;
+    pickerState.lobby.selected = null;
+    const notice = $('pickNotice');
+    if (notice) notice.textContent = `${msg.team}팀으로 입장했습니다. 캐릭터를 선택하세요.`;
+    show('lobby'); return;
+  }
+  if (msg.type === 'spectator_joined') {
+    spectatorMode = true;
+    myId = null;
+    config = msg.config;
+    document.body.classList.add('spectator-mode');
+    $('roomLabel').textContent = msg.room;
+    const panel = $('characterPanel');
+    if (panel) panel.classList.add('hidden');
+    const badge = $('spectatorBadge');
+    if (badge) badge.classList.remove('hidden');
+    show('lobby');
+    return;
+  }
+  if (msg.type === 'pick_error') {
+    const notice = $('pickNotice');
+    if (notice) notice.textContent = `⚠️ ${msg.message}`;
+    if (state) renderLobby();
+    return;
+  }
+  if (msg.type === 'start_error') {
+    const notice = $('pickNotice');
+    if (notice) notice.textContent = `⚠️ ${msg.message}`;
+    return;
   }
   if (msg.type === 'state') {
     const previousState = state;
     processCombatFeedback(previousState, msg);
     state = msg;
     if (state.state === 'playing') {
+      closeMyCharacterStory();
       startBgm();
       show('game');
-      const me = state.players.find(p => p.id === myId);
+      const me = spectatorMode ? null : state.players.find(p => p.id === myId);
       if (me && !rightStick.active) {
         lastAimDir = me.team === 'A' ? {x:0,y:1} : {x:0,y:-1};
       }
@@ -263,6 +392,9 @@ $('fullscreenButton').onclick = enterGameDisplayMode;
 $('gameFullscreenButton').onclick = enterGameDisplayMode;
 $('soundButton').onclick = toggleSound;
 $('abilityButton').onclick = useAbility;
+$('storyButton').onclick = openMyCharacterStory;
+$('storyCloseButton').onclick = closeMyCharacterStory;
+$('storyOverlay').onclick = e => { if (e.target === $('storyOverlay')) closeMyCharacterStory(); };
 updateSoundButton();
 
 function useAbility() {
@@ -281,26 +413,111 @@ async function enterGameDisplayMode() {
   } catch (_) {}
 }
 
+function formatContributionNumber(value) {
+  return Math.round(Number(value) || 0).toLocaleString('ko-KR');
+}
+
+function contributionSpecialLine(character, stats) {
+  if (character === 'wind') return `순풍 적용 ${formatContributionNumber(stats.tailwindApplications)}회`;
+  if (character === 'poison') return `감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
+  if (character === 'dia') return `다이아폼 킬 ${formatContributionNumber(stats.diaFormKills)}회`;
+  return '';
+}
+
+function renderResultStats() {
+  const root = $('resultStats');
+  if (!root || !state || state.state !== 'ended') {
+    if (root) root.classList.add('hidden');
+    return;
+  }
+  root.classList.remove('hidden');
+  root.innerHTML = '';
+
+  for (const team of ['A', 'B']) {
+    const section = document.createElement('section');
+    section.className = `result-team result-team-${team.toLowerCase()}`;
+    const title = document.createElement('h3');
+    title.textContent = `${team === 'A' ? '🔵' : '🔴'} ${team}팀 기여도`;
+    section.appendChild(title);
+
+    const list = document.createElement('div');
+    list.className = 'result-player-list';
+    for (const p of state.players.filter(player => player.team === team)) {
+      const stats = p.stats || {};
+      const playedCharacter = stats.character || p.character;
+      const meta = CHARACTER_META[playedCharacter] || { icon:'●', name:'미선택' };
+      const row = document.createElement('div');
+      row.className = 'result-player-row' + (p.id === myId ? ' you' : '');
+      const special = contributionSpecialLine(playedCharacter, stats);
+      row.innerHTML = `
+        <div class="result-player-name">${meta.icon} ${escapeHtml(p.name)} <span>${meta.name}</span></div>
+        <div class="result-player-core">킬 <b>${formatContributionNumber(stats.kills)}</b> · 데스 <b>${formatContributionNumber(stats.deaths)}</b> · 딜 <b>${formatContributionNumber(stats.damage)}</b> · 힐 <b>${formatContributionNumber(stats.healing)}</b></div>
+        ${special ? `<div class="result-player-special">${special}</div>` : ''}`;
+      list.appendChild(row);
+    }
+    section.appendChild(list);
+    root.appendChild(section);
+  }
+}
+
+function getMyPlayedCharacter() {
+  if (spectatorMode || !state || state.state !== 'ended' || !myId) return null;
+  const me = state.players.find(p => p.id === myId);
+  return me?.stats?.character || me?.character || null;
+}
+
+function updateStoryButton() {
+  const button = $('storyButton');
+  if (!button) return;
+  const character = getMyPlayedCharacter();
+  button.classList.toggle('hidden', !character || !CHARACTER_STORIES[character]);
+}
+
+function openMyCharacterStory() {
+  const character = getMyPlayedCharacter();
+  const story = character ? CHARACTER_STORIES[character] : null;
+  if (!story) return;
+  $('storyTitle').textContent = `${story.icon} ${story.title}`;
+  $('storyText').textContent = story.text;
+  $('storyOverlay').classList.remove('hidden');
+}
+
+function closeMyCharacterStory() {
+  const overlay = $('storyOverlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
 function renderLobby() {
   if (!state) return;
   const me = state.players.find(p => p.id === myId);
   if (me) {
-    if (pickerState.lobby.selected !== me.character) {
+    if (me.character && pickerState.lobby.selected !== me.character) {
       pickerState.lobby.selected = me.character;
       pickerState.lobby.role = CHARACTER_META[me.character].role;
-      renderPicker('lobby');
+      localStorage.setItem('schoolLineCharacter', me.character);
     }
+    renderPicker('lobby');
   }
-  const isHost = state.hostId === myId;
+  const isHost = !spectatorMode && state.hostId === myId;
   $('startButton').classList.toggle('hidden', !isHost);
-  $('hostLabel').textContent = isHost ? '내가 방장입니다.' : '방장이 경기를 시작합니다.';
+  $('hostLabel').textContent = spectatorMode ? '📺 관전자 모드 · 경기 시작 대기 중' : (isHost ? '내가 방장입니다.' : '방장이 경기를 시작합니다.');
   $('resultBanner').classList.toggle('hidden', state.state !== 'ended');
-  if (state.state === 'ended') $('resultBanner').textContent = state.winner === 'DRAW' ? '무승부!' : `${state.winner}팀 승리! 방장이 다시 시작할 수 있습니다.`;
+  if (state.state === 'ended') {
+    const finalScore = `${Math.floor(state.scoreA)} : ${Math.floor(state.scoreB)}`;
+    $('resultBanner').textContent = state.winner === 'DRAW' ? `무승부! ${finalScore}` : `${state.winner}팀 승리! ${finalScore}`;
+  }
+  renderResultStats();
+  updateStoryButton();
   for (const team of ['A','B']) {
     const root = $(team === 'A' ? 'teamAList' : 'teamBList'); root.innerHTML = '';
     for (const p of state.players.filter(p => p.team === team)) {
       const div = document.createElement('div'); div.className = 'player-row' + (p.id === myId ? ' you' : '');
-      div.innerHTML = `<span>${p.id === state.hostId ? '👑 ' : ''}${escapeHtml(p.name)}</span><span>${CHARACTER_META[p.character].icon} ${CHARACTER_META[p.character].name}</span>`;
+      const isOwnTeam = !spectatorMode && me && p.team === me.team;
+      let pickText;
+      if (spectatorMode || !isOwnTeam) pickText = '🔒 픽 비공개';
+      else if (!p.character) pickText = '⌛ 미선택';
+      else pickText = `${CHARACTER_META[p.character].icon} ${CHARACTER_META[p.character].name}`;
+      div.innerHTML = `<span>${p.id === state.hostId ? '👑 ' : ''}${escapeHtml(p.name)}</span><span>${pickText}</span>`;
       root.appendChild(div);
     }
   }
@@ -317,7 +534,7 @@ function setKey(code, value) {
   if (code === 'KeyD' || code === 'ArrowRight') keys.down = value;
 }
 window.addEventListener('keydown', e => {
-  if (gameScreen.classList.contains('hidden')) return;
+  if (spectatorMode || gameScreen.classList.contains('hidden')) return;
   setKey(e.code, true);
   if (e.code === 'Space' && !e.repeat) useAbility();
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
@@ -330,7 +547,7 @@ canvas.addEventListener('mousemove', e => {
     const p = clientToWorld(e.clientX, e.clientY); mouseWorld.x = p.x; mouseWorld.y = p.y;
   }
 });
-canvas.addEventListener('mousedown', e => { if (e.button === 0) firing = true; });
+canvas.addEventListener('mousedown', e => { if (!spectatorMode && e.button === 0) firing = true; });
 window.addEventListener('mouseup', e => { if (e.button === 0) firing = false; });
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) resetInputs(); });
@@ -411,6 +628,7 @@ function updateStick(stick, clientX, clientY) {
 }
 
 setInterval(() => {
+  if (spectatorMode) return;
   if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;
   const me = state.players.find(p => p.id === myId);
   if (me && rightStick.active) {
@@ -444,8 +662,8 @@ function renderGame() {
 
   for (const b of (state.beams || [])) {
     const a=worldToScreen(b.x1,b.y1), z=worldToScreen(b.x2,b.y2);
-    const beamColor = b.character === 'ice' ? '#78e9ff' : (b.character === 'dia' ? '#8df6ff' : (b.character === 'light' ? '#ffe66d' : '#ff477e'));
-    const glowColor = b.character === 'laser' ? 'rgba(255,70,120,.28)' : (b.character === 'light' ? 'rgba(255,230,109,.32)' : 'rgba(120,235,255,.30)');
+    const beamColor = b.character === 'ice' ? '#78e9ff' : (b.character === 'dia' ? '#8df6ff' : (b.character === 'light' ? '#ffe66d' : (b.character === 'poison' ? '#b878ff' : '#ff477e')));
+    const glowColor = b.character === 'laser' ? 'rgba(255,70,120,.28)' : (b.character === 'light' ? 'rgba(255,230,109,.32)' : (b.character === 'poison' ? 'rgba(184,120,255,.30)' : 'rgba(120,235,255,.30)'));
     ctx.save();
     ctx.lineCap='round';
     ctx.strokeStyle=glowColor; ctx.lineWidth=8;
@@ -468,16 +686,25 @@ function renderGame() {
 
   for (const p of state.players) {
     if (!p.alive) continue;
-    const radius = ({iron:.65,mecha:.65,shooter:.5,sniper:.4,cannon:.65,fire:.5,water:.4,wind:.4,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
+    const radius = ({iron:.65,mecha:.65,shooter:.5,sniper:.4,cannon:.65,fire:.5,poison:.5,water:.4,wind:.4,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
     const s=worldToScreen(p.x,p.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',water:'#4cc9f0',wind:'#73d6a6',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
+    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',water:'#4cc9f0',wind:'#73d6a6',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
     if (p.burning) { ctx.lineWidth=2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); }
+    if (p.poisoned) { ctx.lineWidth=2.5; ctx.strokeStyle='#c58cff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); }
     if (p.tailwind) { ctx.lineWidth=2; ctx.strokeStyle='#b1ffe1'; ctx.beginPath(); ctx.arc(x,y,radius+7,0,Math.PI*2); ctx.stroke(); }
     if (p.frozen) { ctx.lineWidth=2.5; ctx.strokeStyle='#92efff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); }
     if (p.diaForm) { ctx.lineWidth=3; ctx.strokeStyle='#e4fdff'; ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.stroke(); }
+    if (p.invulnerable) {
+      ctx.save();
+      ctx.lineWidth=3.5; ctx.strokeStyle='#fff4a8'; ctx.globalAlpha=.95;
+      ctx.beginPath(); ctx.arc(x,y,radius+11,0,Math.PI*2); ctx.stroke();
+      ctx.lineWidth=7; ctx.strokeStyle='rgba(255,244,168,.18)';
+      ctx.beginPath(); ctx.arc(x,y,radius+11,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
 
     const target=worldToScreen(p.aimX,p.aimY), adx=target.x-x, ady=target.y-y, al=Math.hypot(adx,ady)||1;
     ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+(adx/al)*(radius+9),y+(ady/al)*(radius+9)); ctx.stroke();
@@ -506,8 +733,13 @@ function renderGame() {
     drawText(p.name,x,by-7,11,'center','#f6f8fb');
   }
 
-  const me = state.players.find(p => p.id === myId);
+  const me = spectatorMode ? null : state.players.find(p => p.id === myId);
   const t = Math.ceil(state.timeLeft); $('timer').textContent = `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
+  if (spectatorMode) {
+    $('myInfo').innerHTML = '';
+    $('respawn').textContent = '';
+    $('abilityButton').classList.add('hidden');
+  }
   $('scoreA').textContent = Math.floor(state.scoreA); $('scoreB').textContent = Math.floor(state.scoreB);
   if (me) {
     const m=CHARACTER_META[me.character];

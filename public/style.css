@@ -94,3 +94,89 @@ h2, h3 { margin-top: 0; }
   .character-choices { grid-template-columns: repeat(2, 1fr); }
   .join-panel { margin-top: 12px; }
 }
+
+/* Alpha 0.8: same-team unique character picks */
+.character-choice.unavailable,
+.character-choice:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+  filter: grayscale(.55);
+  border-color: rgba(255,255,255,.08);
+}
+.character-choice.unavailable:hover,
+.character-choice:disabled:hover { transform: none; }
+.character-taken-note {
+  margin-top: 9px;
+  color: #ffcf70;
+  font-size: 12px;
+  font-weight: 800;
+}
+.pick-notice {
+  min-height: 1.35em;
+  margin: 10px 0 0;
+  color: #ffcf70;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+
+/* Alpha 0.8 cumulative: manual team entry + hidden enemy draft */
+.team-select-shell { margin: 16px 0 18px; padding: 14px; border-radius: 14px; background: #121925; border: 1px solid #2d394b; }
+.team-select-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.team-select-button { min-height: 64px; font-size: 18px; font-weight: 950; border: 2px solid transparent; opacity: .72; }
+.team-select-button.selected { opacity: 1; transform: translateY(-1px); box-shadow: 0 0 0 3px rgba(255,255,255,.10); }
+.team-a-choice { background: rgba(47,119,255,.26); border-color: rgba(79,137,255,.36); }
+.team-a-choice.selected { border-color: #65a0ff; background: rgba(47,119,255,.46); }
+.team-b-choice { background: rgba(255,69,69,.22); border-color: rgba(255,78,78,.34); }
+.team-b-choice.selected { border-color: #ff7474; background: rgba(255,69,69,.42); }
+.team-select-help { margin: 10px 0 0; color: #9fb0c6; font-size: 12px; text-align: center; }
+
+
+/* Alpha 0.8 cumulative: teacher spectator mode */
+.spectator-entry { margin: 14px 0 0; padding: 13px; border-radius: 14px; background: #0e1621; border: 1px solid #314158; }
+.spectator-entry-title { font-weight: 900; margin-bottom: 8px; }
+.spectator-entry-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.spectator-entry-row input { min-width: 0; letter-spacing: .22em; text-align: center; font-weight: 900; }
+.spectator-entry-row button { min-width: 112px; background: #26384d; border-color: #526d8e; font-weight: 900; }
+.spectator-entry-help { margin-top: 7px; color: #8fa5be; font-size: 11px; line-height: 1.4; }
+.spectator-badge { position: absolute; left: max(10px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); z-index: 9; padding: 8px 12px; border-radius: 12px; background: rgba(10,14,20,.78); border: 1px solid rgba(255,255,255,.16); font-weight: 900; pointer-events: none; }
+body.spectator-mode .touch-controls,
+body.spectator-mode .my-info,
+body.spectator-mode .respawn,
+body.spectator-mode .ability-button { display: none !important; }
+body.spectator-mode .spectator-badge { display: block !important; }
+body.spectator-mode #characterPanel { display: none !important; }
+body.spectator-mode .lobby-layout { grid-template-columns: 1fr; max-width: 820px; }
+@media (max-width: 520px) {
+  .spectator-entry-row { grid-template-columns: 1fr; }
+  .spectator-entry-row button { width: 100%; }
+}
+
+
+/* Alpha 0.8 cumulative: end-of-match contribution summary */
+.result-stats { margin: 12px 0 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.result-team { min-width: 0; padding: 12px; border-radius: 14px; background: #0f1722; border: 1px solid #2d3b4e; }
+.result-team-a { border-color: rgba(79,137,255,.45); }
+.result-team-b { border-color: rgba(255,78,78,.45); }
+.result-team h3 { margin: 0 0 9px; font-size: 16px; }
+.result-player-list { display: grid; gap: 7px; }
+.result-player-row { padding: 9px 10px; border-radius: 10px; background: #151f2b; border: 1px solid rgba(255,255,255,.07); }
+.result-player-row.you { box-shadow: inset 0 0 0 1px rgba(240,213,111,.55); }
+.result-player-name { font-weight: 900; line-height: 1.3; }
+.result-player-name span { margin-left: 5px; color: #9fb0c6; font-size: 12px; font-weight: 800; }
+.result-player-core { margin-top: 4px; color: #d8e2ef; font-size: 12px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+.result-player-special { margin-top: 4px; color: #ffcf70; font-size: 12px; font-weight: 900; }
+@media (max-width: 680px) {
+  .result-stats { grid-template-columns: 1fr; }
+}
+
+
+/* Alpha 0.8: post-match personal character story (session-only, no unlock/save). */
+.story-button { width: 100%; margin: 0 0 16px; padding: 12px 14px; border: 1px solid rgba(240,213,111,.55); background: #202a37; color: #ffe69a; font-weight: 900; border-radius: 12px; }
+.story-overlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 22px; background: rgba(3,8,15,.82); backdrop-filter: blur(5px); }
+.story-overlay.hidden { display: none; }
+.story-card { width: min(620px, 92vw); max-height: 82vh; overflow: auto; padding: 24px; border-radius: 18px; background: #111a25; border: 1px solid rgba(240,213,111,.42); box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+.story-kicker { color: #ffcf70; font-size: 13px; font-weight: 900; letter-spacing: .02em; }
+.story-card h2 { margin: 8px 0 12px; font-size: 25px; }
+.story-card p { margin: 0; color: #e4ebf3; font-size: 16px; line-height: 1.75; white-space: pre-line; }
+.story-close-button { width: 100%; margin-top: 20px; padding: 12px 14px; font-weight: 900; }

@@ -14,6 +14,12 @@ const SNAPSHOT_RATE = 20;
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
 const RESPAWN_MS = 10000;
+const RESPAWN_INVULN_MS = 2000;
+const NONCOMBAT_REGEN_DELAY_MS = 3000;
+const NONCOMBAT_REGEN_HPS = 50;
+const SPECTATOR_PIN_HASH = '72a2d4365f37780690ee9d05b9a173e9036187fbfd5b5ae61785c5d5b0bf8a8a'; // SHA-256 of teacher PIN
+const SPECTATOR_MAX_FAILURES = 5;
+const SPECTATOR_LOCK_MS = 30000;
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [3.2, 4.0, 5.0, 6.0, 7.2, 8.2];
@@ -57,6 +63,11 @@ const CHARACTERS = {
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.12,
     projectileType: 'attack', damage: 16, burnDps: 10, burnDuration: 2
   },
+  poison: {
+    name: '포이즌', role: '딜러', hp: 250, speed: 5.0, radius: 0.50,
+    attackType: 'beam', range: 16, beamDps: 85,
+    poisonHealReduction: 0.50, poisonDuration: 1.5
+  },
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 5.0, radius: 0.40,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.12,
@@ -90,7 +101,9 @@ const CHARACTERS = {
 };
 
 const rooms = new Map();
+const spectatorAuthFailures = new Map();
 let idCounter = 1;
+let spectatorCounter = 1;
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function distance(ax, ay, bx, by) { return Math.hypot(bx - ax, by - ay); }
@@ -102,6 +115,22 @@ function safeRoom(value) {
   const s = String(value || '').toUpperCase().replace(/[^A-Z0-9가-힣_-]/g, '').slice(0, 10);
   return s || '6-1';
 }
+function safePin(value) { return String(value || '').replace(/\D/g, '').slice(0, 4); }
+function hashText(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
+function spectatorAuthLocked(remoteAddress, now = Date.now()) {
+  const entry = spectatorAuthFailures.get(remoteAddress);
+  if (!entry) return false;
+  if (entry.lockUntil && entry.lockUntil > now) return true;
+  if (entry.lockUntil && entry.lockUntil <= now) spectatorAuthFailures.delete(remoteAddress);
+  return false;
+}
+function noteSpectatorAuthFailure(remoteAddress, now = Date.now()) {
+  const entry = spectatorAuthFailures.get(remoteAddress) || { count: 0, lockUntil: 0 };
+  entry.count += 1;
+  if (entry.count >= SPECTATOR_MAX_FAILURES) { entry.count = 0; entry.lockUntil = now + SPECTATOR_LOCK_MS; }
+  spectatorAuthFailures.set(remoteAddress, entry);
+}
+function clearSpectatorAuthFailure(remoteAddress) { spectatorAuthFailures.delete(remoteAddress); }
 function validCharacter(value) { return CHARACTERS[value] ? value : 'shooter'; }
 function speedWithTierDelta(speed, delta) {
   let best = 0;
@@ -175,13 +204,15 @@ function sendFrame(socket, opcode, payload) {
   socket.write(Buffer.concat([header, body]));
 }
 
-function makeWsConnection(socket) {
+function makeWsConnection(socket, remoteAddress = '') {
   const conn = {
     socket,
     buffer: Buffer.alloc(0),
     closed: false,
     playerId: null,
+    spectatorId: null,
     roomCode: null,
+    remoteAddress,
     send(obj) {
       if (this.closed || socket.destroyed) return;
       try { sendFrame(socket, 0x1, JSON.stringify(obj)); } catch (_) {}
@@ -209,7 +240,7 @@ server.on('upgrade', (req, socket) => {
     '\r\n'
   ].join('\r\n'));
 
-  const conn = makeWsConnection(socket);
+  const conn = makeWsConnection(socket, req.socket.remoteAddress || 'unknown');
   socket.on('data', chunk => parseWsData(conn, chunk));
   socket.on('close', () => disconnect(conn));
   socket.on('error', () => disconnect(conn));
@@ -256,6 +287,7 @@ function newRoom(code) {
     state: 'lobby',
     players: new Map(),
     clients: new Map(),
+    spectators: new Map(),
     projectiles: new Map(),
     beams: [],
     hostId: null,
@@ -273,6 +305,23 @@ function countTeam(room, team) {
   return n;
 }
 
+function isCharacterTakenOnTeam(room, team, character, excludePlayerId = null) {
+  for (const p of room.players.values()) {
+    if (p.id !== excludePlayerId && p.team === team && p.character === character) return true;
+  }
+  return false;
+}
+
+function firstAvailableCharacter(room, team, preferredRole = null) {
+  const entries = Object.entries(CHARACTERS);
+  if (preferredRole) {
+    const sameRole = entries.find(([id, c]) => c.role === preferredRole && !isCharacterTakenOnTeam(room, team, id));
+    if (sameRole) return sameRole[0];
+  }
+  const any = entries.find(([id]) => !isCharacterTakenOnTeam(room, team, id));
+  return any ? any[0] : 'shooter';
+}
+
 function spawnPoint(room, player) {
   const teammates = [...room.players.values()].filter(p => p.team === player.team).sort((a, b) => a.id.localeCompare(b.id));
   const idx = Math.max(0, teammates.findIndex(p => p.id === player.id));
@@ -283,6 +332,7 @@ function spawnPoint(room, player) {
 
 function onMessage(conn, msg) {
   if (!msg || typeof msg !== 'object') return;
+  if (msg.type === 'spectator_join') return joinSpectator(conn, msg);
   if (msg.type === 'join') return joinRoom(conn, msg);
   const room = rooms.get(conn.roomCode);
   if (!room || !conn.playerId) return;
@@ -290,7 +340,13 @@ function onMessage(conn, msg) {
   if (!player) return;
 
   if (msg.type === 'select' && room.state !== 'playing') {
-    player.character = validCharacter(msg.character);
+    const requested = validCharacter(msg.character);
+    if (requested !== player.character && isCharacterTakenOnTeam(room, player.team, requested, player.id)) {
+      conn.send({ type: 'pick_error', character: requested, message: '같은 팀에서 이미 사용 중인 캐릭터입니다.' });
+      broadcast(room);
+      return;
+    }
+    player.character = requested;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
     player.iceSlowUntil = 0; player.diaFormUntil = 0; player.diaCooldownUntil = 0;
@@ -298,6 +354,11 @@ function onMessage(conn, msg) {
     return;
   }
   if (msg.type === 'start' && room.hostId === player.id && room.state !== 'playing') {
+    const unpicked = [...room.players.values()].filter(p => !p.character);
+    if (unpicked.length) {
+      conn.send({ type: 'start_error', message: `아직 캐릭터를 선택하지 않은 참가자가 ${unpicked.length}명 있습니다.` });
+      return;
+    }
     startMatch(room);
     return;
   }
@@ -316,6 +377,37 @@ function onMessage(conn, msg) {
   }
 }
 
+function joinSpectator(conn, msg) {
+  if (conn.playerId || conn.spectatorId) return;
+  const now = Date.now();
+  if (spectatorAuthLocked(conn.remoteAddress, now)) {
+    conn.send({ type: 'error', message: '관전자 PIN 입력이 잠시 잠겼습니다. 30초 뒤 다시 시도하세요.' });
+    return;
+  }
+  const pin = safePin(msg.pin);
+  if (pin.length !== 4 || hashText(pin) !== SPECTATOR_PIN_HASH) {
+    noteSpectatorAuthFailure(conn.remoteAddress, now);
+    conn.send({ type: 'error', message: '관전자 PIN이 올바르지 않습니다.' });
+    return;
+  }
+  clearSpectatorAuthFailure(conn.remoteAddress);
+  const code = safeRoom(msg.room);
+  const room = rooms.get(code);
+  if (!room) {
+    conn.send({ type: 'error', message: '아직 만들어지지 않은 방입니다. 학생이 먼저 입장해야 합니다.' });
+    return;
+  }
+  const spectatorId = `S${spectatorCounter++}`;
+  conn.spectatorId = spectatorId;
+  conn.roomCode = code;
+  room.spectators.set(spectatorId, conn);
+  conn.send({
+    type: 'spectator_joined', id: spectatorId, room: code,
+    config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
+  });
+  conn.send(snapshot(room, null, true));
+}
+
 function joinRoom(conn, msg) {
   if (conn.playerId) return;
   const code = safeRoom(msg.room);
@@ -324,27 +416,34 @@ function joinRoom(conn, msg) {
   if (room.players.size >= 8) { conn.send({ type: 'error', message: '이 방은 이미 8명입니다.' }); return; }
   if (room.state === 'playing') { conn.send({ type: 'error', message: '이미 경기가 진행 중입니다.' }); return; }
 
-  const team = countTeam(room, 'A') <= countTeam(room, 'B') ? 'A' : 'B';
+  const team = msg.team === 'A' || msg.team === 'B' ? msg.team : null;
+  if (!team) { conn.send({ type: 'error', message: 'A팀 또는 B팀을 선택하세요.' }); return; }
+  if (countTeam(room, team) >= 4) { conn.send({ type: 'error', message: `${team}팀은 이미 4명입니다.` }); return; }
+
   const id = `P${idCounter++}`;
-  const character = validCharacter(msg.character);
-  const def = CHARACTERS[character];
   const player = {
-    id, name: safeName(msg.name), team, character,
+    id, name: safeName(msg.name), team, character: null,
     x: 21, y: team === 'A' ? 5 : 63,
-    hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0,
+    hp: 0, maxHp: 0, alive: true, respawnAt: 0, invulnerableUntil: 0,
     aimX: 21, aimY: team === 'A' ? 20 : 48,
     input: { up: false, down: false, left: false, right: false, fire: false },
     nextFireAt: 0,
-    burnUntil: 0, burnDps: 0,
+    burnUntil: 0, burnDps: 0, burnSourceId: null,
+    poisonUntil: 0, poisonSourceId: null,
+    lastCombatAt: 0,
     tailwindUntil: 0, iceSlowUntil: 0,
-    diaFormUntil: 0, diaCooldownUntil: 0
+    diaFormUntil: 0, diaCooldownUntil: 0,
+    stats: makeMatchStats(null)
   };
   room.players.set(id, player);
   room.clients.set(id, conn);
   if (!room.hostId) room.hostId = id;
   conn.playerId = id; conn.roomCode = code;
   const sp = spawnPoint(room, player); player.x = sp.x; player.y = sp.y;
-  conn.send({ type: 'joined', id, room: code, config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() } });
+  conn.send({
+    type: 'joined', id, room: code, team,
+    config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
+  });
   broadcast(room);
 }
 
@@ -360,31 +459,41 @@ function publicCharacterDefs() {
 }
 
 function disconnect(conn) {
-  if (conn.closed && !conn.playerId) return;
+  if (conn.closed && !conn.playerId && !conn.spectatorId) return;
   conn.closed = true;
   const room = rooms.get(conn.roomCode);
-  if (!room || !conn.playerId) return;
+  if (!room) return;
+  if (conn.spectatorId) {
+    room.spectators.delete(conn.spectatorId);
+    conn.spectatorId = null;
+    if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code);
+    conn.roomCode = null;
+    return;
+  }
+  if (!conn.playerId) return;
   room.players.delete(conn.playerId);
   room.clients.delete(conn.playerId);
   for (const [pid, proj] of room.projectiles) if (proj.ownerId === conn.playerId) room.projectiles.delete(pid);
   if (room.hostId === conn.playerId) room.hostId = room.players.keys().next().value || null;
-  if (room.players.size === 0) rooms.delete(room.code); else broadcast(room);
+  if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code); else broadcast(room);
   conn.playerId = null; conn.roomCode = null;
 }
 
 function startMatch(room) {
+  const now = Date.now();
   room.state = 'playing';
   room.scoreA = 0; room.scoreB = 0; room.winner = null;
-  room.matchEndAt = Date.now() + MATCH_SECONDS * 1000;
+  room.matchEndAt = now + MATCH_SECONDS * 1000;
   room.projectiles.clear();
   room.beams = [];
   for (const p of room.players.values()) {
     const def = CHARACTERS[p.character];
     const sp = spawnPoint(room, p);
     Object.assign(p, {
-      x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0,
-      nextFireAt: 0, burnUntil: 0, burnDps: 0, tailwindUntil: 0, iceSlowUntil: 0,
-      diaFormUntil: 0, diaCooldownUntil: 0
+      x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0, invulnerableUntil: 0,
+      nextFireAt: 0, burnUntil: 0, burnDps: 0, burnSourceId: null, poisonUntil: 0, poisonSourceId: null, tailwindUntil: 0, iceSlowUntil: 0,
+      diaFormUntil: 0, diaCooldownUntil: 0, lastCombatAt: now,
+      stats: makeMatchStats(p.character)
     });
     p.input = { up: false, down: false, left: false, right: false, fire: false };
   }
@@ -410,17 +519,28 @@ function endDiaForm(player) {
   player.hp = Math.min(player.hp, def.hp);
 }
 
-function registerDirectKill(room, attackerId, now) {
+function registerKill(room, attackerId, now, direct = true) {
   const attacker = room.players.get(attackerId);
-  if (!attacker || !attacker.alive || !isDiaForm(attacker, now)) return;
-  attacker.diaCooldownUntil = Math.max(now, attacker.diaCooldownUntil - 6000);
+  if (!attacker) return;
+  const stats = ensureMatchStats(attacker);
+  stats.kills += 1;
+  if (direct && attacker.alive && isDiaForm(attacker, now)) {
+    stats.diaFormKills += 1;
+    attacker.diaCooldownUntil = Math.max(now, attacker.diaCooldownUntil - 6000);
+  }
+}
+
+function registerDirectKill(room, attackerId, now) {
+  registerKill(room, attackerId, now, true);
 }
 
 function die(room, player, now) {
+  ensureMatchStats(player).deaths += 1;
   player.hp = 0;
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
-  player.burnUntil = 0; player.burnDps = 0; player.tailwindUntil = 0; player.iceSlowUntil = 0;
+  player.invulnerableUntil = 0;
+  player.burnUntil = 0; player.burnDps = 0; player.burnSourceId = null; player.poisonUntil = 0; player.poisonSourceId = null; player.tailwindUntil = 0; player.iceSlowUntil = 0;
   if (player.character === 'dia') {
     player.diaFormUntil = 0;
     player.maxHp = CHARACTERS.dia.hp;
@@ -428,13 +548,14 @@ function die(room, player, now) {
   player.input.fire = false;
 }
 
-function respawn(room, player) {
+function respawn(room, player, now) {
   const def = CHARACTERS[player.character];
   const sp = spawnPoint(room, player);
   player.x = sp.x; player.y = sp.y;
   player.hp = def.hp; player.maxHp = def.hp;
-  player.alive = true; player.respawnAt = 0;
-  player.burnUntil = 0; player.burnDps = 0; player.tailwindUntil = 0; player.iceSlowUntil = 0;
+  player.alive = true; player.respawnAt = 0; player.invulnerableUntil = now + RESPAWN_INVULN_MS;
+  player.burnUntil = 0; player.burnDps = 0; player.burnSourceId = null; player.poisonUntil = 0; player.poisonSourceId = null; player.tailwindUntil = 0; player.iceSlowUntil = 0;
+  player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
 }
 
@@ -486,6 +607,69 @@ function segmentAabbT(x1, y1, x2, y2, minX, minY, maxX, maxY) {
   return tmin;
 }
 
+function markCombat(room, attackerId, target, now) {
+  const attacker = room.players.get(attackerId);
+  if (attacker) attacker.lastCombatAt = now;
+  if (target) target.lastCombatAt = now;
+}
+
+function makeMatchStats(character = null) {
+  return {
+    character,
+    kills: 0,
+    deaths: 0,
+    damage: 0,
+    healing: 0,
+    tailwindApplications: 0,
+    diaFormKills: 0,
+    healingPrevented: 0
+  };
+}
+
+function ensureMatchStats(player) {
+  if (!player.stats) player.stats = makeMatchStats(player.character || null);
+  return player.stats;
+}
+
+function dealDamage(room, attackerId, target, amount, now) {
+  const raw = Math.max(0, Number(amount) || 0);
+  const before = Math.max(0, target.hp);
+  const actual = Math.min(before, raw);
+  if (actual <= 0) return 0;
+  target.hp = before - actual;
+  const attacker = room.players.get(attackerId);
+  if (attacker) ensureMatchStats(attacker).damage += actual;
+  markCombat(room, attackerId, target, now);
+  return actual;
+}
+
+function applyHealing(room, healer, target, amount, now) {
+  const raw = Math.max(0, Number(amount) || 0);
+  const before = Math.max(0, target.hp);
+  const missing = Math.max(0, target.maxHp - before);
+  if (raw <= 0 || missing <= 0) return 0;
+
+  let effectiveRaw = raw;
+  let prevented = 0;
+  // Poison only reduces external healing from another character. Natural noncombat regen does not use this function.
+  if (healer && healer.id !== target.id && target.poisonUntil > now) {
+    const source = room.players.get(target.poisonSourceId);
+    const reduction = CHARACTERS.poison.poisonHealReduction;
+    effectiveRaw = raw * (1 - reduction);
+    // Count only healing that would actually have restored missing HP, not hypothetical overheal.
+    const withoutPoison = Math.min(missing, raw);
+    const withPoison = Math.min(missing, effectiveRaw);
+    prevented = Math.max(0, withoutPoison - withPoison);
+    if (source && source.character === 'poison') ensureMatchStats(source).healingPrevented += prevented;
+  }
+
+  const actual = Math.min(missing, effectiveRaw);
+  if (actual <= 0) return 0;
+  target.hp = before + actual;
+  if (healer) ensureMatchStats(healer).healing += actual;
+  return actual;
+}
+
 function traceBeam(room, player, def, dt, now) {
   let dx = player.aimX - player.x, dy = player.aimY - player.y;
   const len = Math.hypot(dx, dy);
@@ -524,12 +708,18 @@ function traceBeam(room, player, def, dt, now) {
 
   if (hit && hit.kind === 'player') {
     const target = hit.target;
-    const dps = def.beamDps + target.maxHp * (def.maxHpDpsRatio || 0);
-    target.hp -= dps * dt;
-    if (def.slowTierDelta < 0) target.iceSlowUntil = now + def.slowDuration * 1000;
-    if (target.hp <= 0) {
-      registerDirectKill(room, player.id, now);
-      die(room, target, now);
+    if (target.invulnerableUntil <= now) {
+      const dps = def.beamDps + target.maxHp * (def.maxHpDpsRatio || 0);
+      dealDamage(room, player.id, target, dps * dt, now);
+      if (def.slowTierDelta < 0) target.iceSlowUntil = now + def.slowDuration * 1000;
+      if (def.poisonHealReduction > 0) {
+        target.poisonUntil = now + def.poisonDuration * 1000;
+        target.poisonSourceId = player.id;
+      }
+      if (target.hp <= 0) {
+        registerDirectKill(room, player.id, now);
+        die(room, target, now);
+      }
     }
   }
 }
@@ -581,9 +771,9 @@ function traceLightBeam(room, player, def, dt, now) {
     break;
   }
 
-  if (healedAlly) healedAlly.hp = Math.min(healedAlly.maxHp, healedAlly.hp + def.healHps * dt);
-  if (enemyHit) {
-    enemyHit.hp -= def.beamDps * dt;
+  if (healedAlly) applyHealing(room, player, healedAlly, def.healHps * dt, now);
+  if (enemyHit && enemyHit.invulnerableUntil <= now) {
+    dealDamage(room, player.id, enemyHit, def.beamDps * dt, now);
     if (enemyHit.hp <= 0) {
       registerDirectKill(room, player.id, now);
       die(room, enemyHit, now);
@@ -657,17 +847,23 @@ function updateProjectiles(room, dt, now) {
       if (hit.kind === 'player') {
         const t = hit.target;
         if (p.type === 'attack') {
-          const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
-          const hitDamage = p.distanceDamage ? (impactDistance <= 16 ? 65 : (impactDistance <= 32 ? 85 : 105)) : p.damage;
-          t.hp -= hitDamage;
-          if (p.burnDps > 0) { t.burnDps = p.burnDps; t.burnUntil = now + p.burnDuration * 1000; }
-          if (t.hp <= 0) {
-            registerDirectKill(room, p.ownerId, now);
-            die(room, t, now);
+          if (t.invulnerableUntil <= now) {
+            const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
+            const hitDamage = p.distanceDamage ? (impactDistance <= 16 ? 65 : (impactDistance <= 32 ? 85 : 105)) : p.damage;
+            dealDamage(room, p.ownerId, t, hitDamage, now);
+            if (p.burnDps > 0) { t.burnDps = p.burnDps; t.burnUntil = now + p.burnDuration * 1000; t.burnSourceId = p.ownerId; }
+            if (t.hp <= 0) {
+              registerDirectKill(room, p.ownerId, now);
+              die(room, t, now);
+            }
           }
         } else {
-          t.hp = Math.min(t.maxHp, t.hp + p.heal);
-          if (p.tailwindDuration > 0) t.tailwindUntil = now + p.tailwindDuration * 1000;
+          const healer = room.players.get(p.ownerId);
+          applyHealing(room, healer, t, p.heal, now);
+          if (p.tailwindDuration > 0) {
+            t.tailwindUntil = now + p.tailwindDuration * 1000;
+            if (healer) ensureMatchStats(healer).tailwindApplications += 1;
+          }
         }
       }
       room.projectiles.delete(id);
@@ -693,14 +889,24 @@ function updateRoom(room, dt, now) {
   for (const player of room.players.values()) {
     const def = CHARACTERS[player.character];
     if (!player.alive) {
-      if (now >= player.respawnAt) respawn(room, player);
+      if (now >= player.respawnAt) respawn(room, player, now);
       continue;
     }
     if (player.character === 'dia' && player.diaFormUntil > 0 && now >= player.diaFormUntil) endDiaForm(player);
     if (player.burnUntil > now) {
-      player.hp -= player.burnDps * dt;
-      if (player.hp <= 0) { die(room, player, now); continue; }
-    } else { player.burnDps = 0; }
+      if (player.invulnerableUntil <= now) {
+        dealDamage(room, player.burnSourceId, player, player.burnDps * dt, now);
+        if (player.hp <= 0) {
+          registerKill(room, player.burnSourceId, now, false);
+          die(room, player, now);
+          continue;
+        }
+      }
+    } else { player.burnDps = 0; player.burnSourceId = null; }
+
+    if (player.hp < player.maxHp && now - player.lastCombatAt >= NONCOMBAT_REGEN_DELAY_MS) {
+      player.hp = Math.min(player.maxHp, player.hp + NONCOMBAT_REGEN_HPS * dt);
+    }
 
     let mx = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
     let my = (player.input.down ? 1 : 0) - (player.input.up ? 1 : 0);
@@ -734,31 +940,40 @@ function updateRoom(room, dt, now) {
   if (bInA && !aInA) room.scoreB += dt;
 }
 
-function snapshot(room) {
+function snapshot(room, viewerId = null, spectator = false) {
   const now = Date.now();
+  const viewer = viewerId ? room.players.get(viewerId) : null;
+  const hideEnemyPicks = room.state === 'lobby' && !!viewer;
+  const hideAllPicks = room.state === 'lobby' && spectator;
   return {
     type: 'state', state: room.state, room: room.code, hostId: room.hostId,
     scoreA: room.scoreA, scoreB: room.scoreB,
     timeLeft: room.state === 'playing' ? Math.max(0, (room.matchEndAt - now) / 1000) : 0,
     winner: room.winner,
-    players: [...room.players.values()].map(p => ({
-      id: p.id, name: p.name, team: p.team, character: p.character,
-      x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, alive: p.alive,
-      respawnMs: p.alive ? 0 : Math.max(0, p.respawnAt - now),
-      aimX: p.aimX, aimY: p.aimY,
-      burning: p.burnUntil > now, tailwind: p.tailwindUntil > now, frozen: p.iceSlowUntil > now,
-      diaForm: isDiaForm(p, now),
-      diaFormMs: isDiaForm(p, now) ? Math.max(0, p.diaFormUntil - now) : 0,
-      diaCooldownMs: p.character === 'dia' ? Math.max(0, p.diaCooldownUntil - now) : 0
-    })),
+    players: [...room.players.values()].map(p => {
+      const hideCharacter = hideAllPicks || (hideEnemyPicks && p.team !== viewer.team);
+      return {
+        id: p.id, name: p.name, team: p.team, character: hideCharacter ? null : p.character,
+        x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, alive: p.alive,
+        respawnMs: p.alive ? 0 : Math.max(0, p.respawnAt - now),
+        invulnerable: p.alive && p.invulnerableUntil > now,
+        invulnerableMs: p.alive ? Math.max(0, p.invulnerableUntil - now) : 0,
+        aimX: p.aimX, aimY: p.aimY,
+        burning: p.burnUntil > now, poisoned: p.poisonUntil > now, tailwind: p.tailwindUntil > now, frozen: p.iceSlowUntil > now,
+        diaForm: !hideCharacter && isDiaForm(p, now),
+        diaFormMs: !hideCharacter && isDiaForm(p, now) ? Math.max(0, p.diaFormUntil - now) : 0,
+        diaCooldownMs: !hideCharacter && p.character === 'dia' ? Math.max(0, p.diaCooldownUntil - now) : 0,
+        stats: room.state === 'ended' ? { ...ensureMatchStats(p) } : null
+      };
+    }),
     projectiles: [...room.projectiles.values()].map(p => ({ id: p.id, x: p.x, y: p.y, radius: p.radius, type: p.type, team: p.team, character: p.character })),
     beams: room.beams.map(b => ({ ownerId: b.ownerId, team: b.team, character: b.character, x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2, healedId: b.healedId || null, hitEnemyId: b.hitEnemyId || null }))
   };
 }
 
 function broadcast(room) {
-  const data = snapshot(room);
-  for (const conn of room.clients.values()) conn.send(data);
+  for (const [playerId, conn] of room.clients.entries()) conn.send(snapshot(room, playerId));
+  for (const conn of room.spectators.values()) conn.send(snapshot(room, null, true));
 }
 
 setInterval(() => {
@@ -771,7 +986,7 @@ setInterval(() => {
 }, 1000 / SNAPSHOT_RATE);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\nSchool Line Mobile Alpha 0.5`);
+  console.log(`\nSchool Line Mobile Alpha 0.8`);
   console.log(`Local: http://localhost:${PORT}`);
   console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}\n`);
 });

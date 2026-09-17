@@ -11,18 +11,30 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">Mobile Alpha 0.7 · 4 vs 4 점유전 · 12 캐릭터 · 스쿨라인 밸런스 패치</p>
+      <p class="subtitle">Mobile Alpha 0.8 · 4 vs 4 점유전 · 13 캐릭터 · 스쿨라인 밸런스 패치</p>
       <label>닉네임<input id="nameInput" maxlength="12" placeholder="예: 1번" autocomplete="off" /></label>
       <label>방 코드<input id="roomInput" maxlength="10" value="6-1" autocomplete="off" autocapitalize="characters" /></label>
 
-      <div class="picker-shell">
-        <div class="picker-heading">캐릭터 선택</div>
-        <div id="joinRoleTabs" class="role-tabs"></div>
-        <div id="joinCharacterChoices" class="character-choices"></div>
-        <div id="joinCharacterDetail" class="character-detail"></div>
+      <div class="team-select-shell">
+        <div class="picker-heading">팀 선택</div>
+        <div class="team-select-buttons">
+          <button id="joinTeamA" type="button" class="team-select-button team-a-choice">🔵 A팀</button>
+          <button id="joinTeamB" type="button" class="team-select-button team-b-choice">🔴 B팀</button>
+        </div>
+        <p class="team-select-help">교실에서 정한 팀을 선택한 뒤 입장하세요. 각 팀 최대 4명입니다.</p>
       </div>
 
-      <button id="joinButton" class="accent big-button">입장</button>
+      <button id="joinButton" class="accent big-button">선택한 팀으로 입장</button>
+
+      <div class="spectator-entry">
+        <div class="spectator-entry-title">📺 교사용 관전자</div>
+        <div class="spectator-entry-row">
+          <input id="spectatorPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="4자리 PIN" autocomplete="off" />
+          <button id="spectatorJoinButton" type="button">관전 입장</button>
+        </div>
+        <div class="spectator-entry-help">플레이어 슬롯을 사용하지 않고 현재 방의 경기를 전체 화면으로 관전합니다.</div>
+      </div>
+
       <p id="joinError" class="error"></p>
       <div class="help">📱 가로 화면 권장 · 왼쪽 스틱 이동 · 오른쪽 스틱 조준/사격 · 다이아는 변신 버튼</div>
     </section>
@@ -34,17 +46,20 @@
           <div class="row compact-actions"><button id="fullscreenButton">가로 전체화면</button><button id="startButton" class="accent hidden">경기 시작</button></div>
         </div>
         <div id="resultBanner" class="result hidden"></div>
+        <div id="resultStats" class="result-stats hidden"></div>
+        <button id="storyButton" type="button" class="story-button hidden">📖 내가 플레이한 캐릭터 이야기</button>
         <div class="teams">
           <div><h3>A팀</h3><div id="teamAList"></div></div>
           <div><h3>B팀</h3><div id="teamBList"></div></div>
         </div>
       </div>
-      <aside class="panel character-panel">
+      <aside id="characterPanel" class="panel character-panel">
         <h3>내 캐릭터</h3>
         <div id="lobbyRoleTabs" class="role-tabs"></div>
         <div id="lobbyCharacterChoices" class="character-choices compact"></div>
         <div id="lobbyCharacterDetail" class="character-detail"></div>
-        <p class="muted small">캐릭터 중복 선택 허용. 첫 입장자가 방장입니다.</p>
+        <p id="pickNotice" class="pick-notice"></p>
+        <p class="muted small">같은 팀 내 캐릭터 중복 선택 불가. 상대 팀의 캐릭터 픽은 경기 시작 전까지 비공개입니다. 첫 입장자가 방장입니다.</p>
       </aside>
     </section>
 
@@ -60,6 +75,7 @@
         </div>
 
         <div id="myInfo" class="my-info"></div>
+        <div id="spectatorBadge" class="spectator-badge hidden">📺 관전자</div>
         <div id="respawn" class="respawn"></div>
         <button id="abilityButton" class="ability-button hidden">💎 변신</button>
 
@@ -78,6 +94,15 @@
         <button id="gameFullscreenButton" class="game-fullscreen">⛶</button>
       </div>
     </section>
+
+    <div id="storyOverlay" class="story-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="storyTitle">
+      <article class="story-card">
+        <div class="story-kicker">📖 내가 플레이한 캐릭터 이야기</div>
+        <h2 id="storyTitle"></h2>
+        <p id="storyText"></p>
+        <button id="storyCloseButton" type="button" class="accent story-close-button">확인</button>
+      </article>
+    </div>
   </main>
   <script src="/game.js"></script>
 </body>

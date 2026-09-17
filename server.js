@@ -13,7 +13,7 @@ const TICK_RATE = 50;
 const SNAPSHOT_RATE = 20;
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
-const RESPAWN_MS = 5000;
+const RESPAWN_MS = 10000;
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [3.2, 4.0, 5.0, 6.0, 7.2, 8.2];
@@ -758,7 +758,7 @@ setInterval(() => {
 }, 1000 / SNAPSHOT_RATE);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\nSchool Line Mobile Alpha 0.3`);
+  console.log(`\nSchool Line Mobile Alpha 0.4`);
   console.log(`Local: http://localhost:${PORT}`);
   console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}\n`);
 });

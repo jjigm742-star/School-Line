@@ -81,6 +81,131 @@ let mouseWorld = { x: 21, y: 34 };
 let firing = false;
 let lastAimDir = { x: 0, y: 1 }; // world direction, A->B by default
 
+
+// Alpha 0.4: lightweight Web Audio + haptics. No external audio assets are required.
+let audioCtx = null;
+let masterGain = null;
+let bgmGain = null;
+let sfxGain = null;
+let bgmTimer = null;
+let bgmStep = 0;
+let lastHitFeedbackAt = 0;
+let audioEnabled = localStorage.getItem('schoolLineAudio') !== 'off';
+
+function ensureAudio() {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    audioCtx = new AudioContextClass();
+    masterGain = audioCtx.createGain();
+    bgmGain = audioCtx.createGain();
+    sfxGain = audioCtx.createGain();
+    masterGain.gain.value = audioEnabled ? 1 : 0;
+    bgmGain.gain.value = 0.055;
+    sfxGain.gain.value = 0.24;
+    bgmGain.connect(masterGain);
+    sfxGain.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+
+function synthTone({freq=440, endFreq=null, duration=.1, type='sine', gain=.12, when=0, target=sfxGain}={}) {
+  const ac = ensureAudio();
+  if (!ac || !target || !audioEnabled) return;
+  const t = ac.currentTime + when;
+  const osc = ac.createOscillator();
+  const amp = ac.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(Math.max(20, freq), t);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t + duration);
+  amp.gain.setValueAtTime(0.0001, t);
+  amp.gain.exponentialRampToValueAtTime(Math.max(.0002, gain), t + .006);
+  amp.gain.exponentialRampToValueAtTime(.0001, t + duration);
+  osc.connect(amp); amp.connect(target);
+  osc.start(t); osc.stop(t + duration + .02);
+}
+
+function noiseBurst(duration=.07, gain=.08) {
+  const ac = ensureAudio();
+  if (!ac || !sfxGain || !audioEnabled) return;
+  const count = Math.max(1, Math.floor(ac.sampleRate * duration));
+  const buffer = ac.createBuffer(1, count, ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i=0;i<count;i++) data[i] = (Math.random()*2-1) * (1-i/count);
+  const src = ac.createBufferSource();
+  const amp = ac.createGain();
+  amp.gain.value = gain;
+  src.buffer = buffer; src.connect(amp); amp.connect(sfxGain); src.start();
+}
+
+function playHitFeedback() {
+  const now = performance.now();
+  if (now - lastHitFeedbackAt < 180) return;
+  lastHitFeedbackAt = now;
+  if (navigator.vibrate) navigator.vibrate(24);
+  synthTone({freq:145, endFreq:92, duration:.075, type:'square', gain:.10});
+  noiseBurst(.045, .07);
+}
+
+function playDeathFeedback() {
+  lastHitFeedbackAt = performance.now();
+  if (navigator.vibrate) navigator.vibrate([90, 45, 160]);
+  synthTone({freq:260, endFreq:70, duration:.48, type:'sawtooth', gain:.14});
+  synthTone({freq:130, endFreq:45, duration:.55, type:'square', gain:.08, when:.04});
+  noiseBurst(.16, .10);
+}
+
+const BGM_NOTES = [220,0,277.18,0,329.63,0,277.18,0,196,0,246.94,0,293.66,0,246.94,0];
+const BGM_BASS  = [110,0,0,0,98,0,0,0,82.41,0,0,0,98,0,0,0];
+function bgmTick() {
+  if (!audioEnabled || !state || state.state !== 'playing') return;
+  const n = BGM_NOTES[bgmStep % BGM_NOTES.length];
+  const b = BGM_BASS[bgmStep % BGM_BASS.length];
+  if (n) synthTone({freq:n, duration:.16, type:'triangle', gain:.055, target:bgmGain});
+  if (b) synthTone({freq:b, duration:.30, type:'sine', gain:.075, target:bgmGain});
+  bgmStep++;
+}
+function startBgm() {
+  ensureAudio();
+  if (bgmTimer || !audioEnabled) return;
+  bgmStep = 0;
+  bgmTick();
+  bgmTimer = setInterval(bgmTick, 190);
+}
+function stopBgm() {
+  if (bgmTimer) clearInterval(bgmTimer);
+  bgmTimer = null;
+}
+function updateSoundButton() {
+  const btn = $('soundButton');
+  if (btn) { btn.textContent = audioEnabled ? '🔊' : '🔇'; btn.title = audioEnabled ? '소리 끄기' : '소리 켜기'; }
+}
+function toggleSound() {
+  audioEnabled = !audioEnabled;
+  localStorage.setItem('schoolLineAudio', audioEnabled ? 'on' : 'off');
+  ensureAudio();
+  if (masterGain) masterGain.gain.value = audioEnabled ? 1 : 0;
+  if (audioEnabled && state && state.state === 'playing') startBgm(); else stopBgm();
+  updateSoundButton();
+}
+function processCombatFeedback(previousState, nextState) {
+  if (!myId || !previousState || !nextState) return;
+  const before = previousState.players?.find(p => p.id === myId);
+  const after = nextState.players?.find(p => p.id === myId);
+  if (!before || !after) return;
+  if (before.alive && !after.alive) {
+    playDeathFeedback();
+    return;
+  }
+  if (!after.alive || !before.alive) return;
+  const hpLoss = before.hp - after.hp;
+  const maxHpDrop = Math.max(0, before.maxHp - after.maxHp);
+  // Ignore Dia form ending if the apparent HP loss is only the max-HP cap returning to normal.
+  if (hpLoss > .2 && hpLoss > maxHpDrop + .2) playHitFeedback();
+}
+
 $('nameInput').value = localStorage.getItem('schoolLineName') || '';
 $('roomInput').value = localStorage.getItem('schoolLineRoom') || '6-1';
 
@@ -93,6 +218,8 @@ function show(which) {
 function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`; }
 
 $('joinButton').onclick = () => {
+  ensureAudio();
+  updateSoundButton();
   $('joinError').textContent = '';
   localStorage.setItem('schoolLineName', $('nameInput').value);
   localStorage.setItem('schoolLineRoom', $('roomInput').value);
@@ -109,21 +236,29 @@ function handleMessage(msg) {
     myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room; show('lobby'); return;
   }
   if (msg.type === 'state') {
+    const previousState = state;
+    processCombatFeedback(previousState, msg);
     state = msg;
     if (state.state === 'playing') {
+      startBgm();
       show('game');
       const me = state.players.find(p => p.id === myId);
       if (me && !rightStick.active) {
         lastAimDir = me.team === 'A' ? {x:0,y:1} : {x:0,y:-1};
       }
-    } else { show('lobby'); renderLobby(); }
+    } else {
+      stopBgm();
+      show('lobby'); renderLobby();
+    }
   }
 }
 
 $('startButton').onclick = () => ws && ws.send(JSON.stringify({ type:'start' }));
 $('fullscreenButton').onclick = enterGameDisplayMode;
 $('gameFullscreenButton').onclick = enterGameDisplayMode;
+$('soundButton').onclick = toggleSound;
 $('abilityButton').onclick = useAbility;
+updateSoundButton();
 
 function useAbility() {
   if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;

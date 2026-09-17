@@ -7,9 +7,10 @@ const SCALE = 15; // world y -> screen x, world x -> screen y (mobile landscape 
 
 const CHARACTER_META = {
   iron: { role:'탱커', name:'아이언', icon:'⚙️', mini:'HP 600 · 느림', stat:'HP 600 · 속도 4.0 · 사거리 24 · 65 DPS', summary:'가장 단단한 정통 탱커', mechanic:'높은 체력으로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.' },
-  mecha: { role:'탱커', name:'메카', icon:'🤖', mini:'HP 550 · 빠름', stat:'HP 550 · 속도 6.0 · 사거리 16 · 45 DPS', summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커', mechanic:'별도 변신이나 조종사 상태가 없는 단일 상태 탱커. 사거리는 16으로 짧고 화력은 낮지만, HP 550과 속도 6.0으로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.' },
+  mecha: { role:'탱커', name:'메카', icon:'🤖', mini:'HP 550 · 빠름', stat:'HP 550 · 속도 6.0 · 사거리 16 · 45 DPS', summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커', mechanic:'사거리는 16으로 짧고 화력은 낮지만, HP 550과 속도 6.0으로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.' },
   dia: { role:'탱커', name:'다이아', icon:'💎', mini:'HP 350 · 변신', stat:'HP 350 · 속도 4.0 · 기본 65 DPS · 변신 6초', summary:'타이밍을 잡아 강해지는 변신 탱커', mechanic:'기본형은 투사체로 싸운다. Space 또는 변신 버튼을 누르면 6초간 HP 400, 속도 5.0, 80 DPS 광선폼이 된다. 변신 쿨은 16초이며 폼 중 직접 처치하면 6초 감소한다.' },
-  solar: { role:'탱커', name:'솔라', icon:'☀️', mini:'광선 · 태양탄 자힐', stat:'HP 375 · 속도 4.0 · 사거리 16 광선 80 DPS', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커', mechanic:'공격하는 동안 조준 방향으로 사거리 16의 80 DPS 광선을 유지한다. 동시에 1초마다 같은 조준 방향으로 사거리 24의 태양탄을 발사하며, 태양탄이 적에게 실제 피해를 주면 HP를 25 회복한다. 이 자가회복은 포이즌의 외부 치유 감소 영향을 받지 않는다.' },
+  solar: { role:'탱커', name:'솔라', icon:'☀️', mini:'광선 · 태양탄 자힐', stat:'HP 375 · 속도 4.0 · 사거리 16 광선 55 DPS', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커', mechanic:'공격하는 동안 조준 방향으로 사거리 16의 55 DPS 광선을 유지한다. 동시에 1초마다 같은 조준 방향으로 사거리 24의 태양탄을 발사하며, 태양탄이 적에게 실제 피해를 주면 HP를 25 회복한다. 이 자가회복은 포이즌의 외부 치유 감소 영향을 받지 않는다.' },
+  runner: { role:'딜러', name:'러너', icon:'🏃', mini:'55 DPS · 질주', stat:'HP 175 · 속도 6.0 · 사거리 16 · 55 DPS', summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러', mechanic:'빠른 작은 투사체를 초당 5발 발사하며 한 발당 11 피해를 준다. 사거리는 16으로 짧다. Space 또는 질주 버튼을 누르면 4초 동안 이동속도가 한 단계 올라 6.0에서 7.2가 된다. 질주 재사용 대기시간은 10초이며, 윈드의 순풍과 함께 적용되면 최고 속도 8.2까지 올라갈 수 있다.' },
   shooter: { role:'딜러', name:'슈터', icon:'🎯', mini:'100 DPS · 안정적', stat:'HP 250 · 속도 5.0 · 사거리 24 · 100 DPS', summary:'가장 표준적인 원거리 딜러', mechanic:'빠르고 작은 탄을 초당 5발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.' },
   sniper: { role:'딜러', name:'스나이퍼', icon:'🔭', mini:'장거리 · 거리비례 피해', stat:'HP 150 · 속도 4.0 · 사거리 36 · 초당 1발', summary:'멀수록 한 발이 강해지는 초장거리 딜러', mechanic:'매우 빠른 작은 투사체를 초당 1발 발사한다. 실제로 날아가 충돌한 거리 기준으로 16 이하는 65, 16 초과~32 이하는 85, 32 초과~36 이하는 105 피해를 준다. 가까이 붙으면 약해진다.' },
   cannon: { role:'딜러', name:'캐논', icon:'💥', mini:'140 DPS · 느림', stat:'HP 275 · 속도 3.2 · 사거리 24 · 140 DPS', summary:'기동성을 버리고 화력을 얻은 중화기 딜러', mechanic:'초당 10발을 퍼붓는 최고 수준의 지속 화력. 대신 이동속도가 매우 느려 위치를 잘못 잡으면 도망치기 어렵다.' },
@@ -19,7 +20,7 @@ const CHARACTER_META = {
   ice: { role:'딜러', name:'아이스', icon:'🧊', mini:'80 DPS · 감속', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 DPS', summary:'적의 움직임을 묶는 제어형 광선 딜러', mechanic:'광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 감속은 마지막 적중 후 1.5초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.' },
   water: { role:'힐러', name:'워터', icon:'💧', mini:'70 HPS · 안정 치유', stat:'HP 250 · 속도 5.0 · 사거리 24 · 70 HPS', summary:'가장 단순하고 안정적인 기본 힐러', mechanic:'오른쪽 스틱으로 아군을 조준해 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.' },
   wind: { role:'힐러', name:'윈드', icon:'🌪️', mini:'55 HPS · 순풍', stat:'HP 225 · 속도 6.0 · 사거리 24 · 55 HPS', summary:'치유와 기동력 지원을 함께 주는 힐러', mechanic:'치유탄에 맞은 아군은 2초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.' },
-  star: { role:'힐러', name:'스타', icon:'⭐', mini:'80 HPS · 초장거리', stat:'HP 175 · 속도 4.0 · 사거리 30 · 80 HPS', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러', mechanic:'초당 2발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 40 회복한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시키며 자신은 치유할 수 없다. 공격 능력은 없다.' },
+  star: { role:'힐러', name:'스타', icon:'⭐', mini:'70 HPS · 초장거리', stat:'HP 175 · 속도 4.0 · 사거리 30 · 70 HPS', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러', mechanic:'초당 2발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 35 회복한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시키며 자신은 치유할 수 없다. 공격 능력은 없다.' },
   light: { role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜', stat:'HP 225 · 속도 5.0 · 사거리 16 · 50 HPS / 60 DPS', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러', mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.' }
 };
 
@@ -39,6 +40,10 @@ const CHARACTER_STORIES = {
   solar: {
     title:'솔라', icon:'☀️',
     text:'광선 자매들의 아버지. 광선 자매들을 강하게 키우기 위해 혹독한 훈련을 시켰고, 자신 역시 수련을 게을리하지 않았다. 그 결과 광선과 투사체 공격을 동시에 다룰 줄 아는 엄청난 존재가 되었다.'
+  },
+  runner: {
+    title:'러너', icon:'🏃',
+    text:'하루 종일 달리기만 연습해 온 프로 마라토너. 이제는 싸움까지 잘하고 싶다며 싸움판에 뛰어들었다. 달리기 실력은 여전하지만 아직 싸움에는 익숙하지 않아 조금 약하다. 광선 자매 중 둘째인 아이스에게는 늘 기가 죽는다고 한다.'
   },
   cannon: {
     title:'캐논', icon:'💥',
@@ -425,8 +430,16 @@ updateSoundButton();
 function useAbility() {
   if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;
   const me = state.players.find(p => p.id === myId);
-  if (!me || !me.alive || me.character !== 'dia' || me.diaForm || me.diaCooldownMs > 0) return;
-  ws.send(JSON.stringify({ type:'ability', ability:'form' }));
+  if (!me || !me.alive) return;
+  if (me.character === 'dia') {
+    if (me.diaForm || me.diaCooldownMs > 0) return;
+    ws.send(JSON.stringify({ type:'ability', ability:'form' }));
+    return;
+  }
+  if (me.character === 'runner') {
+    if (me.sprint || me.sprintCooldownMs > 0) return;
+    ws.send(JSON.stringify({ type:'ability', ability:'sprint' }));
+  }
 }
 
 async function enterGameDisplayMode() {
@@ -716,6 +729,7 @@ function renderGame() {
     else if (p.character === 'fire') ctx.fillStyle = '#ff9a45';
     else if (p.character === 'sniper') ctx.fillStyle = '#e6d5ff';
     else if (p.character === 'mecha') ctx.fillStyle = '#b7ffd1';
+    else if (p.character === 'runner') ctx.fillStyle = '#ffd27a';
     else if (p.character === 'solar') ctx.fillStyle = '#ffd45c';
     else ctx.fillStyle = p.team === 'A' ? '#8bbcff' : '#ff9c9c';
     ctx.fill();
@@ -723,10 +737,10 @@ function renderGame() {
 
   for (const p of state.players) {
     if (!p.alive) continue;
-    const radius = ({iron:.65,mecha:.65,solar:.65,shooter:.5,sniper:.4,cannon:.65,fire:.5,poison:.5,water:.4,wind:.4,star:.5,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
+    const radius = ({iron:.65,mecha:.65,solar:.65,runner:.4,shooter:.5,sniper:.4,cannon:.65,fire:.5,poison:.5,water:.4,wind:.4,star:.5,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
     const s=worldToScreen(p.x,p.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
+    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
     if (p.burning) { ctx.lineWidth=2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); }
@@ -785,17 +799,27 @@ function renderGame() {
       if (me.diaForm) extra = `<br>💎 다이아폼 ${(me.diaFormMs/1000).toFixed(1)}초`;
       else if (me.diaCooldownMs > 0) extra = `<br>변신 쿨 ${(me.diaCooldownMs/1000).toFixed(1)}초`;
       else extra = '<br>변신 준비 완료';
+    } else if (me.character === 'runner') {
+      if (me.sprint) extra = `<br>🏃 질주 ${(me.sprintMs/1000).toFixed(1)}초`;
+      else if (me.sprintCooldownMs > 0) extra = `<br>질주 쿨 ${(me.sprintCooldownMs/1000).toFixed(1)}초`;
+      else extra = '<br>질주 준비 완료';
     }
     $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}<br>${me.team}팀${extra}`;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 
     const ability = $('abilityButton');
-    ability.classList.toggle('hidden', me.character !== 'dia');
+    const hasAbility = me.character === 'dia' || me.character === 'runner';
+    ability.classList.toggle('hidden', !hasAbility);
     if (me.character === 'dia') {
       if (!me.alive) { ability.textContent = '💎 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
       else if (me.diaForm) { ability.textContent = `💎 폼 ${(me.diaFormMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.add('active'); }
       else if (me.diaCooldownMs > 0) { ability.textContent = `💎 쿨 ${(me.diaCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
       else { ability.textContent = '💎 변신'; ability.disabled = false; ability.classList.remove('active'); }
+    } else if (me.character === 'runner') {
+      if (!me.alive) { ability.textContent = '🏃 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
+      else if (me.sprint) { ability.textContent = `🏃 질주 ${(me.sprintMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.add('active'); }
+      else if (me.sprintCooldownMs > 0) { ability.textContent = `🏃 쿨 ${(me.sprintCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
+      else { ability.textContent = '🏃 질주'; ability.disabled = false; ability.classList.remove('active'); }
     }
   }
 }

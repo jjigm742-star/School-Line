@@ -45,9 +45,15 @@ const CHARACTERS = {
   },
   solar: {
     name: '솔라', role: '탱커', hp: 375, speed: 4.0, radius: 0.65,
-    attackType: 'beam', range: 16, beamDps: 80,
+    attackType: 'beam', range: 16, beamDps: 55,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
     solarProjectileRadius: 0.20, solarProjectileDamage: 25, solarSelfHeal: 25
+  },
+  runner: {
+    name: '러너', role: '딜러', hp: 175, speed: 6.0, radius: 0.40,
+    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.12,
+    projectileType: 'attack', damage: 11,
+    sprintDuration: 4, sprintCooldown: 10
   },
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 5.0, radius: 0.50,
@@ -87,7 +93,7 @@ const CHARACTERS = {
   star: {
     name: '스타', role: '힐러', hp: 175, speed: 4.0, radius: 0.50,
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.12,
-    projectileType: 'heal', heal: 40
+    projectileType: 'heal', heal: 35
   },
   light: {
     name: '라이트', role: '힐러', hp: 225, speed: 5.0, radius: 0.40,
@@ -170,6 +176,7 @@ function currentBaseSpeed(player, now) {
 
 function effectiveSpeed(player, now) {
   let delta = 0;
+  if (player.character === 'runner' && player.sprintUntil > now) delta += 1;
   if (player.tailwindUntil > now) delta += 1;
   if (player.iceSlowUntil > now) delta -= 1;
   return speedWithTierDelta(currentBaseSpeed(player, now), delta);
@@ -360,7 +367,7 @@ function onMessage(conn, msg) {
     player.character = requested;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    player.iceSlowUntil = 0; player.diaFormUntil = 0; player.diaCooldownUntil = 0;
+    player.iceSlowUntil = 0; player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0;
     broadcast(room);
     return;
   }
@@ -374,7 +381,9 @@ function onMessage(conn, msg) {
     return;
   }
   if (msg.type === 'ability' && room.state === 'playing') {
-    if (msg.ability === 'form') activateDiaForm(player, Date.now());
+    const now = Date.now();
+    if (msg.ability === 'form') activateDiaForm(player, now);
+    if (msg.ability === 'sprint') activateRunnerSprint(player, now);
     return;
   }
   if (msg.type === 'input' && room.state === 'playing') {
@@ -444,6 +453,7 @@ function joinRoom(conn, msg) {
     lastCombatAt: 0,
     tailwindUntil: 0, iceSlowUntil: 0,
     diaFormUntil: 0, diaCooldownUntil: 0,
+    sprintUntil: 0, sprintCooldownUntil: 0,
     stats: makeMatchStats(null)
   };
   room.players.set(id, player);
@@ -503,7 +513,7 @@ function startMatch(room) {
     Object.assign(p, {
       x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0, invulnerableUntil: 0,
       nextFireAt: 0, burnUntil: 0, burnDps: 0, burnSourceId: null, poisonUntil: 0, poisonSourceId: null, tailwindUntil: 0, iceSlowUntil: 0,
-      diaFormUntil: 0, diaCooldownUntil: 0, lastCombatAt: now,
+      diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, lastCombatAt: now,
       stats: makeMatchStats(p.character)
     });
     p.input = { up: false, down: false, left: false, right: false, fire: false };
@@ -519,6 +529,15 @@ function activateDiaForm(player, now) {
   player.diaCooldownUntil = now + def.formCooldown * 1000;
   player.maxHp = def.formHp;
   player.hp = Math.min(def.formHp, player.hp + (def.formHp - def.hp));
+  return true;
+}
+
+function activateRunnerSprint(player, now) {
+  if (!player.alive || player.character !== 'runner') return false;
+  if (player.sprintUntil > now || player.sprintCooldownUntil > now) return false;
+  const def = CHARACTERS.runner;
+  player.sprintUntil = now + def.sprintDuration * 1000;
+  player.sprintCooldownUntil = now + def.sprintCooldown * 1000;
   return true;
 }
 
@@ -556,6 +575,7 @@ function die(room, player, now) {
     player.diaFormUntil = 0;
     player.maxHp = CHARACTERS.dia.hp;
   }
+  if (player.character === 'runner') player.sprintUntil = 0;
   player.input.fire = false;
 }
 
@@ -568,6 +588,7 @@ function respawn(room, player, now) {
   player.burnUntil = 0; player.burnDps = 0; player.burnSourceId = null; player.poisonUntil = 0; player.poisonSourceId = null; player.tailwindUntil = 0; player.iceSlowUntil = 0;
   player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
+  if (player.character === 'runner') player.sprintUntil = 0;
 }
 
 function collidesWall(x, y, r) {
@@ -1010,6 +1031,9 @@ function snapshot(room, viewerId = null, spectator = false) {
         diaForm: !hideCharacter && isDiaForm(p, now),
         diaFormMs: !hideCharacter && isDiaForm(p, now) ? Math.max(0, p.diaFormUntil - now) : 0,
         diaCooldownMs: !hideCharacter && p.character === 'dia' ? Math.max(0, p.diaCooldownUntil - now) : 0,
+        sprint: !hideCharacter && p.character === 'runner' && p.sprintUntil > now,
+        sprintMs: !hideCharacter && p.character === 'runner' && p.sprintUntil > now ? Math.max(0, p.sprintUntil - now) : 0,
+        sprintCooldownMs: !hideCharacter && p.character === 'runner' ? Math.max(0, p.sprintCooldownUntil - now) : 0,
         stats: room.state === 'ended' ? { ...ensureMatchStats(p) } : null
       };
     }),
@@ -1033,7 +1057,7 @@ setInterval(() => {
 }, 1000 / SNAPSHOT_RATE);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\nSchool Line Mobile Alpha 0.9`);
+  console.log(`\nSchool Line Mobile Alpha 1.0`);
   console.log(`Local: http://localhost:${PORT}`);
   console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}\n`);
 });

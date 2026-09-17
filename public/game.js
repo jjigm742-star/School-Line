@@ -84,6 +84,7 @@ const pickerState = {
   lobby: { selected: null, role: initialRole }
 };
 let selectedJoinTeam = null;
+let lastLobbyPickerAvailabilityKey = null;
 
 function isTeamCharacterTaken(id) {
   if (!state || !myId) return false;
@@ -341,6 +342,7 @@ function handleMessage(msg) {
   if (msg.type === 'joined') {
     myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room;
     pickerState.lobby.selected = null;
+    lastLobbyPickerAvailabilityKey = null;
     const notice = $('pickNotice');
     if (notice) notice.textContent = `${msg.team}팀으로 입장했습니다. 캐릭터를 선택하세요.`;
     show('lobby'); return;
@@ -361,7 +363,12 @@ function handleMessage(msg) {
   if (msg.type === 'pick_error') {
     const notice = $('pickNotice');
     if (notice) notice.textContent = `⚠️ ${msg.message}`;
-    if (state) renderLobby();
+    if (state && myId) {
+      const me = state.players.find(p => p.id === myId);
+      pickerState.lobby.selected = me?.character || null;
+      lastLobbyPickerAvailabilityKey = null;
+      renderLobby();
+    }
     return;
   }
   if (msg.type === 'start_error') {
@@ -497,7 +504,18 @@ function renderLobby() {
       pickerState.lobby.role = CHARACTER_META[me.character].role;
       localStorage.setItem('schoolLineCharacter', me.character);
     }
-    renderPicker('lobby');
+    // Snapshots arrive at 20 Hz. Rebuilding the picker on every snapshot replaces
+    // the pressed DOM button before pointerup/click can fire on mobile. Only
+    // rebuild when same-team pick availability actually changes.
+    const availabilityKey = state.players
+      .filter(p => p.team === me.team)
+      .map(p => `${p.id}:${p.character || '-'}`)
+      .sort()
+      .join('|');
+    if (availabilityKey !== lastLobbyPickerAvailabilityKey) {
+      lastLobbyPickerAvailabilityKey = availabilityKey;
+      renderPicker('lobby');
+    }
   }
   const isHost = !spectatorMode && state.hostId === myId;
   $('startButton').classList.toggle('hidden', !isHost);

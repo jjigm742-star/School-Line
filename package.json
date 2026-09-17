@@ -1,0 +1,8 @@
+{
+  "name": "school-line-mobile",
+  "version": "0.2.0",
+  "private": true,
+  "description": "School Line Mobile Alpha 0.2 - zero-dependency browser 4v4 prototype",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

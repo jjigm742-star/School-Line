@@ -142,10 +142,11 @@ function selectLobbyCharacter(id) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'select', character:id }));
 }
 
-renderPicker('lobby');
-
 let ws = null, myId = null, config = null, state = null;
 let spectatorMode = false;
+
+renderPicker('lobby');
+
 let keys = { up:false, down:false, left:false, right:false };
 let mouseWorld = { x: 21, y: 34 };
 let firing = false;

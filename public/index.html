@@ -11,7 +11,7 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">Mobile Alpha 1.0 · 4 vs 4 점유전 · 15 캐릭터 · 스타·솔라 밸런스 조정</p>
+      <p class="subtitle">Mobile Alpha 1.0 · 4 vs 4 점유전 · 16 캐릭터</p>
       <label>닉네임<input id="nameInput" maxlength="12" placeholder="예: 1번" autocomplete="off" /></label>
       <label>방 코드<input id="roomInput" maxlength="10" value="6-1" autocomplete="off" autocapitalize="characters" /></label>
 
@@ -25,6 +25,7 @@
       </div>
 
       <button id="joinButton" class="accent big-button">선택한 팀으로 입장</button>
+      <button id="joinHelpButton" type="button" class="help-open-button">❓ 게임 방법</button>
 
       <div class="spectator-entry">
         <div class="spectator-entry-title">📺 교사용 관전자</div>
@@ -36,14 +37,14 @@
       </div>
 
       <p id="joinError" class="error"></p>
-      <div class="help">📱 가로 화면 권장 · 왼쪽 스틱 이동 · 오른쪽 스틱 조준/사격 · 다이아는 변신 버튼</div>
+      <div class="help">📱 가로 화면 권장 · 왼쪽 스틱 이동 · 오른쪽 스틱 조준/사용 · 능력 캐릭터는 능력 버튼 사용</div>
     </section>
 
     <section id="lobbyScreen" class="hidden lobby-layout">
       <div class="panel lobby-main">
         <div class="row between lobby-title-row">
           <div><h2>방 <span id="roomLabel"></span></h2><div id="hostLabel" class="muted"></div></div>
-          <div class="row compact-actions"><button id="fullscreenButton">가로 전체화면</button><button id="startButton" class="accent hidden">경기 시작</button></div>
+          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="fullscreenButton">가로 전체화면</button><button id="startButton" class="accent hidden">경기 시작</button></div>
         </div>
         <div id="resultBanner" class="result hidden"></div>
         <div id="resultStats" class="result-stats hidden"></div>
@@ -94,6 +95,107 @@
         <button id="gameFullscreenButton" class="game-fullscreen">⛶</button>
       </div>
     </section>
+
+
+    <div id="helpGuideOverlay" class="help-guide-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="helpGuideTitle">
+      <article class="help-guide-card">
+        <header class="help-guide-header">
+          <div>
+            <div class="help-guide-kicker">❓ 처음 플레이한다면 이것부터!</div>
+            <h2 id="helpGuideTitle">School Line 게임 방법</h2>
+          </div>
+          <button id="helpGuideCloseTop" type="button" class="help-guide-x" aria-label="도움말 닫기">✕</button>
+        </header>
+
+        <div class="help-guide-goal">
+          <strong>🎯 상대 팀 구역을 비우고 점수를 얻으세요!</strong>
+          <span>우리 팀이 상대 구역 안에 있고 상대 팀은 한 명도 없으면 <b>초당 1점</b>을 얻습니다.</span>
+        </div>
+
+        <nav class="help-guide-tabs" aria-label="도움말 항목">
+          <button type="button" class="help-guide-tab active" data-help-tab="basics" aria-selected="true">🎯 기본 규칙</button>
+          <button type="button" class="help-guide-tab" data-help-tab="stats" aria-selected="false">📊 능력치</button>
+          <button type="button" class="help-guide-tab" data-help-tab="combat" aria-selected="false">⚔️ 전투 규칙</button>
+          <button type="button" class="help-guide-tab" data-help-tab="controls" aria-selected="false">🎮 조작법</button>
+        </nav>
+
+        <div class="help-guide-body">
+          <section class="help-guide-section" data-help-panel="basics" role="tabpanel">
+            <div class="help-rule-grid">
+              <div class="help-rule"><b>⏱️ 경기 시간</b><span>한 경기는 <strong>3분</strong>입니다.</span></div>
+              <div class="help-rule"><b>🏆 승리 조건</b><span>3분이 끝났을 때 <strong>점수가 더 높은 팀</strong>이 승리합니다.</span></div>
+              <div class="help-rule"><b>🏁 점유 조건</b><span>상대 구역에 우리 팀이 1명 이상 있고, 상대 팀이 0명이면 초당 1점을 얻습니다.</span></div>
+              <div class="help-rule"><b>👥 여러 명이 들어가면?</b><span>우리 팀이 여러 명 들어가도 <strong>초당 1점</strong>으로 같습니다.</span></div>
+            </div>
+            <div class="help-score-examples" aria-label="점유 예시">
+              <div><span>🔵 1명 + 🔴 0명</span><strong>✅ +1점/초</strong></div>
+              <div><span>🔵 3명 + 🔴 0명</span><strong>✅ +1점/초</strong></div>
+              <div><span>🔵 3명 + 🔴 1명</span><strong>❌ 점수 없음</strong></div>
+            </div>
+            <h3>역할군</h3>
+            <div class="help-role-grid">
+              <div><b>🛡️ 탱커</b><span>높은 생존력으로 공간을 확보합니다.</span></div>
+              <div><b>⚔️ 딜러</b><span>적에게 피해를 주고 압박합니다.</span></div>
+              <div><b>💚 힐러</b><span>아군의 체력을 회복하고 지원합니다.</span></div>
+            </div>
+            <p class="help-guide-note">역할은 기본적인 특징일 뿐, 반드시 정해진 방식으로만 플레이할 필요는 없습니다.</p>
+          </section>
+
+          <section class="help-guide-section hidden" data-help-panel="stats" role="tabpanel">
+            <div class="help-rule-grid">
+              <div class="help-rule"><b>❤️ HP</b><span>캐릭터의 체력입니다. HP가 0이 되면 쓰러집니다.</span></div>
+              <div class="help-rule"><b>⚔️ DPS</b><span><strong>Damage Per Second.</strong> 공격을 계속 정확히 맞혔을 때 1초 동안 줄 수 있는 피해량의 기준입니다.</span></div>
+              <div class="help-rule"><b>💚 HPS</b><span><strong>Healing Per Second.</strong> 치유를 계속 정확히 맞혔을 때 1초 동안 회복할 수 있는 체력의 기준입니다.</span></div>
+              <div class="help-rule"><b>🎯 실제 수치</b><span>실제 피해·치유량은 명중률, 거리, 특수능력과 상황에 따라 달라질 수 있습니다.</span></div>
+            </div>
+            <h3>🏃 이동속도 단계</h3>
+            <div class="speed-tier-line">
+              <span><b>3.2</b><small>매우 느림</small></span><i>→</i>
+              <span><b>4.0</b><small>느림</small></span><i>→</i>
+              <span><b>5.0</b><small>보통</small></span><i>→</i>
+              <span><b>6.0</b><small>빠름</small></span><i>→</i>
+              <span><b>7.2</b><small>매우 빠름</small></span><i>→</i>
+              <span><b>8.2</b><small>초고속</small></span>
+            </div>
+            <p class="help-guide-note">이동속도를 높이거나 낮추는 효과는 이 단계를 기준으로 적용됩니다.</p>
+          </section>
+
+          <section class="help-guide-section hidden" data-help-panel="combat" role="tabpanel">
+            <div class="help-rule-grid">
+              <div class="help-rule"><b>💀 쓰러짐과 부활</b><span>HP가 0이 되면 쓰러지고 <strong>10초 뒤 최대 HP</strong>로 부활합니다.</span></div>
+              <div class="help-rule"><b>🛡️ 부활 무적</b><span>부활 후 <strong>2초 동안</strong> 피해와 적의 해로운 효과를 받지 않습니다. 무적 중에도 이동·공격·치유·능력 사용·점유·수비는 가능합니다.</span></div>
+              <div class="help-rule"><b>💗 비전투 회복</b><span>마지막으로 적에게 실제 피해를 주거나 받은 뒤 <strong>3초 동안 전투가 없으면 초당 50 HP</strong>씩 자동 회복합니다. 치유를 주거나 받는 것은 전투로 계산하지 않습니다.</span></div>
+              <div class="help-rule"><b>🧱 벽</b><span>벽은 캐릭터의 이동뿐 아니라 <strong>투사체와 광선</strong>도 막습니다.</span></div>
+            </div>
+            <div class="help-projectile-rules">
+              <div><b>🎯 공격 투사체</b><span>아군을 통과하고 적에게 맞습니다.</span></div>
+              <div><b>💚 치유 투사체</b><span>적을 통과하고 아군에게 맞습니다.</span></div>
+            </div>
+          </section>
+
+          <section class="help-guide-section hidden" data-help-panel="controls" role="tabpanel">
+            <div class="help-control-columns">
+              <div>
+                <h3>📱 모바일</h3>
+                <p><b>왼쪽 스틱</b><span>이동</span></p>
+                <p><b>오른쪽 스틱</b><span>조준 + 공격/치유</span></p>
+                <p><b>능력 캐릭터</b><span><strong>능력 버튼</strong>으로 고유 능력 사용</span></p>
+              </div>
+              <div>
+                <h3>💻 PC</h3>
+                <p><b>WASD / 방향키</b><span>이동</span></p>
+                <p><b>마우스</b><span>조준</span></p>
+                <p><b>마우스 왼쪽</b><span>공격/치유</span></p>
+                <p><b>능력 캐릭터</b><span><strong>Space</strong>로 고유 능력 사용</span></p>
+              </div>
+            </div>
+            <p class="help-guide-note">캐릭터별 수치와 고유 능력 설명은 로비의 캐릭터 선택 화면에서 확인할 수 있습니다.</p>
+          </section>
+        </div>
+
+        <button id="helpGuideCloseButton" type="button" class="accent help-guide-close">확인</button>
+      </article>
+    </div>
 
     <div id="storyOverlay" class="story-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="storyTitle">
       <article class="story-card">

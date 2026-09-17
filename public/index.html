@@ -11,7 +11,7 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">Mobile Alpha 1.1 · 4 vs 4 점유전 · 16 캐릭터</p>
+      <p class="subtitle">Mobile Alpha 1.1.1 · 4 vs 4 점유전 · 16 캐릭터</p>
       <label>닉네임<input id="nameInput" maxlength="12" placeholder="예: 1번" autocomplete="off" /></label>
       <label>방 코드<input id="roomInput" maxlength="10" value="6-1" autocomplete="off" autocapitalize="characters" /></label>
 
@@ -74,6 +74,8 @@
           <div id="timer" class="timer">03:00</div>
           <div class="score-pill team-b">B <b id="scoreB">0</b></div>
         </div>
+
+        <div id="matchAlert" class="match-alert hidden" role="status" aria-live="polite"></div>
 
         <div id="myInfo" class="my-info"></div>
         <div id="spectatorBadge" class="spectator-badge hidden">📺 관전자</div>
@@ -147,15 +149,16 @@
               <div class="help-rule"><b>⚔️ DPS</b><span><strong>Damage Per Second.</strong> 공격을 계속 정확히 맞혔을 때 1초 동안 줄 수 있는 피해량의 기준입니다.</span></div>
               <div class="help-rule"><b>💚 HPS</b><span><strong>Healing Per Second.</strong> 치유를 계속 정확히 맞혔을 때 1초 동안 회복할 수 있는 체력의 기준입니다.</span></div>
               <div class="help-rule"><b>🎯 실제 수치</b><span>실제 피해·치유량은 명중률, 거리, 특수능력과 상황에 따라 달라질 수 있습니다.</span></div>
+              <div class="help-rule"><b>📏 거리 단위</b><span>사거리와 전장 거리는 m(미터), 이동속도는 m/s로 표시합니다.</span></div>
             </div>
             <h3>🏃 이동속도 단계</h3>
             <div class="speed-tier-line">
-              <span><b>3.2</b><small>매우 느림</small></span><i>→</i>
-              <span><b>4.0</b><small>느림</small></span><i>→</i>
-              <span><b>5.0</b><small>보통</small></span><i>→</i>
-              <span><b>6.0</b><small>빠름</small></span><i>→</i>
-              <span><b>7.2</b><small>매우 빠름</small></span><i>→</i>
-              <span><b>8.2</b><small>초고속</small></span>
+              <span><b>4.0 m/s</b><small>매우 느림</small></span><i>→</i>
+              <span><b>5.0 m/s</b><small>느림</small></span><i>→</i>
+              <span><b>6.0 m/s</b><small>보통</small></span><i>→</i>
+              <span><b>7.0 m/s</b><small>빠름</small></span><i>→</i>
+              <span><b>8.0 m/s</b><small>매우 빠름</small></span><i>→</i>
+              <span><b>9.2 m/s</b><small>초고속</small></span>
             </div>
             <p class="help-guide-note">이동속도를 높이거나 낮추는 효과는 이 단계를 기준으로 적용됩니다.</p>
           </section>

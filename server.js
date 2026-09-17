@@ -22,7 +22,7 @@ const SPECTATOR_MAX_FAILURES = 5;
 const SPECTATOR_LOCK_MS = 30000;
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
-const SPEED_TIERS = [3.2, 4.0, 5.0, 6.0, 7.2, 8.2];
+const SPEED_TIERS = [4.0, 5.0, 6.0, 7.0, 8.0, 9.2];
 
 // Alpha 1.1 foundation: common target relations + generic status effects.
 const TARGET_RELATION = Object.freeze({ SELF: 'SELF', ALLY: 'ALLY', ENEMY: 'ENEMY' });
@@ -44,85 +44,85 @@ const WALLS = [
 
 const CHARACTERS = {
   iron: {
-    name: '아이언', role: '탱커', hp: 600, speed: 4.0, radius: 0.80,
-    fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.20,
+    name: '아이언', role: '탱커', hp: 600, speed: 5.0, radius: 1.00,
+    fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.26,
     projectileType: 'attack', damage: 13
   },
   mecha: {
-    name: '메카', role: '탱커', hp: 550, speed: 6.0, radius: 0.80,
-    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.12,
+    name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
+    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.16,
     projectileType: 'attack', damage: 9
   },
   solar: {
-    name: '솔라', role: '탱커', hp: 375, speed: 4.0, radius: 0.80,
+    name: '솔라', role: '탱커', hp: 375, speed: 5.0, radius: 1.00,
     attackType: 'beam', range: 16, beamDps: 55,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
-    solarProjectileRadius: 0.20, solarProjectileDamage: 25, solarSelfHeal: 25
+    solarProjectileRadius: 0.26, solarProjectileDamage: 25, solarSelfHeal: 25
   },
   runner: {
-    name: '러너', role: '딜러', hp: 175, speed: 6.0, radius: 0.50,
-    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.12,
+    name: '러너', role: '딜러', hp: 175, speed: 7.0, radius: 0.65,
+    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.16,
     projectileType: 'attack', damage: 11,
     sprintDuration: 4, sprintCooldown: 10, abilityId: 'sprint'
   },
   shooter: {
-    name: '슈터', role: '딜러', hp: 250, speed: 5.0, radius: 0.65,
-    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.12,
+    name: '슈터', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
+    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.16,
     projectileType: 'attack', damage: 20
   },
   sniper: {
-    name: '스나이퍼', role: '딜러', hp: 150, speed: 4.0, radius: 0.50,
-    fireRate: 1, range: 36, projectileSpeed: 42, projectileRadius: 0.12,
+    name: '스나이퍼', role: '딜러', hp: 150, speed: 5.0, radius: 0.65,
+    fireRate: 1, range: 36, projectileSpeed: 42, projectileRadius: 0.16,
     projectileType: 'attack', distanceDamage: true
   },
   cannon: {
-    name: '캐논', role: '딜러', hp: 275, speed: 3.2, radius: 0.80,
-    fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
-    projectileType: 'attack', damage: 14
+    name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
+    fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.26,
+    projectileType: 'attack', damage: 13
   },
   fire: {
-    name: '파이어', role: '딜러', hp: 200, speed: 6.0, radius: 0.65,
-    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.12,
+    name: '파이어', role: '딜러', hp: 200, speed: 7.0, radius: 0.80,
+    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.16,
     projectileType: 'attack', damage: 16, burnDps: 10, burnDuration: 2
   },
   poison: {
-    name: '포이즌', role: '딜러', hp: 250, speed: 5.0, radius: 0.65,
+    name: '포이즌', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 85,
     poisonHealReduction: 0.50, poisonDuration: 1.5
   },
   water: {
-    name: '워터', role: '힐러', hp: 250, speed: 5.0, radius: 0.50,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.12,
+    name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
+    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.44,
     projectileType: 'heal', heal: 14
   },
   wind: {
-    name: '윈드', role: '힐러', hp: 225, speed: 6.0, radius: 0.50,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.35,
+    name: '윈드', role: '힐러', hp: 225, speed: 7.0, radius: 0.65,
+    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.44,
     projectileType: 'heal', heal: 11, tailwindDuration: 2
   },
   star: {
-    name: '스타', role: '힐러', hp: 175, speed: 4.0, radius: 0.65,
-    fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.12,
+    name: '스타', role: '힐러', hp: 175, speed: 5.0, radius: 0.80,
+    fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.16,
     projectileType: 'heal', heal: 35
   },
   light: {
-    name: '라이트', role: '힐러', hp: 225, speed: 5.0, radius: 0.50,
+    name: '라이트', role: '힐러', hp: 225, speed: 6.0, radius: 0.65,
     attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 60
   },
   laser: {
-    name: '레이저', role: '딜러', hp: 275, speed: 5.0, radius: 0.65,
+    name: '레이저', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 80, maxHpDpsRatio: 0.10
   },
   ice: {
-    name: '아이스', role: '딜러', hp: 275, speed: 5.0, radius: 0.65,
+    name: '아이스', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 80,
     slowTierDelta: -1, slowDuration: 1.5
   },
   dia: {
-    name: '다이아', role: '탱커', hp: 350, speed: 4.0, radius: 0.80,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.12,
+    name: '다이아', role: '탱커', hp: 350, speed: 5.0, radius: 1.00,
+    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.16,
     projectileType: 'attack', damage: 13,
-    formDuration: 6, formCooldown: 16, formHp: 400, formSpeed: 5.0,
+    formDuration: 6, formCooldown: 16, formHp: 400, formSpeed: 6.0,
     formRange: 16, formBeamDps: 80, abilityId: 'form'
   }
 };
@@ -472,9 +472,11 @@ function onMessage(conn, msg) {
       abilityTarget = resolveTargetedAbilityTarget(room, player, msg.targetId, def.abilityTargeting, now);
       if (!abilityTarget) return;
     }
-    if (msg.ability === 'form') activateDiaForm(player, now);
-    if (msg.ability === 'sprint') activateRunnerSprint(player, now);
+    let activated = false;
+    if (msg.ability === 'form') activated = activateDiaForm(player, now);
+    if (msg.ability === 'sprint') activated = activateRunnerSprint(player, now);
     // Future targeted abilities use the already validated abilityTarget here.
+    if (activated) player.abilityUseSeq = (player.abilityUseSeq || 0) + 1;
     return;
   }
   if (msg.type === 'input' && room.state === 'playing') {
@@ -544,6 +546,7 @@ function joinRoom(conn, msg) {
     lastCombatAt: 0,
     diaFormUntil: 0, diaCooldownUntil: 0,
     sprintUntil: 0, sprintCooldownUntil: 0,
+    shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, abilityUseSeq: 0,
     stats: makeMatchStats(null)
   };
   room.players.set(id, player);
@@ -606,6 +609,7 @@ function startMatch(room) {
       x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0, invulnerableUntil: 0,
       nextFireAt: 0, statuses: Object.create(null), shield: 0, maxShield: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, lastCombatAt: now,
+      shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, abilityUseSeq: 0,
       stats: makeMatchStats(p.character)
     });
     p.input = { up: false, down: false, left: false, right: false, fire: false };
@@ -840,13 +844,13 @@ function traceBeam(room, player, def, dt, now) {
 
   const endX = x1 + (x2 - x1) * bestT;
   const endY = y1 + (y2 - y1) * bestT;
-  room.beams.push({ ownerId: player.id, team: player.team, character: player.character, x1, y1, x2: endX, y2: endY });
+  let didDamage = false;
 
   if (hit && hit.kind === 'player') {
     const target = hit.target;
     if (target.invulnerableUntil <= now) {
       const dps = def.beamDps + target.maxHp * (def.maxHpDpsRatio || 0);
-      dealDamage(room, player.id, target, dps * dt, now);
+      didDamage = dealDamage(room, player.id, target, dps * dt, now) > 0;
       if (def.slowTierDelta < 0) applyStatus(room, player, target, 'slow', def.slowDuration * 1000, now, { tierDelta: def.slowTierDelta });
       if (def.poisonHealReduction > 0) applyStatus(room, player, target, 'poison', def.poisonDuration * 1000, now, { healReduction: def.poisonHealReduction });
       if (target.hp <= 0) {
@@ -855,6 +859,7 @@ function traceBeam(room, player, def, dt, now) {
       }
     }
   }
+  room.beams.push({ ownerId: player.id, team: player.team, character: player.character, x1, y1, x2: endX, y2: endY, impact: hit ? hit.kind : null, hitEnemyId: hit && hit.kind === 'player' ? hit.target.id : null, didDamage });
 }
 
 function traceLightBeam(room, player, def, dt, now) {
@@ -907,8 +912,9 @@ function traceLightBeam(room, player, def, dt, now) {
   }
 
   if (healedAlly) applyHealing(room, player, healedAlly, def.healHps * dt, now);
+  let didDamage = false;
   if (enemyHit && enemyHit.invulnerableUntil <= now) {
-    dealDamage(room, player.id, enemyHit, def.beamDps * dt, now);
+    didDamage = dealDamage(room, player.id, enemyHit, def.beamDps * dt, now) > 0;
     if (enemyHit.hp <= 0) {
       registerDirectKill(room, player.id, now);
       die(room, enemyHit, now);
@@ -919,7 +925,7 @@ function traceLightBeam(room, player, def, dt, now) {
   const endY = y1 + (y2 - y1) * endT;
   room.beams.push({
     ownerId: player.id, team: player.team, character: player.character,
-    x1, y1, x2: endX, y2: endY, healedId: healedAlly ? healedAlly.id : null, hitEnemyId: enemyHit ? enemyHit.id : null
+    x1, y1, x2: endX, y2: endY, healedId: healedAlly ? healedAlly.id : null, hitEnemyId: enemyHit ? enemyHit.id : null, impact: enemyHit ? 'player' : (wallT < 1 ? 'wall' : null), didDamage
   });
 }
 
@@ -930,6 +936,7 @@ function spawnProjectile(room, player, def, now) {
   dx /= len; dy /= len;
   const startOffset = def.radius + def.projectileRadius + 0.04;
   const id = `B${room.projectileCounter++}`;
+  player.shotSeq = (player.shotSeq || 0) + 1;
   room.projectiles.set(id, {
     id, ownerId: player.id, team: player.team, character: player.character,
     type: def.projectileType,
@@ -957,6 +964,7 @@ function spawnSolarProjectile(room, player, def, now) {
   dx /= len; dy /= len;
   const startOffset = def.radius + def.solarProjectileRadius + 0.04;
   const id = `B${room.projectileCounter++}`;
+  player.shotSeq = (player.shotSeq || 0) + 1;
   room.projectiles.set(id, {
     id, ownerId: player.id, team: player.team, character: player.character,
     type: 'attack',
@@ -1014,8 +1022,12 @@ function updateProjectiles(room, dt, now) {
         if (p.type === 'attack') {
           if (t.invulnerableUntil <= now) {
             const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
-            const hitDamage = p.distanceDamage ? (impactDistance <= 16 ? 65 : (impactDistance <= 32 ? 85 : 105)) : p.damage;
+            const hitDamage = p.distanceDamage ? (impactDistance <= 16 + 1e-6 ? 80 : 110) : p.damage;
             const damageResult = dealDamageDetailed(room, p.ownerId, t, hitDamage, now);
+            if (damageResult.total > 0) {
+              const owner = room.players.get(p.ownerId);
+              if (owner) owner.projectileHitSeq = (owner.projectileHitSeq || 0) + 1;
+            }
             // Solar self-heal requires actual HP damage; shield-only hits do not count.
             if (damageResult.hp > 0 && p.selfHealOnHit > 0) {
               const owner = room.players.get(p.ownerId);
@@ -1032,7 +1044,11 @@ function updateProjectiles(room, dt, now) {
           }
         } else {
           const healer = room.players.get(p.ownerId);
-          applyHealing(room, healer, t, p.heal, now);
+          const actualHeal = applyHealing(room, healer, t, p.heal, now);
+          if (actualHeal > 0 && healer) {
+            healer.healHitSeq = (healer.healHitSeq || 0) + 1;
+            healer.lastHealTargetId = t.id;
+          }
           if (p.tailwindDuration > 0) {
             if (applyStatus(room, healer, t, 'tailwind', p.tailwindDuration * 1000, now, { tierDelta: 1 }) && healer) ensureMatchStats(healer).tailwindApplications += 1;
           }
@@ -1129,6 +1145,7 @@ function snapshot(room, viewerId = null, spectator = false) {
     winner: room.winner,
     players: [...room.players.values()].map(p => {
       const hideCharacter = hideAllPicks || (hideEnemyPicks && p.team !== viewer.team);
+      const burnStatus = getStatus(p, 'burn', now);
       return {
         id: p.id, name: p.name, team: p.team, character: hideCharacter ? null : p.character,
         x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, shield: Math.max(0, p.shield || 0), maxShield: Math.max(0, p.maxShield || 0), alive: p.alive,
@@ -1136,18 +1153,20 @@ function snapshot(room, viewerId = null, spectator = false) {
         invulnerable: p.alive && p.invulnerableUntil > now,
         invulnerableMs: p.alive ? Math.max(0, p.invulnerableUntil - now) : 0,
         aimX: p.aimX, aimY: p.aimY,
-        burning: hasStatus(p, 'burn', now), poisoned: hasStatus(p, 'poison', now), tailwind: hasStatus(p, 'tailwind', now), frozen: hasStatus(p, 'slow', now), stunned: hasStatus(p, 'stun', now),
+        burning: !!burnStatus, burnSourceId: burnStatus ? burnStatus.sourceId : null, poisoned: hasStatus(p, 'poison', now), tailwind: hasStatus(p, 'tailwind', now), frozen: hasStatus(p, 'slow', now), stunned: hasStatus(p, 'stun', now),
         diaForm: !hideCharacter && isDiaForm(p, now),
         diaFormMs: !hideCharacter && isDiaForm(p, now) ? Math.max(0, p.diaFormUntil - now) : 0,
         diaCooldownMs: !hideCharacter && p.character === 'dia' ? Math.max(0, p.diaCooldownUntil - now) : 0,
         sprint: !hideCharacter && p.character === 'runner' && p.sprintUntil > now,
         sprintMs: !hideCharacter && p.character === 'runner' && p.sprintUntil > now ? Math.max(0, p.sprintUntil - now) : 0,
         sprintCooldownMs: !hideCharacter && p.character === 'runner' ? Math.max(0, p.sprintCooldownUntil - now) : 0,
+        shotSeq: p.shotSeq || 0, projectileHitSeq: p.projectileHitSeq || 0, healHitSeq: p.healHitSeq || 0,
+        lastHealTargetId: p.lastHealTargetId || null, abilityUseSeq: p.abilityUseSeq || 0,
         stats: room.state === 'ended' ? { ...ensureMatchStats(p) } : null
       };
     }),
     projectiles: [...room.projectiles.values()].map(p => ({ id: p.id, x: p.x, y: p.y, radius: p.radius, type: p.type, team: p.team, character: p.character })),
-    beams: room.beams.map(b => ({ ownerId: b.ownerId, team: b.team, character: b.character, x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2, healedId: b.healedId || null, hitEnemyId: b.hitEnemyId || null }))
+    beams: room.beams.map(b => ({ ownerId: b.ownerId, team: b.team, character: b.character, x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2, healedId: b.healedId || null, hitEnemyId: b.hitEnemyId || null, impact: b.impact || null, didDamage: !!b.didDamage }))
   };
 }
 
@@ -1168,7 +1187,7 @@ if (require.main === module) {
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`
-School Line Mobile Alpha 1.1`);
+School Line Mobile Alpha 1.1.1`);
     console.log(`Local: http://localhost:${PORT}`);
     console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}
 `);

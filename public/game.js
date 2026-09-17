@@ -6,22 +6,102 @@ const canvas = $('gameCanvas'), ctx = canvas.getContext('2d');
 const SCALE = 15; // world y -> screen x, world x -> screen y (mobile landscape rotation)
 
 const CHARACTER_META = {
-  iron: { role:'탱커', name:'아이언', icon:'⚙️', mini:'HP 600 · 느림', stat:'HP 600 · 속도 4.0 · 사거리 24 · 65 DPS', summary:'가장 단단한 정통 탱커', mechanic:'높은 체력으로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.' },
-  mecha: { role:'탱커', name:'메카', icon:'🤖', mini:'HP 550 · 빠름', stat:'HP 550 · 속도 6.0 · 사거리 16 · 45 DPS', summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커', mechanic:'사거리는 16으로 짧고 화력은 낮지만, HP 550과 속도 6.0으로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.' },
-  dia: { role:'탱커', name:'다이아', icon:'💎', mini:'HP 350 · 변신', stat:'HP 350 · 속도 4.0 · 기본 65 DPS · 변신 6초', summary:'타이밍을 잡아 강해지는 변신 탱커', mechanic:'기본형은 투사체로 싸운다. Space 또는 능력 버튼을 누르면 6초간 HP 400, 속도 5.0, 80 DPS 광선폼이 된다. 변신 쿨은 16초이며 폼 중 직접 처치하면 6초 감소한다.' },
-  solar: { role:'탱커', name:'솔라', icon:'☀️', mini:'광선 · 태양탄 자힐', stat:'HP 375 · 속도 4.0 · 사거리 16 광선 55 DPS', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커', mechanic:'공격하는 동안 조준 방향으로 사거리 16의 55 DPS 광선을 유지한다. 동시에 1초마다 같은 조준 방향으로 사거리 24의 태양탄을 발사하며, 태양탄이 적에게 실제 피해를 주면 HP를 25 회복한다. 이 자가회복은 포이즌의 외부 치유 감소 영향을 받지 않는다.' },
-  runner: { role:'딜러', name:'러너', icon:'🏃', mini:'55 DPS · 질주', stat:'HP 175 · 속도 6.0 · 사거리 16 · 55 DPS', summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러', mechanic:'빠른 작은 투사체를 초당 5발 발사하며 한 발당 11 피해를 준다. 사거리는 16으로 짧다. Space 또는 능력 버튼을 누르면 4초 동안 이동속도가 한 단계 올라 6.0에서 7.2가 된다. 질주 재사용 대기시간은 10초이며, 윈드의 순풍과 함께 적용되면 최고 속도 8.2까지 올라갈 수 있다.' },
-  shooter: { role:'딜러', name:'슈터', icon:'🎯', mini:'100 DPS · 안정적', stat:'HP 250 · 속도 5.0 · 사거리 24 · 100 DPS', summary:'가장 표준적인 원거리 딜러', mechanic:'빠르고 작은 탄을 초당 5발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.' },
-  sniper: { role:'딜러', name:'스나이퍼', icon:'🔭', mini:'장거리 · 거리비례 피해', stat:'HP 150 · 속도 4.0 · 사거리 36 · 초당 1발', summary:'멀수록 한 발이 강해지는 초장거리 딜러', mechanic:'매우 빠른 작은 투사체를 초당 1발 발사한다. 실제로 날아가 충돌한 거리 기준으로 16 이하는 65, 16 초과~32 이하는 85, 32 초과~36 이하는 105 피해를 준다. 가까이 붙으면 약해진다.' },
-  cannon: { role:'딜러', name:'캐논', icon:'💥', mini:'140 DPS · 느림', stat:'HP 275 · 속도 3.2 · 사거리 24 · 140 DPS', summary:'기동성을 버리고 화력을 얻은 중화기 딜러', mechanic:'초당 10발을 퍼붓는 최고 수준의 지속 화력. 대신 이동속도가 매우 느려 위치를 잘못 잡으면 도망치기 어렵다.' },
-  fire: { role:'딜러', name:'파이어', icon:'🔥', mini:'80 DPS · 화상', stat:'HP 200 · 속도 6.0 · 사거리 24 · 80 DPS + 화상', summary:'빠르게 움직이며 지속 피해를 남기는 딜러', mechanic:'적중한 적에게 2초 동안 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.' },
-  poison: { role:'딜러', name:'포이즌', icon:'☠️', mini:'85 DPS · 치유 감소', stat:'HP 250 · 속도 5.0 · 사거리 16 · 85 DPS', summary:'외부 치유를 약화시키는 안티힐 광선 딜러', mechanic:'광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 50% 감소한다. 중독은 마지막 적중 후 1.5초 유지되며 다시 맞으면 갱신된다. 비전투 회복에는 영향을 주지 않는다.' },
-  laser: { role:'딜러', name:'레이저', icon:'🔴', mini:'광선 · 탱커 압박', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 + 최대HP 10% DPS', summary:'체력이 높은 적일수록 더 아픈 광선 딜러', mechanic:'조준한 방향으로 즉시 광선을 연결한다. 기본 80 DPS에 대상 최대 체력의 10%만큼 DPS가 추가되어 탱커를 상대할 때 특히 강하다.' },
-  ice: { role:'딜러', name:'아이스', icon:'🧊', mini:'80 DPS · 감속', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 DPS', summary:'적의 움직임을 묶는 제어형 광선 딜러', mechanic:'광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 감속은 마지막 적중 후 1.5초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.' },
-  water: { role:'힐러', name:'워터', icon:'💧', mini:'70 HPS · 안정 치유', stat:'HP 250 · 속도 5.0 · 사거리 24 · 70 HPS', summary:'가장 단순하고 안정적인 기본 힐러', mechanic:'오른쪽 스틱으로 아군을 조준해 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.' },
-  wind: { role:'힐러', name:'윈드', icon:'🌪️', mini:'55 HPS · 순풍', stat:'HP 225 · 속도 6.0 · 사거리 24 · 55 HPS', summary:'치유와 기동력 지원을 함께 주는 힐러', mechanic:'치유탄에 맞은 아군은 2초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.' },
-  star: { role:'힐러', name:'스타', icon:'⭐', mini:'70 HPS · 초장거리', stat:'HP 175 · 속도 4.0 · 사거리 30 · 70 HPS', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러', mechanic:'초당 2발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 35 회복한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시키며 자신은 치유할 수 없다. 공격 능력은 없다.' },
-  light: { role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜', stat:'HP 225 · 속도 5.0 · 사거리 16 · 50 HPS / 60 DPS', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러', mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.' }
+  iron: {
+    role:'탱커', name:'아이언', icon:'⚙️', mini:'HP 600 · 느림',
+    stats:[['체력','600 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','65'],['공격 속도','5발/s'],['이동속도','느림 · 5.0 m/s'],['크기','큼']],
+    summary:'가장 단단한 정통 탱커',
+    mechanic:'높은 체력으로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.'
+  },
+  mecha: {
+    role:'탱커', name:'메카', icon:'🤖', mini:'HP 550 · 빠름',
+    stats:[['체력','550 HP'],['공격 방식','투사체'],['사거리','16 m'],['DPS','45'],['공격 속도','5발/s'],['이동속도','빠름 · 7.0 m/s'],['크기','큼']],
+    summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커',
+    mechanic:'사거리 16 m로 짧고 화력은 낮지만, HP 550과 빠른 이동속도로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.'
+  },
+  dia: {
+    role:'탱커', name:'다이아', icon:'💎', mini:'HP 350 · 변신',
+    stats:[['체력','350 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','65'],['공격 속도','5발/s'],['이동속도','느림 · 5.0 m/s'],['크기','큼']],
+    summary:'타이밍을 잡아 강해지는 변신 탱커',
+    mechanic:'카드에는 기본형 수치를 표시한다. Space 또는 능력 버튼을 누르면 6초간 HP 400, 이동속도 보통 6.0 m/s, 사거리 16 m, 80 DPS 광선폼이 된다. 변신 쿨은 16초이며 폼 중 직접 처치하면 6초 감소한다.'
+  },
+  solar: {
+    role:'탱커', name:'솔라', icon:'☀️', mini:'광선 · 태양탄 자힐',
+    stats:[['체력','375 HP'],['공격 방식','광선 + 투사체'],['사거리','16 m / 24 m'],['DPS','80 (55 + 25)'],['공격 속도','태양탄 1발/s'],['이동속도','느림 · 5.0 m/s'],['크기','큼']],
+    summary:'광선과 태양탄을 함께 다루는 자가회복 탱커',
+    mechanic:'공격하는 동안 사거리 16 m의 55 DPS 광선을 유지하고, 동시에 1초마다 같은 조준 방향으로 사거리 24 m의 태양탄(25 피해)을 발사한다. 태양탄이 적 본체에 실제 피해를 주면 HP를 25 회복하며, 이 자가회복은 포이즌의 외부 치유 감소 영향을 받지 않는다.'
+  },
+  runner: {
+    role:'딜러', name:'러너', icon:'🏃', mini:'55 DPS · 질주',
+    stats:[['체력','175 HP'],['공격 방식','투사체'],['사거리','16 m'],['DPS','55'],['공격 속도','5발/s'],['이동속도','빠름 · 7.0 m/s'],['크기','작음']],
+    summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러',
+    mechanic:'빠른 작은 투사체를 초당 5발 발사하며 한 발당 11 피해를 준다. Space 또는 능력 버튼을 누르면 4초 동안 이동속도가 한 단계 올라 매우 빠름 8.0 m/s가 된다. 질주 재사용 대기시간은 10초이며, 윈드의 순풍과 함께 적용되면 초고속 9.2 m/s까지 올라갈 수 있다.'
+  },
+  shooter: {
+    role:'딜러', name:'슈터', icon:'🎯', mini:'100 DPS · 안정적',
+    stats:[['체력','250 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','100'],['공격 속도','5발/s'],['이동속도','보통 · 6.0 m/s'],['크기','중간']],
+    summary:'가장 표준적인 원거리 딜러',
+    mechanic:'빠르고 작은 탄을 초당 5발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.'
+  },
+  sniper: {
+    role:'딜러', name:'스나이퍼', icon:'🔭', mini:'장거리 · 거리비례 피해',
+    stats:[['체력','150 HP'],['공격 방식','투사체'],['사거리','36 m'],['DPS','80 / 110'],['공격 속도','1발/s'],['이동속도','느림 · 5.0 m/s'],['크기','작음']],
+    summary:'멀수록 한 발이 강해지는 초장거리 딜러',
+    mechanic:'매우 빠른 작은 투사체를 초당 1발 발사한다. 실제 비행거리 기준 0~16 m에서는 80 피해, 16 m 초과~36 m에서는 110 피해를 준다.'
+  },
+  cannon: {
+    role:'딜러', name:'캐논', icon:'💥', mini:'130 DPS · 느림',
+    stats:[['체력','275 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','130'],['공격 속도','10발/s'],['이동속도','매우 느림 · 4.0 m/s'],['크기','큼']],
+    summary:'기동성을 버리고 화력을 얻은 중화기 딜러',
+    mechanic:'초당 10발을 퍼붓는 최고 수준의 지속 화력을 가진다. 대신 이동속도가 매우 느려 위치를 잘못 잡으면 도망치기 어렵다.'
+  },
+  fire: {
+    role:'딜러', name:'파이어', icon:'🔥', mini:'80 DPS · 화상',
+    stats:[['체력','200 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','80'],['공격 속도','5발/s'],['이동속도','빠름 · 7.0 m/s'],['크기','중간']],
+    summary:'빠르게 움직이며 지속 피해를 남기는 딜러',
+    mechanic:'적중한 적에게 2초 동안 10 DPS의 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.'
+  },
+  poison: {
+    role:'딜러', name:'포이즌', icon:'☠️', mini:'85 DPS · 치유 감소',
+    stats:[['체력','250 HP'],['공격 방식','광선'],['사거리','16 m'],['DPS','85'],['공격 속도','없음 (지속형)'],['이동속도','보통 · 6.0 m/s'],['크기','중간']],
+    summary:'외부 치유를 약화시키는 안티힐 광선 딜러',
+    mechanic:'광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 50% 감소한다. 중독은 마지막 적중 후 1.5초 유지되며 다시 맞으면 갱신된다. 비전투 회복에는 영향을 주지 않는다.'
+  },
+  laser: {
+    role:'딜러', name:'레이저', icon:'🔴', mini:'광선 · 탱커 압박',
+    stats:[['체력','275 HP'],['공격 방식','광선'],['사거리','16 m'],['DPS','80 + 최대 HP 10%/s'],['공격 속도','없음 (지속형)'],['이동속도','보통 · 6.0 m/s'],['크기','중간']],
+    summary:'체력이 높은 적일수록 더 아픈 광선 딜러',
+    mechanic:'조준한 방향으로 즉시 광선을 연결한다. 기본 80 DPS에 대상 최대 HP의 10%/s만큼 피해가 추가되어 탱커를 상대할 때 특히 강하다.'
+  },
+  ice: {
+    role:'딜러', name:'아이스', icon:'🧊', mini:'80 DPS · 감속',
+    stats:[['체력','275 HP'],['공격 방식','광선'],['사거리','16 m'],['DPS','80'],['공격 속도','없음 (지속형)'],['이동속도','보통 · 6.0 m/s'],['크기','중간']],
+    summary:'적의 움직임을 묶는 제어형 광선 딜러',
+    mechanic:'광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 감속은 마지막 적중 후 1.5초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.'
+  },
+  water: {
+    role:'힐러', name:'워터', icon:'💧', mini:'70 HPS · 안정 치유',
+    stats:[['체력','250 HP'],['공격 방식','치유 투사체'],['사거리','24 m'],['HPS','70'],['치유 속도','5발/s'],['이동속도','보통 · 6.0 m/s'],['크기','작음']],
+    summary:'가장 단순하고 안정적인 기본 힐러',
+    mechanic:'오른쪽 스틱으로 아군을 조준해 큰 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.'
+  },
+  wind: {
+    role:'힐러', name:'윈드', icon:'🌪️', mini:'55 HPS · 순풍',
+    stats:[['체력','225 HP'],['공격 방식','치유 투사체'],['사거리','24 m'],['HPS','55'],['치유 속도','5발/s'],['이동속도','빠름 · 7.0 m/s'],['크기','작음']],
+    summary:'치유와 기동력 지원을 함께 주는 힐러',
+    mechanic:'치유탄에 맞은 아군은 2초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.'
+  },
+  star: {
+    role:'힐러', name:'스타', icon:'⭐', mini:'70 HPS · 초장거리',
+    stats:[['체력','175 HP'],['공격 방식','치유 투사체'],['사거리','30 m'],['HPS','70'],['치유 속도','2발/s'],['이동속도','느림 · 5.0 m/s'],['크기','중간']],
+    summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러',
+    mechanic:'초당 2발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 35 회복한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시키며 자신은 치유할 수 없다. 공격 능력은 없다.'
+  },
+  light: {
+    role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜',
+    stats:[['체력','225 HP'],['공격 방식','광선 (치유 + 공격)'],['사거리','16 m'],['DPS / HPS','60 / 50'],['공격·치유 속도','없음 (지속형)'],['이동속도','보통 · 6.0 m/s'],['크기','작음']],
+    summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러',
+    mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.'
+  }
 };
 
 const CHARACTER_STORIES = {
@@ -151,7 +231,8 @@ function renderPicker(kind) {
   if (!detailId) detailId = visibleIds.find(id => kind !== 'lobby' || !isTeamCharacterTaken(id)) || visibleIds[0];
   const m = CHARACTER_META[detailId];
   const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
-  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${m.name}</div><span class="role-badge">${m.role}</span></div><div class="character-statline">${m.stat}</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${m.mechanic}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
+  const statHtml = (m.stats || []).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
+  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${m.name}</div><span class="role-badge">${m.role}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${m.mechanic}</div></div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
 }
 
 function selectLobbyCharacter(id) {
@@ -161,6 +242,70 @@ function selectLobbyCharacter(id) {
 let ws = null, myId = null, config = null, state = null;
 let spectatorMode = false;
 let selectedTargetId = null; // Alpha 1.1 targeted-ability selection; current roster has no targeted ability yet.
+
+// Alpha 1.1.1: render-only snapshot interpolation. Server state remains authoritative.
+const playerMotionTracks = new Map();
+let lastPlayingSnapshotAt = 0;
+
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+
+function samplePlayerMotionTrack(track, now=performance.now()) {
+  if (!track) return null;
+  const duration = Math.max(1, track.duration || 1);
+  const t = clamp01((now - track.start) / duration);
+  return {
+    x: track.fromX + (track.toX - track.fromX) * t,
+    y: track.fromY + (track.toY - track.fromY) * t
+  };
+}
+
+function updatePlayerMotionTracks(previousState, nextState) {
+  const now = performance.now();
+  if (!nextState || nextState.state !== 'playing') {
+    playerMotionTracks.clear();
+    lastPlayingSnapshotAt = 0;
+    return;
+  }
+
+  const continuing = previousState && previousState.state === 'playing';
+  const rawInterval = continuing && lastPlayingSnapshotAt ? now - lastPlayingSnapshotAt : 50;
+  const snapshotInterval = Math.max(35, Math.min(85, rawInterval));
+  lastPlayingSnapshotAt = now;
+  const beforeById = new Map(((previousState && previousState.players) || []).map(p => [p.id, p]));
+  const liveIds = new Set();
+
+  for (const p of (nextState.players || [])) {
+    liveIds.add(p.id);
+    const before = beforeById.get(p.id);
+    const oldTrack = playerMotionTracks.get(p.id);
+    const movedFar = before ? Math.hypot(p.x - before.x, p.y - before.y) > 6 : true;
+    const shouldSnap = !continuing || !before || !before.alive || !p.alive || movedFar;
+    if (shouldSnap) {
+      playerMotionTracks.set(p.id, {fromX:p.x, fromY:p.y, toX:p.x, toY:p.y, start:now, duration:1});
+      continue;
+    }
+
+    const sampled = samplePlayerMotionTrack(oldTrack, now) || {x:before.x, y:before.y};
+    // Local movement catches up faster to reduce perceived input latency; remote players favor smoothness.
+    const duration = p.id === myId
+      ? Math.max(24, Math.min(36, snapshotInterval * 0.60))
+      : Math.max(35, Math.min(55, snapshotInterval * 0.90));
+    playerMotionTracks.set(p.id, {
+      fromX: sampled.x, fromY: sampled.y, toX: p.x, toY: p.y, start: now, duration
+    });
+  }
+
+  for (const id of playerMotionTracks.keys()) if (!liveIds.has(id)) playerMotionTracks.delete(id);
+}
+
+function renderedPlayerWorldPosition(player, now=performance.now()) {
+  return samplePlayerMotionTrack(playerMotionTracks.get(player.id), now) || {x:player.x, y:player.y};
+}
+
+function characterRadiusWorld(characterId) {
+  const value = config && config.characters && config.characters[characterId] && config.characters[characterId].radius;
+  return Number.isFinite(value) ? value : 0.80;
+}
 
 renderPicker('lobby');
 
@@ -172,15 +317,23 @@ let lastAimDir = { x: 0, y: 1 }; // world direction, A->B by default
 
 // Alpha 0.6: lightweight Web Audio + haptics. No external audio assets are required.
 const AUDIO_VOLUME_MULTIPLIER = 9;
-const HIT_VOLUME_MULTIPLIER = 0.5;
+const HIT_VOLUME_MULTIPLIER = 0.3; // incoming-damage cue only; keep important cues audible
 const BGM_VOLUME_MULTIPLIER = 1.5;
 let audioCtx = null;
 let masterGain = null;
+let audioCompressor = null;
 let bgmGain = null;
 let sfxGain = null;
 let bgmTimer = null;
 let bgmStep = 0;
 let lastHitFeedbackAt = 0;
+let lastProjectileHitAt = 0;
+let lastHealConfirmAt = 0;
+let beamHum = null;
+let matchAlertTimer = null;
+const shownTimeWarnings = new Set();
+const worldFx = [];
+const playerHitFlashUntil = new Map();
 let audioEnabled = localStorage.getItem('schoolLineAudio') !== 'off';
 
 function ensureAudio() {
@@ -189,14 +342,22 @@ function ensureAudio() {
     if (!AudioContextClass) return null;
     audioCtx = new AudioContextClass();
     masterGain = audioCtx.createGain();
+    audioCompressor = audioCtx.createDynamicsCompressor();
     bgmGain = audioCtx.createGain();
     sfxGain = audioCtx.createGain();
     masterGain.gain.value = audioEnabled ? AUDIO_VOLUME_MULTIPLIER : 0;
+    // Catch overlapping event peaks without flattening ordinary cues.
+    audioCompressor.threshold.value = -10;
+    audioCompressor.knee.value = 12;
+    audioCompressor.ratio.value = 6;
+    audioCompressor.attack.value = 0.003;
+    audioCompressor.release.value = 0.16;
     bgmGain.gain.value = 0.050 * BGM_VOLUME_MULTIPLIER;
     sfxGain.gain.value = 0.72;
     bgmGain.connect(masterGain);
     sfxGain.connect(masterGain);
-    masterGain.connect(audioCtx.destination);
+    masterGain.connect(audioCompressor);
+    audioCompressor.connect(audioCtx.destination);
   }
   if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
   return audioCtx;
@@ -233,12 +394,169 @@ function noiseBurst(duration=.07, gain=.08, target=sfxGain) {
 
 function playHitFeedback() {
   const now = performance.now();
-  if (now - lastHitFeedbackAt < 180) return;
+  if (now - lastHitFeedbackAt < 220) return;
   lastHitFeedbackAt = now;
-  if (navigator.vibrate) navigator.vibrate(38);
-  synthTone({freq:165, endFreq:88, duration:.095, type:'square', gain:.22 * HIT_VOLUME_MULTIPLIER});
-  synthTone({freq:310, endFreq:170, duration:.055, type:'triangle', gain:.11 * HIT_VOLUME_MULTIPLIER, when:.008});
-  noiseBurst(.060, .16 * HIT_VOLUME_MULTIPLIER);
+  if (navigator.vibrate) navigator.vibrate(24);
+  synthTone({freq:145, endFreq:105, duration:.055, type:'triangle', gain:.045 * HIT_VOLUME_MULTIPLIER});
+  noiseBurst(.028, .025 * HIT_VOLUME_MULTIPLIER);
+}
+
+function playProjectileHitConfirm() {
+  const now = performance.now();
+  if (now - lastProjectileHitAt < 85) return;
+  lastProjectileHitAt = now;
+  synthTone({freq:920, endFreq:760, duration:.032, type:'square', gain:.025});
+  synthTone({freq:1380, endFreq:1120, duration:.020, type:'triangle', gain:.013, when:.004});
+}
+
+function playHealConfirm() {
+  const now = performance.now();
+  if (now - lastHealConfirmAt < 145) return;
+  lastHealConfirmAt = now;
+  synthTone({freq:660, endFreq:760, duration:.075, type:'sine', gain:.022});
+  synthTone({freq:990, endFreq:1180, duration:.090, type:'sine', gain:.015, when:.025});
+}
+
+function playSniperShotCue() {
+  // Local-only high-speed 'shing' cue; no generic projectile firing sounds.
+  synthTone({freq:1750, endFreq:720, duration:.080, type:'sawtooth', gain:.018});
+  synthTone({freq:2400, endFreq:1100, duration:.055, type:'triangle', gain:.011, when:.006});
+  noiseBurst(.030, .010);
+}
+
+function playDiaTransformCue(local=false) {
+  const scale = local ? 1 : .52;
+  synthTone({freq:240, endFreq:620, duration:.22, type:'sawtooth', gain:.030 * scale});
+  synthTone({freq:520, endFreq:1320, duration:.28, type:'triangle', gain:.024 * scale, when:.025});
+  synthTone({freq:980, endFreq:1760, duration:.20, type:'sine', gain:.018 * scale, when:.075});
+  synthTone({freq:1540, endFreq:2200, duration:.12, type:'sine', gain:.012 * scale, when:.16});
+  noiseBurst(.075, .012 * scale);
+}
+
+function playFireIgniteCue() {
+  // One-shot ignition cue. Repeated burn refreshes intentionally do not retrigger it.
+  noiseBurst(.105, .020);
+  synthTone({freq:210, endFreq:360, duration:.11, type:'sawtooth', gain:.012});
+  synthTone({freq:520, endFreq:340, duration:.08, type:'triangle', gain:.008, when:.025});
+}
+
+function playTimeWarningCue(seconds) {
+  if (seconds <= 10) {
+    synthTone({freq:820, endFreq:980, duration:.070, type:'triangle', gain:.018});
+    synthTone({freq:980, endFreq:1180, duration:.070, type:'triangle', gain:.018, when:.11});
+    synthTone({freq:1180, endFreq:1320, duration:.080, type:'triangle', gain:.020, when:.22});
+  } else if (seconds <= 30) {
+    synthTone({freq:720, endFreq:860, duration:.085, type:'triangle', gain:.016});
+    synthTone({freq:860, endFreq:980, duration:.085, type:'triangle', gain:.015, when:.12});
+  } else {
+    synthTone({freq:620, endFreq:760, duration:.095, type:'sine', gain:.014});
+  }
+}
+
+function showMatchAlert(seconds) {
+  const el=$('matchAlert');
+  if (!el) return;
+  el.textContent = seconds === 60 ? '⏱️ 1분 남았습니다!' : `⏱️ ${seconds}초 남았습니다!`;
+  el.classList.remove('hidden','urgent');
+  if (seconds <= 10) el.classList.add('urgent');
+  void el.offsetWidth;
+  el.classList.add('show');
+  if (matchAlertTimer) clearTimeout(matchAlertTimer);
+  matchAlertTimer=setTimeout(() => { el.classList.remove('show','urgent'); el.classList.add('hidden'); }, seconds <= 10 ? 1800 : 1450);
+  playTimeWarningCue(seconds);
+}
+
+function processMatchTimeWarnings(previousState, nextState) {
+  if (!nextState || nextState.state !== 'playing') {
+    if (previousState && previousState.state === 'playing') shownTimeWarnings.clear();
+    return;
+  }
+  if (!previousState || previousState.state !== 'playing' || (nextState.timeLeft||0) > (previousState.timeLeft||0) + 5) {
+    shownTimeWarnings.clear();
+    return;
+  }
+  const prev=Number(previousState.timeLeft)||0, next=Number(nextState.timeLeft)||0;
+  for (const threshold of [60,30,10]) {
+    if (!shownTimeWarnings.has(threshold) && prev > threshold && next <= threshold) {
+      shownTimeWarnings.add(threshold);
+      showMatchAlert(threshold);
+    }
+  }
+}
+
+function playAbilityUseFeedback() {
+  synthTone({freq:380, endFreq:620, duration:.095, type:'triangle', gain:.026});
+  synthTone({freq:760, endFreq:920, duration:.075, type:'sine', gain:.014, when:.025});
+}
+
+function playRemoteDeathCue() {
+  synthTone({freq:210, endFreq:95, duration:.18, type:'triangle', gain:.018});
+  noiseBurst(.055, .018);
+}
+
+function playRespawnCue(local=false) {
+  synthTone({freq:430, endFreq:690, duration:.14, type:'sine', gain:local ? .030 : .016});
+  synthTone({freq:690, endFreq:980, duration:.12, type:'triangle', gain:local ? .018 : .010, when:.045});
+}
+
+function startBeamHum() {
+  const ac = ensureAudio();
+  if (!ac || !audioEnabled || beamHum) return;
+  const gain = ac.createGain();
+  const osc1 = ac.createOscillator();
+  const osc2 = ac.createOscillator();
+  osc1.type='sawtooth'; osc2.type='triangle';
+  osc1.frequency.value=155; osc2.frequency.value=310;
+  const t=ac.currentTime;
+  gain.gain.setValueAtTime(.0001,t);
+  gain.gain.exponentialRampToValueAtTime(.0045,t+.035);
+  osc1.connect(gain); osc2.connect(gain); gain.connect(sfxGain);
+  osc1.start(t); osc2.start(t);
+  beamHum={gain,osc1,osc2};
+}
+
+function stopBeamHum() {
+  if (!beamHum || !audioCtx) { beamHum=null; return; }
+  const h=beamHum; beamHum=null;
+  const t=audioCtx.currentTime;
+  try {
+    h.gain.gain.cancelScheduledValues(t);
+    h.gain.gain.setValueAtTime(Math.max(.0001,h.gain.gain.value),t);
+    h.gain.gain.exponentialRampToValueAtTime(.0001,t+.055);
+    h.osc1.stop(t+.07); h.osc2.stop(t+.07);
+  } catch (_) {}
+}
+
+function updateBeamHum(nextState) {
+  if (!audioEnabled || spectatorMode || !myId || !nextState || nextState.state !== 'playing') { stopBeamHum(); return; }
+  const active=(nextState.beams || []).some(b => b.ownerId===myId && b.didDamage);
+  if (active) startBeamHum(); else stopBeamHum();
+}
+
+function pulseAbilityButton() {
+  const btn=$('abilityButton');
+  if (!btn) return;
+  btn.classList.remove('fx-pulse');
+  void btn.offsetWidth;
+  btn.classList.add('fx-pulse');
+  setTimeout(() => btn.classList.remove('fx-pulse'), 260);
+}
+
+function addWorldFx(type, player, extra={}) {
+  if (!player) return;
+  const now=performance.now();
+  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520};
+  worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
+  if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
+}
+
+function addMuzzleFx(player) {
+  if (!player || !config || !player.character) return;
+  const def=config.characters && config.characters[player.character];
+  const r=(def && def.radius) || .8;
+  let dx=player.aimX-player.x, dy=player.aimY-player.y;
+  const len=Math.hypot(dx,dy)||1; dx/=len; dy/=len;
+  addWorldFx('muzzle', player, {x:player.x+dx*(r+.22), y:player.y+dy*(r+.22), dx,dy});
 }
 
 function playDeathFeedback() {
@@ -286,22 +604,67 @@ function toggleSound() {
   ensureAudio();
   if (masterGain) masterGain.gain.value = audioEnabled ? AUDIO_VOLUME_MULTIPLIER : 0;
   if (audioEnabled && state && state.state === 'playing') startBgm(); else stopBgm();
+  if (!audioEnabled) stopBeamHum(); else if (state) updateBeamHum(state);
   updateSoundButton();
 }
 function processCombatFeedback(previousState, nextState) {
-  if (!myId || !previousState || !nextState) return;
-  const before = previousState.players?.find(p => p.id === myId);
-  const after = nextState.players?.find(p => p.id === myId);
-  if (!before || !after) return;
-  if (before.alive && !after.alive) {
-    playDeathFeedback();
-    return;
+  processMatchTimeWarnings(previousState, nextState);
+  if (!previousState || !nextState) return;
+  const beforeById = new Map((previousState.players || []).map(p => [p.id,p]));
+  const afterById = new Map((nextState.players || []).map(p => [p.id,p]));
+
+  for (const after of (nextState.players || [])) {
+    const before=beforeById.get(after.id);
+    if (!before) continue;
+
+    if (before.alive && !after.alive) {
+      addWorldFx('death', after);
+      if (after.id===myId) playDeathFeedback(); else playRemoteDeathCue();
+    } else if (!before.alive && after.alive) {
+      addWorldFx('respawn', after);
+      playRespawnCue(after.id===myId);
+    }
+
+    if (before.alive && after.alive) {
+      const hpLoss=(before.hp||0)-(after.hp||0);
+      const shieldLoss=(before.shield||0)-(after.shield||0);
+      const maxHpDrop=Math.max(0,(before.maxHp||0)-(after.maxHp||0));
+      if ((hpLoss >= 1.2 && hpLoss > maxHpDrop + .2) || shieldLoss >= 1.2) {
+        playerHitFlashUntil.set(after.id, performance.now()+95);
+        if (after.id===myId) playHitFeedback();
+      }
+    }
+
+    if (!before.burning && after.burning && (after.id===myId || after.burnSourceId===myId)) {
+      playFireIgniteCue();
+    }
+
+    if ((after.shotSeq||0) > (before.shotSeq||0)) {
+      addMuzzleFx(after);
+      if (after.id===myId && after.character==='sniper') playSniperShotCue();
+    }
+
+    if ((after.projectileHitSeq||0) > (before.projectileHitSeq||0) && after.id===myId) {
+      playProjectileHitConfirm();
+    }
+
+    if ((after.healHitSeq||0) > (before.healHitSeq||0)) {
+      const target=afterById.get(after.lastHealTargetId);
+      if (target) addWorldFx('heal', target);
+      if (after.id===myId) playHealConfirm();
+    }
+
+    if ((after.abilityUseSeq||0) > (before.abilityUseSeq||0)) {
+      const diaTransform = after.character==='dia' && !before.diaForm && after.diaForm;
+      addWorldFx(diaTransform ? 'diaTransform' : 'ability', after);
+      if (diaTransform) {
+        playDiaTransformCue(after.id===myId);
+        if (after.id===myId) pulseAbilityButton();
+      } else if (after.id===myId) {
+        playAbilityUseFeedback(); pulseAbilityButton();
+      }
+    }
   }
-  if (!after.alive || !before.alive) return;
-  const hpLoss = before.hp - after.hp;
-  const maxHpDrop = Math.max(0, before.maxHp - after.maxHp);
-  // Ignore Dia form ending if the apparent HP loss is only the max-HP cap returning to normal.
-  if (hpLoss > .2 && hpLoss > maxHpDrop + .2) playHitFeedback();
 }
 
 $('nameInput').value = localStorage.getItem('schoolLineName') || '';
@@ -402,7 +765,9 @@ function handleMessage(msg) {
   if (msg.type === 'state') {
     const previousState = state;
     processCombatFeedback(previousState, msg);
+    updatePlayerMotionTracks(previousState, msg);
     state = msg;
+    updateBeamHum(state);
     if (state.state === 'playing') {
       closeMyCharacterStory();
       startBgm();
@@ -791,6 +1156,101 @@ function drawText(text, x, y, size=12, align='center', color='#fff') {
   ctx.font = `600 ${size}px system-ui`; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.fillText(text, x, y);
 }
 
+function beamFxPalette(character) {
+  if (character === 'solar') return { core:'#fff3ae', mid:'#ffd45c', glow:'rgba(255,196,64,.22)', impact:'rgba(255,221,120,.72)' };
+  if (character === 'ice') return { core:'#e8fcff', mid:'#78e9ff', glow:'rgba(120,235,255,.20)', impact:'rgba(160,244,255,.72)' };
+  if (character === 'dia') return { core:'#f2ffff', mid:'#8df6ff', glow:'rgba(120,235,255,.20)', impact:'rgba(185,252,255,.76)' };
+  if (character === 'light') return { core:'#fffde5', mid:'#ffe66d', glow:'rgba(255,230,109,.22)', impact:'rgba(255,244,168,.76)' };
+  if (character === 'poison') return { core:'#f4e8ff', mid:'#b878ff', glow:'rgba(184,120,255,.22)', impact:'rgba(210,165,255,.74)' };
+  return { core:'#ffe8f0', mid:'#ff477e', glow:'rgba(255,70,120,.22)', impact:'rgba(255,130,160,.76)' };
+}
+
+function drawBeamFx(beam, nowMs) {
+  const a=worldToScreen(beam.x1,beam.y1), z=worldToScreen(beam.x2,beam.y2);
+  const p=beamFxPalette(beam.character);
+  const phase=(nowMs * 0.008 + (String(beam.ownerId || '').charCodeAt(0) || 0)) % (Math.PI*2);
+  const pulse=(Math.sin(phase)+1)*0.5;
+  const outerWidth=8.5 + pulse*1.5;
+  const midWidth=4.4 + pulse*0.5;
+  ctx.save();
+  ctx.lineCap='round';
+  ctx.globalAlpha=.82;
+  ctx.strokeStyle=p.glow; ctx.lineWidth=outerWidth;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(z.x,z.y); ctx.stroke();
+  ctx.globalAlpha=.92;
+  ctx.strokeStyle=p.mid; ctx.lineWidth=midWidth;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(z.x,z.y); ctx.stroke();
+  ctx.globalAlpha=.98;
+  ctx.strokeStyle=p.core; ctx.lineWidth=1.6 + pulse*.25;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(z.x,z.y); ctx.stroke();
+  if (beam.impact) {
+    const r=3.2 + pulse*1.4;
+    ctx.globalAlpha=.46 + pulse*.22;
+    ctx.fillStyle=p.impact;
+    ctx.beginPath(); ctx.arc(z.x,z.y,r,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=.88;
+    ctx.fillStyle=p.core;
+    ctx.beginPath(); ctx.arc(z.x,z.y,1.5 + pulse*.35,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function fxCharacterColor(character) {
+  return ({iron:'#aab3bf',mecha:'#9af0bd',solar:'#ffd45c',runner:'#ffd27a',shooter:'#8bbcff',sniper:'#eadcff',cannon:'#ffd66b',fire:'#ff9a45',poison:'#c58cff',water:'#65d7ff',wind:'#9ef7d5',star:'#fff3a8',light:'#fff0a6',laser:'#ff699a',ice:'#92efff',dia:'#d9fbff'})[character] || '#ffffff';
+}
+
+function drawWorldFx(nowMs) {
+  for (let i=worldFx.length-1;i>=0;i--) {
+    const fx=worldFx[i];
+    if (nowMs>=fx.end) { worldFx.splice(i,1); continue; }
+    const q=Math.max(0,Math.min(1,(nowMs-fx.start)/(fx.end-fx.start)));
+    const a=worldToScreen(fx.x,fx.y);
+    const c=fxCharacterColor(fx.character);
+    ctx.save();
+    if (fx.type==='muzzle') {
+      ctx.globalAlpha=(1-q)*.85;
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.arc(a.x,a.y,2.5+(1-q)*3.5,0,Math.PI*2); ctx.fill();
+      if (fx.dx!=null) {
+        const ex=worldToScreen(fx.x+fx.dx*.7,fx.y+fx.dy*.7);
+        ctx.strokeStyle=c; ctx.lineWidth=2.2*(1-q)+.6;
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(ex.x,ex.y); ctx.stroke();
+      }
+    } else if (fx.type==='heal') {
+      ctx.globalAlpha=(1-q)*.72;
+      ctx.strokeStyle='#b8ffe2'; ctx.lineWidth=2.8*(1-q)+.8;
+      ctx.beginPath(); ctx.arc(a.x,a.y,6+q*18,0,Math.PI*2); ctx.stroke();
+    } else if (fx.type==='death') {
+      ctx.globalAlpha=(1-q)*.72;
+      ctx.strokeStyle=c; ctx.lineWidth=3*(1-q)+.7;
+      ctx.beginPath(); ctx.arc(a.x,a.y,5+q*24,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=(1-q)*.20; ctx.fillStyle=c;
+      ctx.beginPath(); ctx.arc(a.x,a.y,14*(1-q),0,Math.PI*2); ctx.fill();
+    } else if (fx.type==='respawn') {
+      const alpha=Math.sin(Math.PI*Math.min(1,q));
+      ctx.globalAlpha=alpha*.72; ctx.strokeStyle='#fff1a8'; ctx.lineWidth=2.6;
+      ctx.beginPath(); ctx.arc(a.x,a.y,5+q*27,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=alpha*.18; ctx.fillStyle='#fff8cf';
+      ctx.beginPath(); ctx.arc(a.x,a.y,13+q*8,0,Math.PI*2); ctx.fill();
+    } else if (fx.type==='ability') {
+      ctx.globalAlpha=(1-q)*.55; ctx.strokeStyle='#a8efff'; ctx.lineWidth=2.6*(1-q)+.8;
+      ctx.beginPath(); ctx.arc(a.x,a.y,5+q*21,0,Math.PI*2); ctx.stroke();
+    } else if (fx.type==='diaTransform') {
+      const pulse=Math.sin(Math.PI*Math.min(1,q));
+      ctx.globalAlpha=pulse*.82; ctx.strokeStyle='#ecffff'; ctx.lineWidth=3.4*(1-q)+1.0;
+      ctx.beginPath(); ctx.arc(a.x,a.y,7+q*31,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=pulse*.28; ctx.fillStyle='#bdf8ff';
+      ctx.beginPath(); ctx.arc(a.x,a.y,18+q*7,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=pulse*.9; ctx.fillStyle='#ffffff';
+      for (let k=0;k<6;k++) {
+        const ang=k*Math.PI/3 + q*1.8; const rr=13+q*23;
+        ctx.beginPath(); ctx.arc(a.x+Math.cos(ang)*rr,a.y+Math.sin(ang)*rr,1.3+(1-q)*1.8,0,Math.PI*2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+}
+
 function renderGame() {
   requestAnimationFrame(renderGame);
   if (!state || state.state !== 'playing' || !config) return;
@@ -808,18 +1268,8 @@ function renderGame() {
   ctx.fillStyle = '#4b5565';
   for (const w of config.walls) ctx.fillRect(w.y*SCALE,w.x*SCALE,w.h*SCALE,w.w*SCALE);
 
-  for (const b of (state.beams || [])) {
-    const a=worldToScreen(b.x1,b.y1), z=worldToScreen(b.x2,b.y2);
-    const beamColor = b.character === 'solar' ? '#ffd45c' : (b.character === 'ice' ? '#78e9ff' : (b.character === 'dia' ? '#8df6ff' : (b.character === 'light' ? '#ffe66d' : (b.character === 'poison' ? '#b878ff' : '#ff477e'))));
-    const glowColor = b.character === 'solar' ? 'rgba(255,196,64,.32)' : (b.character === 'laser' ? 'rgba(255,70,120,.28)' : (b.character === 'light' ? 'rgba(255,230,109,.32)' : (b.character === 'poison' ? 'rgba(184,120,255,.30)' : 'rgba(120,235,255,.30)')));
-    ctx.save();
-    ctx.lineCap='round';
-    ctx.strokeStyle=glowColor; ctx.lineWidth=8;
-    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(z.x,z.y); ctx.stroke();
-    ctx.strokeStyle=beamColor; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(z.x,z.y); ctx.stroke();
-    ctx.restore();
-  }
+  const beamFxNow = performance.now();
+  for (const b of (state.beams || [])) drawBeamFx(b, beamFxNow);
 
   for (const p of state.projectiles) {
     const s=worldToScreen(p.x,p.y), r=Math.max(2,p.radius*SCALE);
@@ -834,14 +1284,27 @@ function renderGame() {
     ctx.fill();
   }
 
+  drawWorldFx(beamFxNow);
+
   for (const p of state.players) {
     if (!p.alive) continue;
-    const radius = ({iron:.80,mecha:.80,solar:.80,runner:.50,shooter:.65,sniper:.50,cannon:.80,fire:.65,poison:.65,water:.50,wind:.50,star:.65,light:.50,laser:.65,ice:.65,dia:.80})[p.character] * SCALE;
-    const s=worldToScreen(p.x,p.y), x=s.x,y=s.y;
+    const radius = characterRadiusWorld(p.character) * SCALE;
+    const renderWorld = renderedPlayerWorldPosition(p, beamFxNow);
+    const s=worldToScreen(renderWorld.x,renderWorld.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
     ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
+    if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
+      ctx.save(); ctx.globalAlpha=.48; ctx.fillStyle='#ffffff';
+      ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
+    if (p.shield > 0) {
+      const spulse=.72 + .18*Math.sin(beamFxNow*.010 + x*.01);
+      ctx.save(); ctx.globalAlpha=spulse; ctx.lineWidth=2.4; ctx.strokeStyle='#67d8ff';
+      ctx.beginPath(); ctx.arc(x,y,radius+6,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=.10; ctx.fillStyle='#67d8ff'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
     if (p.id === selectedTargetId) {
       const meForTarget = state.players.find(q => q.id === myId);
       const targetState = targetSelectionState(meForTarget, p);
@@ -853,12 +1316,20 @@ function renderGame() {
         ctx.restore();
       }
     }
-    if (p.burning) { ctx.lineWidth=2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); }
-    if (p.poisoned) { ctx.lineWidth=2.5; ctx.strokeStyle='#c58cff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); }
+    if (p.burning) { ctx.save(); ctx.globalAlpha=.68+.24*Math.sin(beamFxNow*.018+x*.02); ctx.lineWidth=2.2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+    if (p.poisoned) { ctx.save(); ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.012+y*.02); ctx.lineWidth=2.5; ctx.strokeStyle='#c58cff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
     if (p.tailwind) { ctx.lineWidth=2; ctx.strokeStyle='#b1ffe1'; ctx.beginPath(); ctx.arc(x,y,radius+7,0,Math.PI*2); ctx.stroke(); }
-    if (p.frozen) { ctx.lineWidth=2.5; ctx.strokeStyle='#92efff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); }
+    if (p.frozen) { ctx.save(); ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.011+x*.015); ctx.lineWidth=2.5; ctx.strokeStyle='#92efff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
     if (p.stunned) { ctx.lineWidth=3; ctx.strokeStyle='#ffe36e'; ctx.beginPath(); ctx.arc(x,y,radius+9,0,Math.PI*2); ctx.stroke(); }
-    if (p.diaForm) { ctx.lineWidth=3; ctx.strokeStyle='#e4fdff'; ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.stroke(); }
+    if (p.diaForm) {
+      const dp=.68+.24*Math.sin(beamFxNow*.010 + x*.013);
+      ctx.save();
+      ctx.globalAlpha=.20*dp; ctx.fillStyle='#bdf8ff'; ctx.beginPath(); ctx.arc(x,y,radius+11,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=.78+.18*Math.sin(beamFxNow*.014); ctx.lineWidth=3.2; ctx.strokeStyle='#e9ffff'; ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle='#ffffff';
+      for (let k=0;k<4;k++) { const ang=beamFxNow*.0018+k*Math.PI/2; const rr=radius+13+2*Math.sin(beamFxNow*.006+k); ctx.globalAlpha=.52+.38*Math.sin(beamFxNow*.012+k); ctx.beginPath(); ctx.arc(x+Math.cos(ang)*rr,y+Math.sin(ang)*rr,1.4,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    }
     if (p.invulnerable) {
       ctx.save();
       ctx.lineWidth=3.5; ctx.strokeStyle='#fff4a8'; ctx.globalAlpha=.95;

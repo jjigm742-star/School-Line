@@ -84,7 +84,8 @@ let firing = false;
 let lastAimDir = { x: 0, y: 1 }; // world direction, A->B by default
 
 
-// Alpha 0.4: lightweight Web Audio + haptics. No external audio assets are required.
+// Alpha 0.6: lightweight Web Audio + haptics. No external audio assets are required.
+const AUDIO_VOLUME_MULTIPLIER = 3;
 let audioCtx = null;
 let masterGain = null;
 let bgmGain = null;
@@ -102,7 +103,7 @@ function ensureAudio() {
     masterGain = audioCtx.createGain();
     bgmGain = audioCtx.createGain();
     sfxGain = audioCtx.createGain();
-    masterGain.gain.value = audioEnabled ? 1 : 0;
+    masterGain.gain.value = audioEnabled ? AUDIO_VOLUME_MULTIPLIER : 0;
     bgmGain.gain.value = 0.050;
     sfxGain.gain.value = 0.72;
     bgmGain.connect(masterGain);
@@ -190,7 +191,7 @@ function toggleSound() {
   audioEnabled = !audioEnabled;
   localStorage.setItem('schoolLineAudio', audioEnabled ? 'on' : 'off');
   ensureAudio();
-  if (masterGain) masterGain.gain.value = audioEnabled ? 1 : 0;
+  if (masterGain) masterGain.gain.value = audioEnabled ? AUDIO_VOLUME_MULTIPLIER : 0;
   if (audioEnabled && state && state.state === 'playing') startBgm(); else stopBgm();
   updateSoundButton();
 }
@@ -480,6 +481,24 @@ function renderGame() {
 
     const target=worldToScreen(p.aimX,p.aimY), adx=target.x-x, ady=target.y-y, al=Math.hypot(adx,ady)||1;
     ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+(adx/al)*(radius+9),y+(ady/al)*(radius+9)); ctx.stroke();
+
+    // Keep the simple colored circle, but make character identity readable at a glance.
+    const meta = CHARACTER_META[p.character];
+    if (meta) {
+      ctx.save();
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      const emojiSize=Math.max(12,Math.min(17,radius*1.65));
+      ctx.font=`${emojiSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+      ctx.shadowColor='rgba(0,0,0,.65)'; ctx.shadowBlur=2;
+      ctx.fillText(meta.icon,x,y+0.5);
+      ctx.shadowBlur=0;
+      ctx.font='700 10px system-ui';
+      ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.88)';
+      ctx.strokeText(meta.name,x,y+radius+12);
+      ctx.fillStyle='#ffffff';
+      ctx.fillText(meta.name,x,y+radius+12);
+      ctx.restore();
+    }
 
     const bw=42,bh=5,bx=x-bw/2,by=y-radius-15;
     ctx.fillStyle='#241e24'; ctx.fillRect(bx,by,bw,bh);

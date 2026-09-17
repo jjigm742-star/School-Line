@@ -160,6 +160,7 @@ function selectLobbyCharacter(id) {
 
 let ws = null, myId = null, config = null, state = null;
 let spectatorMode = false;
+let selectedTargetId = null; // Alpha 1.1 targeted-ability selection; current roster has no targeted ability yet.
 
 renderPicker('lobby');
 
@@ -470,15 +471,14 @@ function useAbility() {
   if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;
   const me = state.players.find(p => p.id === myId);
   if (!me || !me.alive) return;
-  if (me.character === 'dia') {
-    if (me.diaForm || me.diaCooldownMs > 0) return;
-    ws.send(JSON.stringify({ type:'ability', ability:'form' }));
-    return;
-  }
-  if (me.character === 'runner') {
-    if (me.sprint || me.sprintCooldownMs > 0) return;
-    ws.send(JSON.stringify({ type:'ability', ability:'sprint' }));
-  }
+  const def = config && config.characters ? config.characters[me.character] : null;
+  const abilityId = def && def.abilityId;
+  if (!abilityId) return;
+  if (me.character === 'dia' && (me.diaForm || me.diaCooldownMs > 0)) return;
+  if (me.character === 'runner' && (me.sprint || me.sprintCooldownMs > 0)) return;
+  const payload = { type:'ability', ability:abilityId };
+  if (selectedTargetId) payload.targetId = selectedTargetId;
+  ws.send(JSON.stringify(payload));
 }
 
 async function enterGameDisplayMode() {
@@ -621,6 +621,50 @@ function setKey(code, value) {
   if (code === 'KeyA' || code === 'ArrowLeft') keys.up = value;
   if (code === 'KeyD' || code === 'ArrowRight') keys.down = value;
 }
+
+const TARGET_RELATION = Object.freeze({ SELF:'SELF', ALLY:'ALLY', ENEMY:'ENEMY' });
+function localTargetRelation(source, target) {
+  if (!source || !target) return null;
+  if (source.id === target.id) return TARGET_RELATION.SELF;
+  return source.team === target.team ? TARGET_RELATION.ALLY : TARGET_RELATION.ENEMY;
+}
+function currentTargetingRule() {
+  if (!state || !config || !myId) return null;
+  const me = state.players.find(p => p.id === myId);
+  return me && config.characters && config.characters[me.character] ? config.characters[me.character].abilityTargeting : null;
+}
+function selectableTargetAt(clientX, clientY) {
+  const rule = currentTargetingRule();
+  if (!rule || !Array.isArray(rule.relations) || !state) return null;
+  const me = state.players.find(p => p.id === myId);
+  if (!me || !me.alive) return null;
+  const world = clientToWorld(clientX, clientY);
+  let best = null, bestD = Infinity;
+  for (const target of state.players) {
+    if (!target.alive) continue;
+    const relation = localTargetRelation(me, target);
+    if (!rule.relations.includes(relation)) continue;
+    const radius = (config.characters[target.character]?.radius || 0.5) + 0.8;
+    const d = Math.hypot(target.x - world.x, target.y - world.y);
+    if (d <= radius && d < bestD) { best = target; bestD = d; }
+  }
+  return best;
+}
+function selectTargetFromPointer(clientX, clientY) {
+  const target = selectableTargetAt(clientX, clientY);
+  if (!target) return false;
+  selectedTargetId = target.id;
+  return true;
+}
+function targetSelectionState(me, target) {
+  const rule = currentTargetingRule();
+  if (!rule || !me || !target) return null;
+  const relation = localTargetRelation(me, target);
+  if (!rule.relations.includes(relation)) return { valid:false, inRange:false };
+  const inRange = !Number.isFinite(rule.range) || Math.hypot(target.x - me.x, target.y - me.y) <= rule.range + 1e-9;
+  return { valid:true, inRange };
+}
+
 window.addEventListener('keydown', e => {
   if (spectatorMode || gameScreen.classList.contains('hidden')) return;
   setKey(e.code, true);
@@ -635,7 +679,23 @@ canvas.addEventListener('mousemove', e => {
     const p = clientToWorld(e.clientX, e.clientY); mouseWorld.x = p.x; mouseWorld.y = p.y;
   }
 });
-canvas.addEventListener('mousedown', e => { if (!spectatorMode && e.button === 0) firing = true; });
+canvas.parentElement.addEventListener('pointerdown', e => {
+  if (spectatorMode || gameScreen.classList.contains('hidden')) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (e.target && e.target.closest && e.target.closest('button')) return;
+  // Capture before the virtual-stick zones: directly touching a valid character selects it.
+  // A normal stick touch still reaches the joystick whenever no selectable character is under the finger.
+  if (selectTargetFromPointer(e.clientX, e.clientY)) {
+    e.preventDefault();
+    e.stopPropagation();
+    firing = false;
+  }
+}, true);
+canvas.addEventListener('mousedown', e => {
+  if (spectatorMode || e.button !== 0) return;
+  if (selectableTargetAt(e.clientX, e.clientY)) return;
+  firing = true;
+});
 window.addEventListener('mouseup', e => { if (e.button === 0) firing = false; });
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) resetInputs(); });
@@ -776,16 +836,28 @@ function renderGame() {
 
   for (const p of state.players) {
     if (!p.alive) continue;
-    const radius = ({iron:.65,mecha:.65,solar:.65,runner:.4,shooter:.5,sniper:.4,cannon:.65,fire:.5,poison:.5,water:.4,wind:.4,star:.5,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
+    const radius = ({iron:.80,mecha:.80,solar:.80,runner:.50,shooter:.65,sniper:.50,cannon:.80,fire:.65,poison:.65,water:.50,wind:.50,star:.65,light:.50,laser:.65,ice:.65,dia:.80})[p.character] * SCALE;
     const s=worldToScreen(p.x,p.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
     ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
+    if (p.id === selectedTargetId) {
+      const meForTarget = state.players.find(q => q.id === myId);
+      const targetState = targetSelectionState(meForTarget, p);
+      if (targetState && targetState.valid) {
+        ctx.save();
+        ctx.lineWidth=3.5; ctx.strokeStyle=targetState.inRange ? '#67e8f9' : '#9aa6b2';
+        ctx.setLineDash(targetState.inRange ? [] : [5,4]);
+        ctx.beginPath(); ctx.arc(x,y,radius+12,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+      }
+    }
     if (p.burning) { ctx.lineWidth=2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); }
     if (p.poisoned) { ctx.lineWidth=2.5; ctx.strokeStyle='#c58cff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); }
     if (p.tailwind) { ctx.lineWidth=2; ctx.strokeStyle='#b1ffe1'; ctx.beginPath(); ctx.arc(x,y,radius+7,0,Math.PI*2); ctx.stroke(); }
     if (p.frozen) { ctx.lineWidth=2.5; ctx.strokeStyle='#92efff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); }
+    if (p.stunned) { ctx.lineWidth=3; ctx.strokeStyle='#ffe36e'; ctx.beginPath(); ctx.arc(x,y,radius+9,0,Math.PI*2); ctx.stroke(); }
     if (p.diaForm) { ctx.lineWidth=3; ctx.strokeStyle='#e4fdff'; ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.stroke(); }
     if (p.invulnerable) {
       ctx.save();
@@ -820,10 +892,15 @@ function renderGame() {
     const bw=42,bh=5,bx=x-bw/2,by=y-radius-15;
     ctx.fillStyle='#241e24'; ctx.fillRect(bx,by,bw,bh);
     ctx.fillStyle='#7ee18b'; ctx.fillRect(bx,by,bw*Math.max(0,p.hp/p.maxHp),bh);
+    if (p.shield > 0 && p.maxShield > 0) {
+      ctx.fillStyle='#1a2734'; ctx.fillRect(bx,by-5,bw,3);
+      ctx.fillStyle='#65c7ff'; ctx.fillRect(bx,by-5,bw*Math.max(0,Math.min(1,p.shield/p.maxShield)),3);
+    }
     drawText(p.name,x,by-7,11,'center','#f6f8fb');
   }
 
   const me = spectatorMode ? null : state.players.find(p => p.id === myId);
+  if (!currentTargetingRule() || !state.players.some(p => p.id === selectedTargetId && p.alive)) selectedTargetId = null;
   const t = Math.ceil(state.timeLeft); $('timer').textContent = `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
   if (spectatorMode) {
     $('myInfo').innerHTML = '';
@@ -843,7 +920,9 @@ function renderGame() {
       else if (me.sprintCooldownMs > 0) extra = `<br>질주 쿨 ${(me.sprintCooldownMs/1000).toFixed(1)}초`;
       else extra = '<br>질주 준비 완료';
     }
-    $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}<br>${me.team}팀${extra}`;
+    const shieldLine = me.shield > 0 ? `<br>🛡️ 보호막 ${Math.ceil(me.shield)}/${Math.ceil(me.maxShield || me.shield)}` : '';
+    const stunLine = me.stunned ? '<br>💫 기절' : '';
+    $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${extra}`;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 
     const ability = $('abilityButton');

@@ -24,6 +24,16 @@ const SPECTATOR_LOCK_MS = 30000;
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [3.2, 4.0, 5.0, 6.0, 7.2, 8.2];
 
+// Alpha 1.1 foundation: common target relations + generic status effects.
+const TARGET_RELATION = Object.freeze({ SELF: 'SELF', ALLY: 'ALLY', ENEMY: 'ENEMY' });
+const STATUS_DEFS = Object.freeze({
+  burn:     { kind: 'harmful', clearOnDeath: true },
+  poison:   { kind: 'harmful', clearOnDeath: true },
+  slow:     { kind: 'harmful', clearOnDeath: true },
+  stun:     { kind: 'harmful', clearOnDeath: true },
+  tailwind: { kind: 'beneficial', clearOnDeath: true }
+});
+
 const WALLS = [
   { x: 5, y: 24, w: 10, h: 3 },
   { x: 27, y: 24, w: 10, h: 3 },
@@ -34,86 +44,86 @@ const WALLS = [
 
 const CHARACTERS = {
   iron: {
-    name: '아이언', role: '탱커', hp: 600, speed: 4.0, radius: 0.65,
+    name: '아이언', role: '탱커', hp: 600, speed: 4.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13
   },
   mecha: {
-    name: '메카', role: '탱커', hp: 550, speed: 6.0, radius: 0.65,
+    name: '메카', role: '탱커', hp: 550, speed: 6.0, radius: 0.80,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.12,
     projectileType: 'attack', damage: 9
   },
   solar: {
-    name: '솔라', role: '탱커', hp: 375, speed: 4.0, radius: 0.65,
+    name: '솔라', role: '탱커', hp: 375, speed: 4.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 55,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
     solarProjectileRadius: 0.20, solarProjectileDamage: 25, solarSelfHeal: 25
   },
   runner: {
-    name: '러너', role: '딜러', hp: 175, speed: 6.0, radius: 0.40,
+    name: '러너', role: '딜러', hp: 175, speed: 6.0, radius: 0.50,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.12,
     projectileType: 'attack', damage: 11,
-    sprintDuration: 4, sprintCooldown: 10
+    sprintDuration: 4, sprintCooldown: 10, abilityId: 'sprint'
   },
   shooter: {
-    name: '슈터', role: '딜러', hp: 250, speed: 5.0, radius: 0.50,
+    name: '슈터', role: '딜러', hp: 250, speed: 5.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.12,
     projectileType: 'attack', damage: 20
   },
   sniper: {
-    name: '스나이퍼', role: '딜러', hp: 150, speed: 4.0, radius: 0.40,
+    name: '스나이퍼', role: '딜러', hp: 150, speed: 4.0, radius: 0.50,
     fireRate: 1, range: 36, projectileSpeed: 42, projectileRadius: 0.12,
     projectileType: 'attack', distanceDamage: true
   },
   cannon: {
-    name: '캐논', role: '딜러', hp: 275, speed: 3.2, radius: 0.65,
+    name: '캐논', role: '딜러', hp: 275, speed: 3.2, radius: 0.80,
     fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 14
   },
   fire: {
-    name: '파이어', role: '딜러', hp: 200, speed: 6.0, radius: 0.50,
+    name: '파이어', role: '딜러', hp: 200, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.12,
     projectileType: 'attack', damage: 16, burnDps: 10, burnDuration: 2
   },
   poison: {
-    name: '포이즌', role: '딜러', hp: 250, speed: 5.0, radius: 0.50,
+    name: '포이즌', role: '딜러', hp: 250, speed: 5.0, radius: 0.65,
     attackType: 'beam', range: 16, beamDps: 85,
     poisonHealReduction: 0.50, poisonDuration: 1.5
   },
   water: {
-    name: '워터', role: '힐러', hp: 250, speed: 5.0, radius: 0.40,
+    name: '워터', role: '힐러', hp: 250, speed: 5.0, radius: 0.50,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.12,
     projectileType: 'heal', heal: 14
   },
   wind: {
-    name: '윈드', role: '힐러', hp: 225, speed: 6.0, radius: 0.40,
+    name: '윈드', role: '힐러', hp: 225, speed: 6.0, radius: 0.50,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.35,
     projectileType: 'heal', heal: 11, tailwindDuration: 2
   },
   star: {
-    name: '스타', role: '힐러', hp: 175, speed: 4.0, radius: 0.50,
+    name: '스타', role: '힐러', hp: 175, speed: 4.0, radius: 0.65,
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.12,
     projectileType: 'heal', heal: 35
   },
   light: {
-    name: '라이트', role: '힐러', hp: 225, speed: 5.0, radius: 0.40,
+    name: '라이트', role: '힐러', hp: 225, speed: 5.0, radius: 0.50,
     attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 60
   },
   laser: {
-    name: '레이저', role: '딜러', hp: 275, speed: 5.0, radius: 0.50,
+    name: '레이저', role: '딜러', hp: 275, speed: 5.0, radius: 0.65,
     attackType: 'beam', range: 16, beamDps: 80, maxHpDpsRatio: 0.10
   },
   ice: {
-    name: '아이스', role: '딜러', hp: 275, speed: 5.0, radius: 0.50,
+    name: '아이스', role: '딜러', hp: 275, speed: 5.0, radius: 0.65,
     attackType: 'beam', range: 16, beamDps: 80,
     slowTierDelta: -1, slowDuration: 1.5
   },
   dia: {
-    name: '다이아', role: '탱커', hp: 350, speed: 4.0, radius: 0.65,
+    name: '다이아', role: '탱커', hp: 350, speed: 4.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.12,
     projectileType: 'attack', damage: 13,
     formDuration: 6, formCooldown: 16, formHp: 400, formSpeed: 5.0,
-    formRange: 16, formBeamDps: 80
+    formRange: 16, formBeamDps: 80, abilityId: 'form'
   }
 };
 
@@ -177,9 +187,81 @@ function currentBaseSpeed(player, now) {
 function effectiveSpeed(player, now) {
   let delta = 0;
   if (player.character === 'runner' && player.sprintUntil > now) delta += 1;
-  if (player.tailwindUntil > now) delta += 1;
-  if (player.iceSlowUntil > now) delta -= 1;
+  const tailwind = getStatus(player, 'tailwind', now);
+  const slow = getStatus(player, 'slow', now);
+  if (tailwind) delta += Number(tailwind.data && tailwind.data.tierDelta) || 1;
+  if (slow) delta += Number(slow.data && slow.data.tierDelta) || -1;
   return speedWithTierDelta(currentBaseSpeed(player, now), delta);
+}
+
+
+function getTargetRelation(source, target) {
+  if (!source || !target) return null;
+  if (source.id === target.id) return TARGET_RELATION.SELF;
+  return source.team === target.team ? TARGET_RELATION.ALLY : TARGET_RELATION.ENEMY;
+}
+function isTargetRelationAllowed(source, target, allowedRelations) {
+  const relation = getTargetRelation(source, target);
+  return !!relation && Array.isArray(allowedRelations) && allowedRelations.includes(relation);
+}
+function ensureStatuses(player) {
+  if (!player.statuses || typeof player.statuses !== 'object') player.statuses = Object.create(null);
+  return player.statuses;
+}
+function getStatus(player, statusId, now = Date.now()) {
+  const statuses = ensureStatuses(player);
+  const status = statuses[statusId];
+  if (!status) return null;
+  if (status.until <= now) { delete statuses[statusId]; return null; }
+  return status;
+}
+function hasStatus(player, statusId, now = Date.now()) { return !!getStatus(player, statusId, now); }
+function clearStatus(player, statusId) { delete ensureStatuses(player)[statusId]; }
+function clearAllStatuses(player) { player.statuses = Object.create(null); }
+function applyStatus(room, source, target, statusId, durationMs, now = Date.now(), data = {}) {
+  const def = STATUS_DEFS[statusId];
+  if (!def || !target || !target.alive) return false;
+  if (def.kind === 'harmful' && target.invulnerableUntil > now) return false;
+  const duration = Math.max(0, Number(durationMs) || 0);
+  if (duration <= 0) return false;
+  const statuses = ensureStatuses(target);
+  const existing = getStatus(target, statusId, now);
+  statuses[statusId] = {
+    until: Math.max(existing ? existing.until : 0, now + duration),
+    sourceId: source && source.id ? source.id : null,
+    data: { ...(existing && existing.data ? existing.data : {}), ...(data || {}) }
+  };
+  return true;
+}
+function isStunned(player, now = Date.now()) { return hasStatus(player, 'stun', now); }
+function hasLineOfSight(ax, ay, bx, by) {
+  for (const w of WALLS) {
+    const t = segmentAabbT(ax, ay, bx, by, w.x, w.y, w.x + w.w, w.y + w.h);
+    if (t !== null && t > 1e-6 && t < 1 - 1e-6) return false;
+  }
+  return true;
+}
+function resolveTargetedAbilityTarget(room, source, targetId, rule, now = Date.now()) {
+  if (!room || !source || !source.alive || !rule || !targetId) return null;
+  const target = room.players.get(String(targetId));
+  if (!target || !target.alive) return null;
+  if (!isTargetRelationAllowed(source, target, rule.relations || [])) return null;
+  if (Number.isFinite(rule.range) && distance(source.x, source.y, target.x, target.y) > rule.range + 1e-9) return null;
+  if (rule.requireLos && !hasLineOfSight(source.x, source.y, target.x, target.y)) return null;
+  return target;
+}
+function clearShield(player) { player.shield = 0; player.maxShield = 0; }
+function applyShield(room, source, target, amount, options = {}) {
+  if (!target || !target.alive) return 0;
+  const raw = Math.max(0, Number(amount) || 0);
+  if (raw <= 0) return 0;
+  const mode = options.mode === 'replace' ? 'replace' : 'add';
+  const capValue = Number(options.cap);
+  const cap = Number.isFinite(capValue) && capValue > 0 ? capValue : (mode === 'replace' ? raw : Math.max(raw, Number(target.maxShield) || 0));
+  const before = Math.max(0, Number(target.shield) || 0);
+  target.maxShield = Math.max(0, cap);
+  target.shield = mode === 'replace' ? Math.min(target.maxShield, raw) : Math.min(target.maxShield, before + raw);
+  return Math.max(0, target.shield - before);
 }
 
 function mimeType(file) {
@@ -367,7 +449,7 @@ function onMessage(conn, msg) {
     player.character = requested;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    player.iceSlowUntil = 0; player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0;
+    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0;
     broadcast(room);
     return;
   }
@@ -382,8 +464,17 @@ function onMessage(conn, msg) {
   }
   if (msg.type === 'ability' && room.state === 'playing') {
     const now = Date.now();
+    if (!player.alive || isStunned(player, now)) return;
+    const def = CHARACTERS[player.character];
+    if (!def || msg.ability !== def.abilityId) return;
+    let abilityTarget = null;
+    if (def.abilityTargeting) {
+      abilityTarget = resolveTargetedAbilityTarget(room, player, msg.targetId, def.abilityTargeting, now);
+      if (!abilityTarget) return;
+    }
     if (msg.ability === 'form') activateDiaForm(player, now);
     if (msg.ability === 'sprint') activateRunnerSprint(player, now);
+    // Future targeted abilities use the already validated abilityTarget here.
     return;
   }
   if (msg.type === 'input' && room.state === 'playing') {
@@ -448,10 +539,9 @@ function joinRoom(conn, msg) {
     aimX: 21, aimY: team === 'A' ? 20 : 48,
     input: { up: false, down: false, left: false, right: false, fire: false },
     nextFireAt: 0,
-    burnUntil: 0, burnDps: 0, burnSourceId: null,
-    poisonUntil: 0, poisonSourceId: null,
+    statuses: Object.create(null),
+    shield: 0, maxShield: 0,
     lastCombatAt: 0,
-    tailwindUntil: 0, iceSlowUntil: 0,
     diaFormUntil: 0, diaCooldownUntil: 0,
     sprintUntil: 0, sprintCooldownUntil: 0,
     stats: makeMatchStats(null)
@@ -472,8 +562,10 @@ function publicCharacterDefs() {
   const out = {};
   for (const [id, c] of Object.entries(CHARACTERS)) {
     out[id] = {
-      name: c.name, role: c.role, hp: c.hp, speed: c.speed,
-      fireRate: c.fireRate || 0, projectileType: c.projectileType || null, attackType: c.attackType || 'projectile'
+      name: c.name, role: c.role, hp: c.hp, speed: c.speed, radius: c.radius,
+      fireRate: c.fireRate || 0, projectileType: c.projectileType || null, attackType: c.attackType || 'projectile',
+      abilityId: c.abilityId || null,
+      abilityTargeting: c.abilityTargeting ? { ...c.abilityTargeting, relations: [...(c.abilityTargeting.relations || [])] } : null
     };
   }
   return out;
@@ -512,7 +604,7 @@ function startMatch(room) {
     const sp = spawnPoint(room, p);
     Object.assign(p, {
       x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0, invulnerableUntil: 0,
-      nextFireAt: 0, burnUntil: 0, burnDps: 0, burnSourceId: null, poisonUntil: 0, poisonSourceId: null, tailwindUntil: 0, iceSlowUntil: 0,
+      nextFireAt: 0, statuses: Object.create(null), shield: 0, maxShield: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, lastCombatAt: now,
       stats: makeMatchStats(p.character)
     });
@@ -570,7 +662,7 @@ function die(room, player, now) {
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
   player.invulnerableUntil = 0;
-  player.burnUntil = 0; player.burnDps = 0; player.burnSourceId = null; player.poisonUntil = 0; player.poisonSourceId = null; player.tailwindUntil = 0; player.iceSlowUntil = 0;
+  clearAllStatuses(player); clearShield(player);
   if (player.character === 'dia') {
     player.diaFormUntil = 0;
     player.maxHp = CHARACTERS.dia.hp;
@@ -585,7 +677,7 @@ function respawn(room, player, now) {
   player.x = sp.x; player.y = sp.y;
   player.hp = def.hp; player.maxHp = def.hp;
   player.alive = true; player.respawnAt = 0; player.invulnerableUntil = now + RESPAWN_INVULN_MS;
-  player.burnUntil = 0; player.burnDps = 0; player.burnSourceId = null; player.poisonUntil = 0; player.poisonSourceId = null; player.tailwindUntil = 0; player.iceSlowUntil = 0;
+  clearAllStatuses(player); clearShield(player);
   player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
   if (player.character === 'runner') player.sprintUntil = 0;
@@ -663,17 +755,28 @@ function ensureMatchStats(player) {
   return player.stats;
 }
 
-function dealDamage(room, attackerId, target, amount, now) {
+function dealDamageDetailed(room, attackerId, target, amount, now) {
   const raw = Math.max(0, Number(amount) || 0);
-  const before = Math.max(0, target.hp);
-  const actual = Math.min(before, raw);
-  if (actual <= 0) return 0;
-  target.hp = before - actual;
+  if (raw <= 0 || !target || !target.alive || target.invulnerableUntil > now) return { total: 0, hp: 0, shield: 0 };
+  let remaining = raw;
+  const shieldBefore = Math.max(0, Number(target.shield) || 0);
+  const shieldDamage = Math.min(shieldBefore, remaining);
+  if (shieldDamage > 0) {
+    target.shield = shieldBefore - shieldDamage;
+    remaining -= shieldDamage;
+    if (target.shield <= 1e-9) clearShield(target);
+  }
+  const hpBefore = Math.max(0, target.hp);
+  const hpDamage = Math.min(hpBefore, remaining);
+  if (hpDamage > 0) target.hp = hpBefore - hpDamage;
+  const total = shieldDamage + hpDamage;
+  if (total <= 0) return { total: 0, hp: 0, shield: 0 };
   const attacker = room.players.get(attackerId);
-  if (attacker) ensureMatchStats(attacker).damage += actual;
+  if (attacker) ensureMatchStats(attacker).damage += total;
   markCombat(room, attackerId, target, now);
-  return actual;
+  return { total, hp: hpDamage, shield: shieldDamage };
 }
+function dealDamage(room, attackerId, target, amount, now) { return dealDamageDetailed(room, attackerId, target, amount, now).total; }
 
 function applyHealing(room, healer, target, amount, now) {
   const raw = Math.max(0, Number(amount) || 0);
@@ -684,9 +787,10 @@ function applyHealing(room, healer, target, amount, now) {
   let effectiveRaw = raw;
   let prevented = 0;
   // Poison only reduces external healing from another character. Natural noncombat regen does not use this function.
-  if (healer && healer.id !== target.id && target.poisonUntil > now) {
-    const source = room.players.get(target.poisonSourceId);
-    const reduction = CHARACTERS.poison.poisonHealReduction;
+  const poison = getStatus(target, 'poison', now);
+  if (healer && healer.id !== target.id && poison) {
+    const source = room.players.get(poison.sourceId);
+    const reduction = clamp(Number(poison.data && poison.data.healReduction) || CHARACTERS.poison.poisonHealReduction, 0, 1);
     effectiveRaw = raw * (1 - reduction);
     // Count only healing that would actually have restored missing HP, not hypothetical overheal.
     const withoutPoison = Math.min(missing, raw);
@@ -728,7 +832,7 @@ function traceBeam(room, player, def, dt, now) {
   }
 
   for (const target of room.players.values()) {
-    if (!target.alive || target.id === player.id || target.team === player.team) continue;
+    if (!target.alive || getTargetRelation(player, target) !== TARGET_RELATION.ENEMY) continue;
     const tr = CHARACTERS[target.character].radius;
     const t = segmentCircleT(x1, y1, x2, y2, target.x, target.y, tr);
     if (t !== null && t > 1e-6 && t < bestT) { bestT = t; hit = { kind: 'player', target }; }
@@ -743,11 +847,8 @@ function traceBeam(room, player, def, dt, now) {
     if (target.invulnerableUntil <= now) {
       const dps = def.beamDps + target.maxHp * (def.maxHpDpsRatio || 0);
       dealDamage(room, player.id, target, dps * dt, now);
-      if (def.slowTierDelta < 0) target.iceSlowUntil = now + def.slowDuration * 1000;
-      if (def.poisonHealReduction > 0) {
-        target.poisonUntil = now + def.poisonDuration * 1000;
-        target.poisonSourceId = player.id;
-      }
+      if (def.slowTierDelta < 0) applyStatus(room, player, target, 'slow', def.slowDuration * 1000, now, { tierDelta: def.slowTierDelta });
+      if (def.poisonHealReduction > 0) applyStatus(room, player, target, 'poison', def.poisonDuration * 1000, now, { healReduction: def.poisonHealReduction });
       if (target.hp <= 0) {
         registerDirectKill(room, player.id, now);
         die(room, target, now);
@@ -794,10 +895,12 @@ function traceLightBeam(room, player, def, dt, now) {
   let endT = wallT;
   for (const hit of hits) {
     const target = hit.target;
-    if (target.team === player.team) {
+    const relation = getTargetRelation(player, target);
+    if (relation === TARGET_RELATION.ALLY) {
       if (!healedAlly) healedAlly = target;
       continue;
     }
+    if (relation !== TARGET_RELATION.ENEMY) continue;
     enemyHit = target;
     endT = hit.t;
     break;
@@ -895,7 +998,9 @@ function updateProjectiles(room, dt, now) {
     }
     for (const target of room.players.values()) {
       if (!target.alive || target.id === p.ownerId) continue;
-      const valid = p.type === 'attack' ? target.team !== p.team : target.team === p.team;
+      const owner = room.players.get(p.ownerId);
+      const relation = owner ? getTargetRelation(owner, target) : (target.team === p.team ? TARGET_RELATION.ALLY : TARGET_RELATION.ENEMY);
+      const valid = p.type === 'attack' ? relation === TARGET_RELATION.ENEMY : relation === TARGET_RELATION.ALLY;
       if (!valid) continue;
       const tr = CHARACTERS[target.character].radius;
       const t = segmentCircleT(p.x, p.y, x2, y2, target.x, target.y, tr + p.radius);
@@ -910,12 +1015,16 @@ function updateProjectiles(room, dt, now) {
           if (t.invulnerableUntil <= now) {
             const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
             const hitDamage = p.distanceDamage ? (impactDistance <= 16 ? 65 : (impactDistance <= 32 ? 85 : 105)) : p.damage;
-            const actualDamage = dealDamage(room, p.ownerId, t, hitDamage, now);
-            if (actualDamage > 0 && p.selfHealOnHit > 0) {
+            const damageResult = dealDamageDetailed(room, p.ownerId, t, hitDamage, now);
+            // Solar self-heal requires actual HP damage; shield-only hits do not count.
+            if (damageResult.hp > 0 && p.selfHealOnHit > 0) {
               const owner = room.players.get(p.ownerId);
               if (owner && owner.alive) applyHealing(room, owner, owner, p.selfHealOnHit, now);
             }
-            if (p.burnDps > 0) { t.burnDps = p.burnDps; t.burnUntil = now + p.burnDuration * 1000; t.burnSourceId = p.ownerId; }
+            if (p.burnDps > 0) {
+              const owner = room.players.get(p.ownerId);
+              applyStatus(room, owner, t, 'burn', p.burnDuration * 1000, now, { dps: p.burnDps });
+            }
             if (t.hp <= 0) {
               registerDirectKill(room, p.ownerId, now);
               die(room, t, now);
@@ -925,8 +1034,7 @@ function updateProjectiles(room, dt, now) {
           const healer = room.players.get(p.ownerId);
           applyHealing(room, healer, t, p.heal, now);
           if (p.tailwindDuration > 0) {
-            t.tailwindUntil = now + p.tailwindDuration * 1000;
-            if (healer) ensureMatchStats(healer).tailwindApplications += 1;
+            if (applyStatus(room, healer, t, 'tailwind', p.tailwindDuration * 1000, now, { tierDelta: 1 }) && healer) ensureMatchStats(healer).tailwindApplications += 1;
           }
         }
       }
@@ -957,29 +1065,30 @@ function updateRoom(room, dt, now) {
       continue;
     }
     if (player.character === 'dia' && player.diaFormUntil > 0 && now >= player.diaFormUntil) endDiaForm(player);
-    if (player.burnUntil > now) {
-      if (player.invulnerableUntil <= now) {
-        dealDamage(room, player.burnSourceId, player, player.burnDps * dt, now);
-        if (player.hp <= 0) {
-          registerKill(room, player.burnSourceId, now, false);
-          die(room, player, now);
-          continue;
-        }
+    const burn = getStatus(player, 'burn', now);
+    if (burn && player.invulnerableUntil <= now) {
+      const burnDps = Math.max(0, Number(burn.data && burn.data.dps) || 0);
+      dealDamage(room, burn.sourceId, player, burnDps * dt, now);
+      if (player.hp <= 0) {
+        registerKill(room, burn.sourceId, now, false);
+        die(room, player, now);
+        continue;
       }
-    } else { player.burnDps = 0; player.burnSourceId = null; }
+    }
 
     if (player.hp < player.maxHp && now - player.lastCombatAt >= NONCOMBAT_REGEN_DELAY_MS) {
       player.hp = Math.min(player.maxHp, player.hp + NONCOMBAT_REGEN_HPS * dt);
     }
 
-    let mx = (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
-    let my = (player.input.down ? 1 : 0) - (player.input.up ? 1 : 0);
+    const stunned = isStunned(player, now);
+    let mx = stunned ? 0 : (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
+    let my = stunned ? 0 : (player.input.down ? 1 : 0) - (player.input.up ? 1 : 0);
     const ml = Math.hypot(mx, my);
     if (ml > 0) { mx /= ml; my /= ml; }
     const speed = effectiveSpeed(player, now);
     movePlayer(player, mx * speed * dt, my * speed * dt, def.radius);
 
-    if (player.input.fire) {
+    if (!stunned && player.input.fire) {
       const attackDef = currentAttackDef(player, now);
       if (attackDef.attackType === 'beam') {
         traceBeam(room, player, attackDef, dt, now);
@@ -1022,12 +1131,12 @@ function snapshot(room, viewerId = null, spectator = false) {
       const hideCharacter = hideAllPicks || (hideEnemyPicks && p.team !== viewer.team);
       return {
         id: p.id, name: p.name, team: p.team, character: hideCharacter ? null : p.character,
-        x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, alive: p.alive,
+        x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, shield: Math.max(0, p.shield || 0), maxShield: Math.max(0, p.maxShield || 0), alive: p.alive,
         respawnMs: p.alive ? 0 : Math.max(0, p.respawnAt - now),
         invulnerable: p.alive && p.invulnerableUntil > now,
         invulnerableMs: p.alive ? Math.max(0, p.invulnerableUntil - now) : 0,
         aimX: p.aimX, aimY: p.aimY,
-        burning: p.burnUntil > now, poisoned: p.poisonUntil > now, tailwind: p.tailwindUntil > now, frozen: p.iceSlowUntil > now,
+        burning: hasStatus(p, 'burn', now), poisoned: hasStatus(p, 'poison', now), tailwind: hasStatus(p, 'tailwind', now), frozen: hasStatus(p, 'slow', now), stunned: hasStatus(p, 'stun', now),
         diaForm: !hideCharacter && isDiaForm(p, now),
         diaFormMs: !hideCharacter && isDiaForm(p, now) ? Math.max(0, p.diaFormUntil - now) : 0,
         diaCooldownMs: !hideCharacter && p.character === 'dia' ? Math.max(0, p.diaCooldownUntil - now) : 0,
@@ -1047,17 +1156,32 @@ function broadcast(room) {
   for (const conn of room.spectators.values()) conn.send(snapshot(room, null, true));
 }
 
-setInterval(() => {
-  const now = Date.now();
-  for (const room of rooms.values()) updateRoom(room, DT, now);
-}, 1000 / TICK_RATE);
+if (require.main === module) {
+  setInterval(() => {
+    const now = Date.now();
+    for (const room of rooms.values()) updateRoom(room, DT, now);
+  }, 1000 / TICK_RATE);
 
-setInterval(() => {
-  for (const room of rooms.values()) broadcast(room);
-}, 1000 / SNAPSHOT_RATE);
+  setInterval(() => {
+    for (const room of rooms.values()) broadcast(room);
+  }, 1000 / SNAPSHOT_RATE);
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\nSchool Line Mobile Alpha 1.0`);
-  console.log(`Local: http://localhost:${PORT}`);
-  console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}\n`);
-});
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`
+School Line Mobile Alpha 1.1`);
+    console.log(`Local: http://localhost:${PORT}`);
+    console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}
+`);
+  });
+}
+
+module.exports = {
+  server, CHARACTERS, TARGET_RELATION, STATUS_DEFS,
+  getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget,
+  applyStatus, getStatus, hasStatus, clearStatus, clearAllStatuses, isStunned,
+  applyShield, clearShield, dealDamage, dealDamageDetailed, applyHealing,
+  effectiveSpeed, updateRoom, snapshot, speedWithTierDelta, hasLineOfSight,
+  makeMatchStats, newRoom, spawnProjectile, spawnSolarProjectile, updateProjectiles,
+  traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, endDiaForm,
+  registerDirectKill, die, respawn
+};

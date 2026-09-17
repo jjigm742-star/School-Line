@@ -32,10 +32,20 @@ const CHARACTERS = {
     fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13
   },
+  mecha: {
+    name: '메카', role: '탱커', hp: 550, speed: 6.0, radius: 0.65,
+    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.12,
+    projectileType: 'attack', damage: 9
+  },
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 5.0, radius: 0.50,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.12,
     projectileType: 'attack', damage: 20
+  },
+  sniper: {
+    name: '스나이퍼', role: '딜러', hp: 150, speed: 4.0, radius: 0.40,
+    fireRate: 1, range: 36, projectileSpeed: 42, projectileRadius: 0.12,
+    projectileType: 'attack', distanceDamage: true
   },
   cannon: {
     name: '캐논', role: '딜러', hp: 275, speed: 3.2, radius: 0.65,
@@ -604,6 +614,7 @@ function spawnProjectile(room, player, def, now) {
     vy: dy * def.projectileSpeed,
     radius: def.projectileRadius,
     damage: def.damage || 0,
+    distanceDamage: !!def.distanceDamage,
     heal: def.heal || 0,
     range: def.range,
     traveled: 0,
@@ -646,7 +657,9 @@ function updateProjectiles(room, dt, now) {
       if (hit.kind === 'player') {
         const t = hit.target;
         if (p.type === 'attack') {
-          t.hp -= p.damage;
+          const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
+          const hitDamage = p.distanceDamage ? (impactDistance <= 16 ? 65 : (impactDistance <= 32 ? 85 : 105)) : p.damage;
+          t.hp -= hitDamage;
           if (p.burnDps > 0) { t.burnDps = p.burnDps; t.burnUntil = now + p.burnDuration * 1000; }
           if (t.hp <= 0) {
             registerDirectKill(room, p.ownerId, now);
@@ -758,7 +771,7 @@ setInterval(() => {
 }, 1000 / SNAPSHOT_RATE);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\nSchool Line Mobile Alpha 0.4`);
+  console.log(`\nSchool Line Mobile Alpha 0.5`);
   console.log(`Local: http://localhost:${PORT}`);
   console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}\n`);
 });

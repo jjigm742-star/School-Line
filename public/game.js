@@ -7,8 +7,10 @@ const SCALE = 15; // world y -> screen x, world x -> screen y (mobile landscape 
 
 const CHARACTER_META = {
   iron: { role:'탱커', name:'아이언', icon:'⚙️', mini:'HP 600 · 느림', stat:'HP 600 · 속도 4.0 · 사거리 24 · 65 DPS', summary:'가장 단단한 정통 탱커', mechanic:'높은 체력으로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.' },
+  mecha: { role:'탱커', name:'메카', icon:'🤖', mini:'HP 550 · 빠름', stat:'HP 550 · 속도 6.0 · 사거리 16 · 45 DPS', summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커', mechanic:'별도 변신이나 조종사 상태가 없는 단일 상태 탱커. 사거리는 16으로 짧고 화력은 낮지만, HP 550과 속도 6.0으로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.' },
   dia: { role:'탱커', name:'다이아', icon:'💎', mini:'HP 350 · 변신', stat:'HP 350 · 속도 4.0 · 기본 65 DPS · 변신 6초', summary:'타이밍을 잡아 강해지는 변신 탱커', mechanic:'기본형은 투사체로 싸운다. Space 또는 변신 버튼을 누르면 6초간 HP 400, 속도 5.0, 80 DPS 광선폼이 된다. 변신 쿨은 16초이며 폼 중 직접 처치하면 6초 감소한다.' },
   shooter: { role:'딜러', name:'슈터', icon:'🎯', mini:'100 DPS · 안정적', stat:'HP 250 · 속도 5.0 · 사거리 24 · 100 DPS', summary:'가장 표준적인 원거리 딜러', mechanic:'빠르고 작은 탄을 초당 5발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.' },
+  sniper: { role:'딜러', name:'스나이퍼', icon:'🔭', mini:'장거리 · 거리비례 피해', stat:'HP 150 · 속도 4.0 · 사거리 36 · 초당 1발', summary:'멀수록 한 발이 강해지는 초장거리 딜러', mechanic:'매우 빠른 작은 투사체를 초당 1발 발사한다. 실제로 날아가 충돌한 거리 기준으로 16 이하는 65, 16 초과~32 이하는 85, 32 초과~36 이하는 105 피해를 준다. 가까이 붙으면 약해진다.' },
   cannon: { role:'딜러', name:'캐논', icon:'💥', mini:'140 DPS · 느림', stat:'HP 275 · 속도 3.2 · 사거리 24 · 140 DPS', summary:'기동성을 버리고 화력을 얻은 중화기 딜러', mechanic:'초당 10발을 퍼붓는 최고 수준의 지속 화력. 대신 이동속도가 매우 느려 위치를 잘못 잡으면 도망치기 어렵다.' },
   fire: { role:'딜러', name:'파이어', icon:'🔥', mini:'80 DPS · 화상', stat:'HP 200 · 속도 6.0 · 사거리 24 · 80 DPS + 화상', summary:'빠르게 움직이며 지속 피해를 남기는 딜러', mechanic:'적중한 적에게 2초 동안 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.' },
   laser: { role:'딜러', name:'레이저', icon:'🔴', mini:'광선 · 탱커 압박', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 + 최대HP 10% DPS', summary:'체력이 높은 적일수록 더 아픈 광선 딜러', mechanic:'조준한 방향으로 즉시 광선을 연결한다. 기본 80 DPS에 대상 최대 체력의 10%만큼 DPS가 추가되어 탱커를 상대할 때 특히 강하다.' },
@@ -101,8 +103,8 @@ function ensureAudio() {
     bgmGain = audioCtx.createGain();
     sfxGain = audioCtx.createGain();
     masterGain.gain.value = audioEnabled ? 1 : 0;
-    bgmGain.gain.value = 0.055;
-    sfxGain.gain.value = 0.24;
+    bgmGain.gain.value = 0.050;
+    sfxGain.gain.value = 0.72;
     bgmGain.connect(masterGain);
     sfxGain.connect(masterGain);
     masterGain.connect(audioCtx.destination);
@@ -144,17 +146,19 @@ function playHitFeedback() {
   const now = performance.now();
   if (now - lastHitFeedbackAt < 180) return;
   lastHitFeedbackAt = now;
-  if (navigator.vibrate) navigator.vibrate(24);
-  synthTone({freq:145, endFreq:92, duration:.075, type:'square', gain:.10});
-  noiseBurst(.045, .07);
+  if (navigator.vibrate) navigator.vibrate(38);
+  synthTone({freq:165, endFreq:88, duration:.095, type:'square', gain:.22});
+  synthTone({freq:310, endFreq:170, duration:.055, type:'triangle', gain:.11, when:.008});
+  noiseBurst(.060, .16);
 }
 
 function playDeathFeedback() {
   lastHitFeedbackAt = performance.now();
-  if (navigator.vibrate) navigator.vibrate([90, 45, 160]);
-  synthTone({freq:260, endFreq:70, duration:.48, type:'sawtooth', gain:.14});
-  synthTone({freq:130, endFreq:45, duration:.55, type:'square', gain:.08, when:.04});
-  noiseBurst(.16, .10);
+  if (navigator.vibrate) navigator.vibrate([130, 55, 220]);
+  synthTone({freq:320, endFreq:62, duration:.58, type:'sawtooth', gain:.30});
+  synthTone({freq:155, endFreq:42, duration:.68, type:'square', gain:.20, when:.035});
+  synthTone({freq:72, endFreq:38, duration:.72, type:'sine', gain:.26, when:.02});
+  noiseBurst(.22, .24);
 }
 
 const BGM_NOTES = [220,0,277.18,0,329.63,0,277.18,0,196,0,246.94,0,293.66,0,246.94,0];
@@ -455,16 +459,18 @@ function renderGame() {
     ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2);
     if (p.type === 'heal') ctx.fillStyle = p.character === 'wind' ? '#9ef7d5' : '#65d7ff';
     else if (p.character === 'fire') ctx.fillStyle = '#ff9a45';
+    else if (p.character === 'sniper') ctx.fillStyle = '#e6d5ff';
+    else if (p.character === 'mecha') ctx.fillStyle = '#b7ffd1';
     else ctx.fillStyle = p.team === 'A' ? '#8bbcff' : '#ff9c9c';
     ctx.fill();
   }
 
   for (const p of state.players) {
     if (!p.alive) continue;
-    const radius = ({iron:.65,shooter:.5,cannon:.65,fire:.5,water:.4,wind:.4,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
+    const radius = ({iron:.65,mecha:.65,shooter:.5,sniper:.4,cannon:.65,fire:.5,water:.4,wind:.4,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
     const s=worldToScreen(p.x,p.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle = ({iron:'#8893a3',shooter:'#58a6ff',cannon:'#d9a441',fire:'#ff704d',water:'#4cc9f0',wind:'#73d6a6',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
+    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',water:'#4cc9f0',wind:'#73d6a6',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
     if (p.burning) { ctx.lineWidth=2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); }

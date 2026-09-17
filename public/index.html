@@ -11,10 +11,17 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">Mobile Alpha 0.2 · 4 vs 4 점유전</p>
+      <p class="subtitle">Mobile Alpha 0.3 · 4 vs 4 점유전 · 10 캐릭터</p>
       <label>닉네임<input id="nameInput" maxlength="12" placeholder="예: 1번" autocomplete="off" /></label>
       <label>방 코드<input id="roomInput" maxlength="10" value="6-1" autocomplete="off" autocapitalize="characters" /></label>
-      <label>캐릭터<select id="characterInput"></select></label>
+
+      <div class="picker-shell">
+        <div class="picker-heading">캐릭터 선택</div>
+        <div id="joinRoleTabs" class="role-tabs"></div>
+        <div id="joinCharacterChoices" class="character-choices"></div>
+        <div id="joinCharacterDetail" class="character-detail"></div>
+      </div>
+
       <button id="joinButton" class="accent big-button">입장</button>
       <p id="joinError" class="error"></p>
       <div class="help">📱 가로 화면 권장 · 왼쪽 스틱 이동 · 오른쪽 스틱 조준/사격 · 다이아는 변신 버튼</div>
@@ -34,8 +41,9 @@
       </div>
       <aside class="panel character-panel">
         <h3>내 캐릭터</h3>
-        <select id="lobbyCharacter"></select>
-        <div id="characterCard"></div>
+        <div id="lobbyRoleTabs" class="role-tabs"></div>
+        <div id="lobbyCharacterChoices" class="character-choices compact"></div>
+        <div id="lobbyCharacterDetail" class="character-detail"></div>
         <p class="muted small">캐릭터 중복 선택 허용. 첫 입장자가 방장입니다.</p>
       </aside>
     </section>

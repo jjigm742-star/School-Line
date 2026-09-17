@@ -57,6 +57,10 @@ const CHARACTERS = {
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.35,
     projectileType: 'heal', heal: 11, tailwindDuration: 2
   },
+  light: {
+    name: '라이트', role: '힐러', hp: 225, speed: 6.0, radius: 0.40,
+    attackType: 'lightBeam', range: 16, healHps: 55, beamDps: 60
+  },
   laser: {
     name: '레이저', role: '딜러', hp: 275, speed: 5.0, radius: 0.50,
     attackType: 'beam', range: 16, beamDps: 80, maxHpDpsRatio: 0.10
@@ -520,6 +524,70 @@ function traceBeam(room, player, def, dt, now) {
   }
 }
 
+function traceLightBeam(room, player, def, dt, now) {
+  let dx = player.aimX - player.x, dy = player.aimY - player.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.001) return;
+  dx /= len; dy /= len;
+
+  const x1 = player.x, y1 = player.y;
+  const x2 = x1 + dx * def.range, y2 = y1 + dy * def.range;
+  let wallT = 1;
+
+  // World boundary and solid walls stop Light's beam.
+  if (Math.abs(dx) > 1e-12) {
+    const tx = dx > 0 ? (WORLD.width - x1) / (dx * def.range) : (0 - x1) / (dx * def.range);
+    if (tx >= 0 && tx < wallT) wallT = tx;
+  }
+  if (Math.abs(dy) > 1e-12) {
+    const ty = dy > 0 ? (WORLD.height - y1) / (dy * def.range) : (0 - y1) / (dy * def.range);
+    if (ty >= 0 && ty < wallT) wallT = ty;
+  }
+  for (const w of WALLS) {
+    const t = segmentAabbT(x1, y1, x2, y2, w.x, w.y, w.x + w.w, w.y + w.h);
+    if (t !== null && t > 1e-6 && t < wallT) wallT = t;
+  }
+
+  const hits = [];
+  for (const target of room.players.values()) {
+    if (!target.alive || target.id === player.id) continue;
+    const tr = CHARACTERS[target.character].radius;
+    const t = segmentCircleT(x1, y1, x2, y2, target.x, target.y, tr);
+    if (t !== null && t > 1e-6 && t < wallT) hits.push({ t, target });
+  }
+  hits.sort((a, b) => a.t - b.t || a.target.id.localeCompare(b.target.id));
+
+  let healedAlly = null;
+  let enemyHit = null;
+  let endT = wallT;
+  for (const hit of hits) {
+    const target = hit.target;
+    if (target.team === player.team) {
+      if (!healedAlly) healedAlly = target;
+      continue;
+    }
+    enemyHit = target;
+    endT = hit.t;
+    break;
+  }
+
+  if (healedAlly) healedAlly.hp = Math.min(healedAlly.maxHp, healedAlly.hp + def.healHps * dt);
+  if (enemyHit) {
+    enemyHit.hp -= def.beamDps * dt;
+    if (enemyHit.hp <= 0) {
+      registerDirectKill(room, player.id, now);
+      die(room, enemyHit, now);
+    }
+  }
+
+  const endX = x1 + (x2 - x1) * endT;
+  const endY = y1 + (y2 - y1) * endT;
+  room.beams.push({
+    ownerId: player.id, team: player.team, character: player.character,
+    x1, y1, x2: endX, y2: endY, healedId: healedAlly ? healedAlly.id : null, hitEnemyId: enemyHit ? enemyHit.id : null
+  });
+}
+
 function spawnProjectile(room, player, def, now) {
   let dx = player.aimX - player.x, dy = player.aimY - player.y;
   const len = Math.hypot(dx, dy);
@@ -632,6 +700,8 @@ function updateRoom(room, dt, now) {
       const attackDef = currentAttackDef(player, now);
       if (attackDef.attackType === 'beam') {
         traceBeam(room, player, attackDef, dt, now);
+      } else if (attackDef.attackType === 'lightBeam') {
+        traceLightBeam(room, player, attackDef, dt, now);
       } else if (now >= player.nextFireAt) {
         spawnProjectile(room, player, attackDef, now);
         player.nextFireAt = now + 1000 / attackDef.fireRate;
@@ -669,7 +739,7 @@ function snapshot(room) {
       diaCooldownMs: p.character === 'dia' ? Math.max(0, p.diaCooldownUntil - now) : 0
     })),
     projectiles: [...room.projectiles.values()].map(p => ({ id: p.id, x: p.x, y: p.y, radius: p.radius, type: p.type, team: p.team, character: p.character })),
-    beams: room.beams.map(b => ({ ownerId: b.ownerId, team: b.team, character: b.character, x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2 }))
+    beams: room.beams.map(b => ({ ownerId: b.ownerId, team: b.team, character: b.character, x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2, healedId: b.healedId || null, hitEnemyId: b.hitEnemyId || null }))
   };
 }
 
@@ -688,7 +758,7 @@ setInterval(() => {
 }, 1000 / SNAPSHOT_RATE);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\nSchool Line Mobile Alpha 0.2`);
+  console.log(`\nSchool Line Mobile Alpha 0.3`);
   console.log(`Local: http://localhost:${PORT}`);
   console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}\n`);
 });

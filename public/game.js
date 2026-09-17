@@ -6,24 +6,74 @@ const canvas = $('gameCanvas'), ctx = canvas.getContext('2d');
 const SCALE = 15; // world y -> screen x, world x -> screen y (mobile landscape rotation)
 
 const CHARACTER_META = {
-  iron:   { name: '아이언', icon: '⚙️', desc: 'HP 600 · 느림 · 65 DPS · 느린 중간탄' },
-  shooter:{ name: '슈터', icon: '🎯', desc: 'HP 250 · 보통 · 100 DPS · 빠른 작은탄' },
-  cannon: { name: '캐논', icon: '💥', desc: 'HP 275 · 매우 느림 · 140 DPS · 초당 10발' },
-  fire:   { name: '파이어', icon: '🔥', desc: 'HP 200 · 빠름 · 80 DPS · 적중 시 화상' },
-  water:  { name: '워터', icon: '💧', desc: 'HP 250 · 보통 · 65 HPS · 치유탄 전용' },
-  wind:   { name: '윈드', icon: '🌪️', desc: 'HP 225 · 빠름 · 55 HPS · 치유탄+순풍' },
-  laser:  { name: '레이저', icon: '🔴', desc: 'HP 275 · 보통 · 사거리 16 · 최대 HP 비례 광선' },
-  ice:    { name: '아이스', icon: '🧊', desc: 'HP 275 · 보통 · 80 DPS 광선 · 적 이동속도 -1단계' },
-  dia:    { name: '다이아', icon: '💎', desc: 'HP 350 · 느림 · 65 DPS · 변신 시 6초간 400HP 광선폼' }
+  iron: { role:'탱커', name:'아이언', icon:'⚙️', mini:'HP 600 · 느림', stat:'HP 600 · 속도 4.0 · 사거리 24 · 65 DPS', summary:'가장 단단한 정통 탱커', mechanic:'높은 체력으로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.' },
+  dia: { role:'탱커', name:'다이아', icon:'💎', mini:'HP 350 · 변신', stat:'HP 350 · 속도 4.0 · 기본 65 DPS · 변신 6초', summary:'타이밍을 잡아 강해지는 변신 탱커', mechanic:'기본형은 투사체로 싸운다. Space 또는 변신 버튼을 누르면 6초간 HP 400, 속도 5.0, 80 DPS 광선폼이 된다. 변신 쿨은 16초이며 폼 중 직접 처치하면 6초 감소한다.' },
+  shooter: { role:'딜러', name:'슈터', icon:'🎯', mini:'100 DPS · 안정적', stat:'HP 250 · 속도 5.0 · 사거리 24 · 100 DPS', summary:'가장 표준적인 원거리 딜러', mechanic:'빠르고 작은 탄을 초당 5발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.' },
+  cannon: { role:'딜러', name:'캐논', icon:'💥', mini:'140 DPS · 느림', stat:'HP 275 · 속도 3.2 · 사거리 24 · 140 DPS', summary:'기동성을 버리고 화력을 얻은 중화기 딜러', mechanic:'초당 10발을 퍼붓는 최고 수준의 지속 화력. 대신 이동속도가 매우 느려 위치를 잘못 잡으면 도망치기 어렵다.' },
+  fire: { role:'딜러', name:'파이어', icon:'🔥', mini:'80 DPS · 화상', stat:'HP 200 · 속도 6.0 · 사거리 24 · 80 DPS + 화상', summary:'빠르게 움직이며 지속 피해를 남기는 딜러', mechanic:'적중한 적에게 2초 동안 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.' },
+  laser: { role:'딜러', name:'레이저', icon:'🔴', mini:'광선 · 탱커 압박', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 + 최대HP 10% DPS', summary:'체력이 높은 적일수록 더 아픈 광선 딜러', mechanic:'조준한 방향으로 즉시 광선을 연결한다. 기본 80 DPS에 대상 최대 체력의 10%만큼 DPS가 추가되어 탱커를 상대할 때 특히 강하다.' },
+  ice: { role:'딜러', name:'아이스', icon:'🧊', mini:'80 DPS · 감속', stat:'HP 275 · 속도 5.0 · 사거리 16 · 80 DPS', summary:'적의 움직임을 묶는 제어형 광선 딜러', mechanic:'광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 감속은 마지막 적중 후 1.5초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.' },
+  water: { role:'힐러', name:'워터', icon:'💧', mini:'65 HPS · 안정 치유', stat:'HP 250 · 속도 5.0 · 사거리 24 · 65 HPS', summary:'가장 단순하고 안정적인 기본 힐러', mechanic:'오른쪽 스틱으로 아군을 조준해 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.' },
+  wind: { role:'힐러', name:'윈드', icon:'🌪️', mini:'55 HPS · 순풍', stat:'HP 225 · 속도 6.0 · 사거리 24 · 55 HPS', summary:'치유와 기동력 지원을 함께 주는 힐러', mechanic:'치유탄에 맞은 아군은 2초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.' },
+  light: { role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜', stat:'HP 225 · 속도 6.0 · 사거리 16 · 55 HPS / 60 DPS', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러', mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.' }
 };
 
-for (const select of [$('characterInput'), $('lobbyCharacter')]) {
-  for (const [id, m] of Object.entries(CHARACTER_META)) {
-    const opt = document.createElement('option'); opt.value = id; opt.textContent = `${m.icon} ${m.name}`; select.appendChild(opt);
+const ROLE_ORDER = ['탱커','딜러','힐러'];
+const ROLE_LABEL = { '탱커':'🛡️ 탱커', '딜러':'⚔️ 딜러', '힐러':'💚 힐러' };
+const savedCharacter = localStorage.getItem('schoolLineCharacter');
+const initialCharacter = CHARACTER_META[savedCharacter] ? savedCharacter : 'shooter';
+const pickerState = {
+  join: { selected: initialCharacter, role: CHARACTER_META[initialCharacter].role },
+  lobby: { selected: initialCharacter, role: CHARACTER_META[initialCharacter].role }
+};
+
+function renderPicker(kind) {
+  const tabs = $(`${kind}RoleTabs`);
+  const choices = $(`${kind}CharacterChoices`);
+  const detail = $(`${kind}CharacterDetail`);
+  const ps = pickerState[kind];
+  tabs.innerHTML = '';
+  choices.innerHTML = '';
+
+  for (const role of ROLE_ORDER) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'role-tab' + (ps.role === role ? ' active' : '');
+    btn.textContent = ROLE_LABEL[role];
+    btn.onclick = () => {
+      ps.role = role;
+      const candidates = Object.keys(CHARACTER_META).filter(id => CHARACTER_META[id].role === role);
+      if (!candidates.includes(ps.selected)) ps.selected = candidates[0];
+      renderPicker(kind);
+      if (kind === 'lobby') selectLobbyCharacter(ps.selected);
+    };
+    tabs.appendChild(btn);
   }
+
+  for (const [id, m] of Object.entries(CHARACTER_META).filter(([,m]) => m.role === ps.role)) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'character-choice' + (ps.selected === id ? ' selected' : '');
+    btn.innerHTML = `<span class="char-name">${m.icon} ${m.name}</span><span class="char-mini">${m.mini}</span>`;
+    btn.onclick = () => {
+      ps.selected = id;
+      localStorage.setItem('schoolLineCharacter', id);
+      renderPicker(kind);
+      if (kind === 'lobby') selectLobbyCharacter(id);
+    };
+    choices.appendChild(btn);
+  }
+
+  const m = CHARACTER_META[ps.selected];
+  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${m.name}</div><span class="role-badge">${m.role}</span></div><div class="character-statline">${m.stat}</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${m.mechanic}</div>`;
 }
-$('characterInput').value = 'shooter';
-$('lobbyCharacter').value = 'shooter';
+
+function selectLobbyCharacter(id) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'select', character:id }));
+}
+
+renderPicker('join');
+renderPicker('lobby');
 
 let ws = null, myId = null, config = null, state = null;
 let keys = { up:false, down:false, left:false, right:false };
@@ -47,7 +97,7 @@ $('joinButton').onclick = () => {
   localStorage.setItem('schoolLineName', $('nameInput').value);
   localStorage.setItem('schoolLineRoom', $('roomInput').value);
   ws = new WebSocket(wsUrl());
-  ws.onopen = () => ws.send(JSON.stringify({ type:'join', name:$('nameInput').value, room:$('roomInput').value, character:$('characterInput').value }));
+  ws.onopen = () => ws.send(JSON.stringify({ type:'join', name:$('nameInput').value, room:$('roomInput').value, character:pickerState.join.selected }));
   ws.onmessage = ev => handleMessage(JSON.parse(ev.data));
   ws.onerror = () => $('joinError').textContent = '서버에 연결하지 못했습니다.';
   ws.onclose = () => { if (myId) { alert('서버 연결이 끊겼습니다.'); location.reload(); } };
@@ -70,10 +120,6 @@ function handleMessage(msg) {
   }
 }
 
-$('lobbyCharacter').onchange = () => {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'select', character:$('lobbyCharacter').value }));
-  renderCharacterCard($('lobbyCharacter').value);
-};
 $('startButton').onclick = () => ws && ws.send(JSON.stringify({ type:'start' }));
 $('fullscreenButton').onclick = enterGameDisplayMode;
 $('gameFullscreenButton').onclick = enterGameDisplayMode;
@@ -95,19 +141,15 @@ async function enterGameDisplayMode() {
   } catch (_) {}
 }
 
-function renderCharacterCard(id) {
-  const m = CHARACTER_META[id];
-  $('characterCard').className = 'character-card';
-  $('characterCard').innerHTML = `<b>${m.icon} ${m.name}</b><br>${m.desc}`;
-}
-renderCharacterCard('shooter');
-
 function renderLobby() {
   if (!state) return;
   const me = state.players.find(p => p.id === myId);
   if (me) {
-    $('lobbyCharacter').value = me.character;
-    renderCharacterCard(me.character);
+    if (pickerState.lobby.selected !== me.character) {
+      pickerState.lobby.selected = me.character;
+      pickerState.lobby.role = CHARACTER_META[me.character].role;
+      renderPicker('lobby');
+    }
   }
   const isHost = state.hostId === myId;
   $('startButton').classList.toggle('hidden', !isHost);
@@ -262,8 +304,8 @@ function renderGame() {
 
   for (const b of (state.beams || [])) {
     const a=worldToScreen(b.x1,b.y1), z=worldToScreen(b.x2,b.y2);
-    const beamColor = b.character === 'ice' ? '#78e9ff' : (b.character === 'dia' ? '#8df6ff' : '#ff477e');
-    const glowColor = b.character === 'laser' ? 'rgba(255,70,120,.28)' : 'rgba(120,235,255,.30)';
+    const beamColor = b.character === 'ice' ? '#78e9ff' : (b.character === 'dia' ? '#8df6ff' : (b.character === 'light' ? '#ffe66d' : '#ff477e'));
+    const glowColor = b.character === 'laser' ? 'rgba(255,70,120,.28)' : (b.character === 'light' ? 'rgba(255,230,109,.32)' : 'rgba(120,235,255,.30)');
     ctx.save();
     ctx.lineCap='round';
     ctx.strokeStyle=glowColor; ctx.lineWidth=8;
@@ -284,10 +326,10 @@ function renderGame() {
 
   for (const p of state.players) {
     if (!p.alive) continue;
-    const radius = ({iron:.65,shooter:.5,cannon:.65,fire:.5,water:.4,wind:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
+    const radius = ({iron:.65,shooter:.5,cannon:.65,fire:.5,water:.4,wind:.4,light:.4,laser:.5,ice:.5,dia:.65})[p.character] * SCALE;
     const s=worldToScreen(p.x,p.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle = ({iron:'#8893a3',shooter:'#58a6ff',cannon:'#d9a441',fire:'#ff704d',water:'#4cc9f0',wind:'#73d6a6',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
+    ctx.fillStyle = ({iron:'#8893a3',shooter:'#58a6ff',cannon:'#d9a441',fire:'#ff704d',water:'#4cc9f0',wind:'#73d6a6',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
     if (p.burning) { ctx.lineWidth=2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); }

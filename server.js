@@ -32,8 +32,18 @@ const BALANCE_VERSION = '1.3';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.3-r21-spray-kill-tiebreak';
+const COMPETITIVE_BUILD_ID = 'alpha-1.3-r21-potg-1';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r21-spray';
+
+// Competitive-only Play of the Game (POTG) 1.0.
+const POTG_WINDOW_MS = 8000;
+const POTG_REPLAY_PREROLL_MS = 1500;
+const POTG_REPLAY_BUFFER_MS = POTG_WINDOW_MS + POTG_REPLAY_PREROLL_MS + 500;
+const POTG_REPLAY_FRAME_MS = 100; // 10 Hz capture; client interpolates for smooth playback.
+const POTG_MIN_SCORE = 1000;
+const POTG_KILL_SCORE = 300;
+const POTG_OBJECTIVE_POINT_SCORE = 25;
+const POTG_OBJECTIVE_STOP_SCORE = 150;
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [4.0, 5.0, 6.0, 7.0, 8.0, 9.2];
@@ -745,7 +755,8 @@ function newRoom(code) {
     endedAt: 0,
     winner: null,
     winnerReason: null,
-    projectileCounter: 1
+    projectileCounter: 1,
+    potg: createPotgState(false)
   };
 }
 
@@ -771,6 +782,213 @@ function resolveMatchWinner(room) {
   if (kills.A > kills.B) return { winner: 'A', reason: 'kills', kills };
   if (kills.B > kills.A) return { winner: 'B', reason: 'kills', kills };
   return { winner: 'DRAW', reason: 'draw', kills };
+}
+
+
+function createPotgState(enabled = false) {
+  return {
+    enabled: !!enabled,
+    events: new Map(),
+    pendingTriggers: new Set(),
+    replayBuffer: [],
+    lastReplayCaptureAt: 0,
+    topScore: -Infinity,
+    topCandidates: [],
+    lastScoring: { A: false, B: false },
+    final: null
+  };
+}
+
+function potgEnabled(room) {
+  return !!(room && room.mode === 'competitive' && room.state === 'playing' && room.potg && room.potg.enabled);
+}
+
+function potgEventsFor(room, playerId) {
+  if (!room.potg.events.has(playerId)) room.potg.events.set(playerId, []);
+  return room.potg.events.get(playerId);
+}
+
+function recordPotgEvent(room, playerId, now, fields = {}) {
+  if (!potgEnabled(room) || !playerId) return;
+  const events = potgEventsFor(room, playerId);
+  events.push({
+    t: now,
+    damage: Math.max(0, Number(fields.damage) || 0),
+    healing: Math.max(0, Number(fields.healing) || 0),
+    crisisHealing: Math.max(0, Number(fields.crisisHealing) || 0),
+    kills: Math.max(0, Number(fields.kills) || 0),
+    objectivePoints: Math.max(0, Number(fields.objectivePoints) || 0),
+    objectiveStops: Math.max(0, Number(fields.objectiveStops) || 0)
+  });
+  const cutoff = now - POTG_WINDOW_MS - 250;
+  while (events.length && events[0].t < cutoff) events.shift();
+}
+
+function queuePotgTrigger(room, playerId) {
+  if (!potgEnabled(room) || !playerId) return;
+  room.potg.pendingTriggers.add(playerId);
+}
+
+function potgMultiKillBonus(kills) {
+  if (kills >= 4) return 1500;
+  if (kills === 3) return 800;
+  if (kills === 2) return 300;
+  return 0;
+}
+
+function calculatePotgWindow(room, playerId, endAt) {
+  const events = potgEventsFor(room, playerId);
+  const startAt = endAt - POTG_WINDOW_MS;
+  const metrics = { damage: 0, healing: 0, crisisHealing: 0, kills: 0, objectivePoints: 0, objectiveStops: 0 };
+  for (const ev of events) {
+    if (ev.t < startAt || ev.t > endAt) continue;
+    metrics.damage += ev.damage;
+    metrics.healing += ev.healing;
+    metrics.crisisHealing += ev.crisisHealing;
+    metrics.kills += ev.kills;
+    metrics.objectivePoints += ev.objectivePoints;
+    metrics.objectiveStops += ev.objectiveStops;
+  }
+  const score = metrics.damage
+    + metrics.healing
+    + metrics.crisisHealing // critical ally healing receives one extra copy => 2x total.
+    + metrics.kills * POTG_KILL_SCORE
+    + potgMultiKillBonus(metrics.kills)
+    + metrics.objectivePoints * POTG_OBJECTIVE_POINT_SCORE
+    + metrics.objectiveStops * POTG_OBJECTIVE_STOP_SCORE;
+  return { startAt, endAt, score, metrics };
+}
+
+function capturePotgReplayFrame(room, now, force = false) {
+  if (!potgEnabled(room)) return null;
+  if (!force && room.potg.lastReplayCaptureAt && now - room.potg.lastReplayCaptureAt < POTG_REPLAY_FRAME_MS) return null;
+  const live = snapshot(room, null, true);
+  const frame = {
+    t: now,
+    state: 'playing',
+    scoreA: live.scoreA,
+    scoreB: live.scoreB,
+    timeLeft: live.timeLeft,
+    players: live.players.map(p => ({
+      id: p.id, name: p.name, team: p.team, character: p.character,
+      x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, shield: p.shield, maxShield: p.maxShield,
+      alive: p.alive, invulnerable: p.invulnerable, aimX: p.aimX, aimY: p.aimY,
+      burning: p.burning, poisoned: p.poisoned, radiated: p.radiated, tailwind: p.tailwind, frozen: p.frozen, stunned: p.stunned,
+      diaForm: p.diaForm, reactorOutput: p.reactorOutput,
+      jetBoost: p.jetBoost, jetBoostStartX: p.jetBoostStartX, jetBoostStartY: p.jetBoostStartY, jetBoostEndX: p.jetBoostEndX, jetBoostEndY: p.jetBoostEndY,
+      bufferTargetId: p.bufferTargetId, bufferLinkActive: p.bufferLinkActive
+    })),
+    projectiles: live.projectiles.map(p => ({ id:p.id, x:p.x, y:p.y, radius:p.radius, type:p.type, team:p.team, character:p.character, reactorFxBand:p.reactorFxBand })),
+    beams: live.beams.map(b => ({ ownerId:b.ownerId, team:b.team, character:b.character, x1:b.x1, y1:b.y1, x2:b.x2, y2:b.y2, impact:b.impact, didDamage:b.didDamage }))
+  };
+  room.potg.replayBuffer.push(frame);
+  room.potg.lastReplayCaptureAt = now;
+  const cutoff = now - POTG_REPLAY_BUFFER_MS;
+  while (room.potg.replayBuffer.length && room.potg.replayBuffer[0].t < cutoff) room.potg.replayBuffer.shift();
+  return frame;
+}
+
+function replayFramesForPotgCandidate(room, endAt) {
+  const startAt = endAt - POTG_WINDOW_MS - POTG_REPLAY_PREROLL_MS;
+  return room.potg.replayBuffer.filter(frame => frame.t >= startAt && frame.t <= endAt + 100).slice();
+}
+
+function considerPotgCandidate(room, playerId, now) {
+  if (!potgEnabled(room)) return null;
+  const player = room.players.get(playerId);
+  if (!player) return null;
+  const window = calculatePotgWindow(room, playerId, now);
+  const m = window.metrics;
+  if (m.kills <= 0 && m.crisisHealing <= 0 && m.objectiveStops <= 0) return null;
+
+  // Replay capture runs at 10 Hz; the decisive event can be at most ~100 ms past the last frame.
+  const candidate = {
+    playerId: player.id,
+    playerName: player.name,
+    team: player.team,
+    character: player.character,
+    characterName: CHARACTERS[player.character]?.name || player.character,
+    score: window.score,
+    startAt: window.startAt,
+    endAt: window.endAt,
+    metrics: { ...m },
+    frames: replayFramesForPotgCandidate(room, now)
+  };
+
+  const eps = 1e-6;
+  if (candidate.score > room.potg.topScore + eps) {
+    room.potg.topScore = candidate.score;
+    room.potg.topCandidates = [candidate];
+  } else if (Math.abs(candidate.score - room.potg.topScore) <= eps) {
+    const duplicateIndex = room.potg.topCandidates.findIndex(c => c.playerId === candidate.playerId && Math.abs(c.endAt - candidate.endAt) < 150);
+    if (duplicateIndex >= 0) room.potg.topCandidates[duplicateIndex] = candidate;
+    else {
+      room.potg.topCandidates.push(candidate);
+      if (room.potg.topCandidates.length > 16) room.potg.topCandidates.shift();
+    }
+  }
+  return candidate;
+}
+
+function processPendingPotgTriggers(room, now) {
+  if (!potgEnabled(room) || !room.potg.pendingTriggers.size) return;
+  const ids = [...room.potg.pendingTriggers];
+  room.potg.pendingTriggers.clear();
+  for (const id of ids) considerPotgCandidate(room, id, now);
+}
+
+function comparePotgCandidateLocal(a, b) {
+  if ((b.metrics?.kills || 0) !== (a.metrics?.kills || 0)) return (b.metrics?.kills || 0) - (a.metrics?.kills || 0);
+  if ((b.metrics?.damage || 0) !== (a.metrics?.damage || 0)) return (b.metrics?.damage || 0) - (a.metrics?.damage || 0);
+  return 0;
+}
+
+function finalizePotg(room) {
+  if (!room || room.mode !== 'competitive' || !room.potg || !room.potg.enabled) return null;
+  if (!Number.isFinite(room.potg.topScore) || room.potg.topScore < POTG_MIN_SCORE) return null;
+  let pool = room.potg.topCandidates.filter(c => Math.abs(c.score - room.potg.topScore) <= 1e-6);
+  if (!pool.length) return null;
+
+  // Tie-break: winning team -> more kills in the 8 s window -> more damage -> random.
+  if (room.winner === 'A' || room.winner === 'B') {
+    const winnerPool = pool.filter(c => c.team === room.winner);
+    if (winnerPool.length) pool = winnerPool;
+  }
+  pool.sort(comparePotgCandidateLocal);
+  const bestKills = pool[0]?.metrics?.kills || 0;
+  pool = pool.filter(c => (c.metrics?.kills || 0) === bestKills);
+  const bestDamage = Math.max(...pool.map(c => Number(c.metrics?.damage) || 0));
+  pool = pool.filter(c => Math.abs((Number(c.metrics?.damage) || 0) - bestDamage) <= 1e-6);
+  const selected = pool[Math.floor(Math.random() * pool.length)] || null;
+  if (!selected) return null;
+  room.potg.final = selected;
+  return selected;
+}
+
+function potgSequencePayload(candidate) {
+  if (!candidate) return null;
+  return {
+    playerId: candidate.playerId,
+    playerName: candidate.playerName,
+    team: candidate.team,
+    character: candidate.character,
+    characterName: candidate.characterName,
+    score: candidate.score,
+    metrics: candidate.metrics,
+    windowMs: POTG_WINDOW_MS,
+    frames: candidate.frames || []
+  };
+}
+
+function sendCompetitivePostGameSequence(room, candidate) {
+  if (!room || room.mode !== 'competitive') return;
+  const potg = potgSequencePayload(candidate);
+  for (const [playerId, conn] of room.clients.entries()) {
+    conn.send({ type: 'post_game_sequence', finalState: snapshot(room, playerId, false), potg });
+  }
+  for (const conn of room.spectators.values()) {
+    conn.send({ type: 'post_game_sequence', finalState: snapshot(room, null, true), potg });
+  }
 }
 
 function isCharacterTakenOnTeam(room, team, character, excludePlayerId = null) {
@@ -1387,6 +1605,7 @@ function startMatch(room, now = Date.now()) {
   room.matchEndAt = now + MATCH_SECONDS * 1000;
   room.projectiles.clear();
   room.beams = [];
+  room.potg = createPotgState(room.mode === 'competitive');
   for (const p of room.players.values()) {
     const def = CHARACTERS[p.character];
     const sp = spawnPoint(room, p);
@@ -1555,6 +1774,8 @@ function registerKill(room, attackerId, now, direct = true) {
   if (!attacker) return;
   const stats = ensureMatchStats(attacker);
   stats.kills += 1;
+  recordPotgEvent(room, attacker.id, now, { kills: 1 });
+  queuePotgTrigger(room, attacker.id);
   if (direct && attacker.alive && isDiaForm(attacker, now)) {
     stats.diaFormKills += 1;
     attacker.diaCooldownUntil = Math.max(now, attacker.diaCooldownUntil - CHARACTERS.dia.formKillCooldownReduction * 1000);
@@ -1690,7 +1911,10 @@ function dealDamageDetailed(room, attackerId, target, amount, now) {
   const total = shieldDamage + hpDamage;
   if (total <= 0) return { total: 0, hp: 0, shield: 0 };
   const attacker = room.players.get(attackerId);
-  if (attacker) ensureMatchStats(attacker).damage += total;
+  if (attacker) {
+    ensureMatchStats(attacker).damage += total;
+    recordPotgEvent(room, attacker.id, now, { damage: total });
+  }
   markCombat(room, attackerId, target, now);
   return { total, hp: hpDamage, shield: shieldDamage };
 }
@@ -1700,6 +1924,7 @@ function applyHealing(room, healer, target, amount, now) {
   const raw = Math.max(0, Number(amount) || 0);
   const before = Math.max(0, target.hp);
   const missing = Math.max(0, target.maxHp - before);
+  const crisisAlly = !!(healer && healer.id !== target.id && healer.team === target.team && target.maxHp > 0 && before / target.maxHp <= 0.30);
   if (raw <= 0 || missing <= 0) return 0;
 
   let effectiveRaw = raw;
@@ -1733,7 +1958,11 @@ function applyHealing(room, healer, target, amount, now) {
   const actual = Math.min(missing, effectiveRaw);
   if (actual <= 0) return 0;
   target.hp = before + actual;
-  if (healer) ensureMatchStats(healer).healing += actual;
+  if (healer) {
+    ensureMatchStats(healer).healing += actual;
+    recordPotgEvent(room, healer.id, now, { healing: actual, crisisHealing: crisisAlly ? actual : 0 });
+    if (crisisAlly) queuePotgTrigger(room, healer.id);
+  }
   return actual;
 }
 
@@ -2071,7 +2300,11 @@ function updateRoom(room, dt, now) {
     room.projectiles.clear();
     room.beams = [];
     for (const p of room.players.values()) p.input.fire = false;
-    if (room.mode === 'competitive') recordCompetitiveResult(room, now);
+    if (room.mode === 'competitive') {
+      const finalPotg = finalizePotg(room);
+      recordCompetitiveResult(room, now);
+      sendCompetitivePostGameSequence(room, finalPotg);
+    }
     return;
   }
 
@@ -2153,14 +2386,57 @@ function updateRoom(room, dt, now) {
 
   updateProjectiles(room, dt, now);
 
-  let aInB = false, bInB = false, bInA = false, aInA = false;
+  const aAttackers = [], bDefenders = [], bAttackers = [], aDefenders = [];
   for (const p of room.players.values()) {
     if (!p.alive || p.connected === false) continue;
-    if (p.y >= WORLD.bZoneStart) { if (p.team === 'A') aInB = true; else bInB = true; }
-    if (p.y <= WORLD.aZoneEnd) { if (p.team === 'B') bInA = true; else aInA = true; }
+    if (p.y >= WORLD.bZoneStart) {
+      if (p.team === 'A') aAttackers.push(p); else if (p.team === 'B') bDefenders.push(p);
+    }
+    if (p.y <= WORLD.aZoneEnd) {
+      if (p.team === 'B') bAttackers.push(p); else if (p.team === 'A') aDefenders.push(p);
+    }
   }
-  if (aInB && !bInB) room.scoreA += dt;
-  if (bInA && !aInA) room.scoreB += dt;
+  const aScoring = aAttackers.length > 0 && bDefenders.length === 0;
+  const bScoring = bAttackers.length > 0 && aDefenders.length === 0;
+
+  if (potgEnabled(room)) {
+    // A direct stop means the opponent was scoring last tick and a defender is now present
+    // in the threatened home zone, ending that scoring state. Award once on the transition.
+    if (room.potg.lastScoring.A && !aScoring && bDefenders.length > 0) {
+      for (const defender of bDefenders) {
+        recordPotgEvent(room, defender.id, now, { objectiveStops: 1 });
+        queuePotgTrigger(room, defender.id);
+      }
+    }
+    if (room.potg.lastScoring.B && !bScoring && aDefenders.length > 0) {
+      for (const defender of aDefenders) {
+        recordPotgEvent(room, defender.id, now, { objectiveStops: 1 });
+        queuePotgTrigger(room, defender.id);
+      }
+    }
+  }
+
+  if (aScoring) {
+    room.scoreA += dt;
+    if (potgEnabled(room)) {
+      const contribution = dt / aAttackers.length;
+      for (const attacker of aAttackers) recordPotgEvent(room, attacker.id, now, { objectivePoints: contribution });
+    }
+  }
+  if (bScoring) {
+    room.scoreB += dt;
+    if (potgEnabled(room)) {
+      const contribution = dt / bAttackers.length;
+      for (const attacker of bAttackers) recordPotgEvent(room, attacker.id, now, { objectivePoints: contribution });
+    }
+  }
+
+  if (potgEnabled(room)) {
+    room.potg.lastScoring.A = aScoring;
+    room.potg.lastScoring.B = bScoring;
+    capturePotgReplayFrame(room, now);
+    processPendingPotgTriggers(room, now);
+  }
 }
 
 function snapshot(room, viewerId = null, spectator = false) {
@@ -2255,5 +2531,6 @@ module.exports = {
   registerDirectKill, die, respawn, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, statsVersionFromMatch,
-  teamKillTotals, resolveMatchWinner
+  teamKillTotals, resolveMatchWinner,
+  createPotgState, recordPotgEvent, queuePotgTrigger, calculatePotgWindow, considerPotgCandidate, finalizePotg, capturePotgReplayFrame, processPendingPotgTriggers, potgMultiKillBonus, potgSequencePayload, sendCompetitivePostGameSequence
 };

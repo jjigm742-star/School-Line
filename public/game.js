@@ -343,6 +343,8 @@ function selectLobbyCharacter(id) {
 
 let ws = null, myId = null, config = null, state = null;
 let spectatorMode = false;
+let postGameSequence = { active:false, timers:[], finalState:null, potg:null };
+let potgReplayPlayback = { active:false, frames:[], startPerf:0, durationMs:0, currentIndex:0, playerId:null, potg:null };
 let adminStatsAuthorized = false;
 let lastAdminStatsData = null;
 let selectedCompetitiveStatsVersion = null;
@@ -410,6 +412,196 @@ function renderedPlayerWorldPosition(player, now=performance.now()) {
 function characterRadiusWorld(characterId) {
   const value = config && config.characters && config.characters[characterId] && config.characters[characterId].radius;
   return Number.isFinite(value) ? value : 0.80;
+}
+
+
+function clearPostGameTimers() {
+  for (const id of postGameSequence.timers || []) clearTimeout(id);
+  postGameSequence.timers = [];
+}
+
+function schedulePostGame(fn, ms) {
+  const id = setTimeout(fn, ms);
+  postGameSequence.timers.push(id);
+  return id;
+}
+
+function resetPostGameSequence() {
+  clearPostGameTimers();
+  postGameSequence.active = false;
+  postGameSequence.finalState = null;
+  postGameSequence.potg = null;
+  potgReplayPlayback.active = false;
+  potgReplayPlayback.frames = [];
+  potgReplayPlayback.currentIndex = 0;
+  document.body.classList.remove('post-game-sequence');
+  $('postGameOverlay')?.classList.add('hidden');
+  $('postGameOverlay')?.classList.remove('fade-black');
+  $('postGameWinner')?.classList.add('hidden');
+  $('potgIntro')?.classList.add('hidden');
+  $('potgReplayBadge')?.classList.add('hidden');
+}
+
+function postGameWinnerText(finalState) {
+  if (!finalState) return '';
+  const score = `${Number(finalState.scoreA || 0).toFixed(1).replace(/\.0$/,'')} : ${Number(finalState.scoreB || 0).toFixed(1).replace(/\.0$/,'')}`;
+  if (finalState.winner === 'DRAW') return `무승부!  ${score}`;
+  if (finalState.winnerReason === 'kills') return `${finalState.winner}팀 승리!  ${score}\n킬 타이브레이크 ${Number(finalState.teamKills?.A||0)} : ${Number(finalState.teamKills?.B||0)}`;
+  return `${finalState.winner}팀 승리!  ${score}`;
+}
+
+function potgReasonText(potg) {
+  if (!potg || !potg.metrics) return '';
+  const m = potg.metrics;
+  if (Number(m.kills || 0) >= 2) return `${Number(m.kills)}연속 처치`;
+  if (Number(m.kills || 0) === 1) return '결정적 처치';
+  if (Number(m.crisisHealing || 0) > 0) return `위기 치유 ${Math.round(Number(m.crisisHealing || 0))}`;
+  if (Number(m.objectiveStops || 0) > 0) return `득점 차단 ${Number(m.objectiveStops || 0)}회`;
+  return '';
+}
+
+function cloneReplayPlayerAt(a, b, alpha) {
+  if (!b) return { ...a };
+  const base = alpha < .5 ? a : b;
+  return {
+    ...base,
+    x: Number(a.x || 0) + (Number(b.x || 0) - Number(a.x || 0)) * alpha,
+    y: Number(a.y || 0) + (Number(b.y || 0) - Number(a.y || 0)) * alpha,
+    hp: Number(a.hp || 0) + (Number(b.hp || 0) - Number(a.hp || 0)) * alpha,
+    shield: Number(a.shield || 0) + (Number(b.shield || 0) - Number(a.shield || 0)) * alpha
+  };
+}
+
+function cloneReplayProjectileAt(a, b, alpha) {
+  if (!b) return { ...a };
+  return {
+    ...(alpha < .5 ? a : b),
+    x: Number(a.x || 0) + (Number(b.x || 0) - Number(a.x || 0)) * alpha,
+    y: Number(a.y || 0) + (Number(b.y || 0) - Number(a.y || 0)) * alpha
+  };
+}
+
+function currentPotgReplayState(nowPerf = performance.now()) {
+  if (!potgReplayPlayback.active || !potgReplayPlayback.frames.length) return null;
+  const frames = potgReplayPlayback.frames;
+  const elapsed = Math.max(0, Math.min(potgReplayPlayback.durationMs, nowPerf - potgReplayPlayback.startPerf));
+  const targetT = Number(frames[0].t || 0) + elapsed;
+  let i = Math.max(0, Math.min(potgReplayPlayback.currentIndex || 0, frames.length - 1));
+  while (i + 1 < frames.length && Number(frames[i + 1].t || 0) <= targetT) i++;
+  while (i > 0 && Number(frames[i].t || 0) > targetT) i--;
+  potgReplayPlayback.currentIndex = i;
+  const a = frames[i];
+  const b = frames[Math.min(frames.length - 1, i + 1)];
+  const span = Math.max(1, Number(b.t || 0) - Number(a.t || 0));
+  const alpha = a === b ? 0 : Math.max(0, Math.min(1, (targetT - Number(a.t || 0)) / span));
+  const bPlayers = new Map((b.players || []).map(p => [p.id, p]));
+  const bProjectiles = new Map((b.projectiles || []).map(p => [p.id, p]));
+  const players = (a.players || []).map(p => cloneReplayPlayerAt(p, bPlayers.get(p.id), alpha));
+  if (alpha >= .5) {
+    const seen = new Set(players.map(p => p.id));
+    for (const p of (b.players || [])) if (!seen.has(p.id)) players.push({ ...p });
+  }
+  const projectiles = (a.projectiles || []).map(p => cloneReplayProjectileAt(p, bProjectiles.get(p.id), alpha));
+  if (alpha >= .5) {
+    const seen = new Set(projectiles.map(p => p.id));
+    for (const p of (b.projectiles || [])) if (!seen.has(p.id)) projectiles.push({ ...p });
+  }
+  return {
+    state:'playing',
+    scoreA:Number(a.scoreA||0) + (Number(b.scoreA||0)-Number(a.scoreA||0))*alpha,
+    scoreB:Number(a.scoreB||0) + (Number(b.scoreB||0)-Number(a.scoreB||0))*alpha,
+    timeLeft:Number(a.timeLeft||0) + (Number(b.timeLeft||0)-Number(a.timeLeft||0))*alpha,
+    players,
+    projectiles,
+    beams: alpha < .5 ? (a.beams || []) : (b.beams || [])
+  };
+}
+
+function finishPostGameSequence() {
+  const finalState = postGameSequence.finalState || state;
+  potgReplayPlayback.active = false;
+  $('potgReplayBadge')?.classList.add('hidden');
+  $('postGameOverlay')?.classList.add('hidden');
+  $('postGameOverlay')?.classList.remove('fade-black');
+  document.body.classList.remove('post-game-sequence');
+  postGameSequence.active = false;
+  clearPostGameTimers();
+  if (finalState) state = finalState;
+  show('lobby');
+  renderLobby();
+}
+
+function fadeToPostGameResults() {
+  const overlay = $('postGameOverlay');
+  if (overlay) {
+    overlay.classList.remove('hidden');
+    overlay.classList.add('fade-black');
+    $('postGameWinner')?.classList.add('hidden');
+    $('potgIntro')?.classList.add('hidden');
+  }
+  schedulePostGame(finishPostGameSequence, 400);
+}
+
+function startPotgReplay(potg) {
+  const frames = Array.isArray(potg?.frames) ? potg.frames : [];
+  if (frames.length < 2) { fadeToPostGameResults(); return; }
+  $('postGameOverlay')?.classList.add('hidden');
+  $('postGameOverlay')?.classList.remove('fade-black');
+  const characterName = potg.characterName || CHARACTER_META[potg.character]?.name || potg.character || '';
+  $('potgReplayIdentity').textContent = `${characterName} · ${potg.playerName || ''}`;
+  $('potgReplayReason').textContent = potgReasonText(potg);
+  $('potgReplayBadge').classList.remove('hidden');
+  selectedTargetId = null;
+  worldFx.splice(0, worldFx.length);
+  playerMotionTracks.clear();
+  potgReplayPlayback = {
+    active:true,
+    frames,
+    startPerf:performance.now(),
+    durationMs:Math.max(100, Number(frames[frames.length - 1].t || 0) - Number(frames[0].t || 0)),
+    currentIndex:0,
+    playerId:potg.playerId,
+    potg
+  };
+  schedulePostGame(fadeToPostGameResults, potgReplayPlayback.durationMs + 120);
+}
+
+function showPotgIntro(potg) {
+  const overlay = $('postGameOverlay');
+  overlay?.classList.remove('hidden','fade-black');
+  $('postGameWinner')?.classList.add('hidden');
+  $('potgIntro')?.classList.remove('hidden');
+  const characterName = potg.characterName || CHARACTER_META[potg.character]?.name || potg.character || '';
+  $('potgCharacterName').textContent = characterName;
+  $('potgPlayerName').textContent = potg.playerName || '';
+  schedulePostGame(() => startPotgReplay(potg), 1000);
+}
+
+function startCompetitivePostGameSequence(msg) {
+  resetPostGameSequence();
+  const finalState = msg.finalState || state;
+  if (!finalState) return;
+  postGameSequence.active = true;
+  postGameSequence.finalState = finalState;
+  postGameSequence.potg = msg.potg || null;
+  state = finalState;
+  stopBgm();
+  stopBeamHum();
+  document.body.classList.add('post-game-sequence');
+  show('game');
+  const overlay = $('postGameOverlay');
+  overlay?.classList.remove('hidden','fade-black');
+  $('potgIntro')?.classList.add('hidden');
+  $('potgReplayBadge')?.classList.add('hidden');
+  const winner = $('postGameWinner');
+  winner.textContent = postGameWinnerText(finalState);
+  winner.style.whiteSpace = 'pre-line';
+  winner.classList.remove('hidden');
+  if (msg.potg) console.info('[School Line POTG]', { player:msg.potg.playerName, character:msg.potg.characterName, score:msg.potg.score, metrics:msg.potg.metrics });
+  schedulePostGame(() => {
+    if (msg.potg) showPotgIntro(msg.potg);
+    else fadeToPostGameResults();
+  }, 1800);
 }
 
 renderPicker('lobby');
@@ -1059,7 +1251,16 @@ function handleMessage(msg) {
     if (notice) notice.textContent = `⚠️ ${msg.message}`;
     return;
   }
+  if (msg.type === 'post_game_sequence') {
+    startCompetitivePostGameSequence(msg);
+    return;
+  }
   if (msg.type === 'state') {
+    if (postGameSequence.active && msg.state === 'ended') {
+      state = msg;
+      postGameSequence.finalState = msg;
+      return;
+    }
     const previousState = state;
     processCombatFeedback(previousState, msg);
     updatePlayerMotionTracks(previousState, msg);
@@ -1987,7 +2188,9 @@ function drawBufferThread(buffer, target, nowMs) {
 
 function renderGame() {
   requestAnimationFrame(renderGame);
-  if (!state || state.state !== 'playing' || !config) return;
+  const isReplay = !!potgReplayPlayback.active;
+  const viewState = isReplay ? currentPotgReplayState() : state;
+  if (!viewState || (!isReplay && viewState.state !== 'playing') || !config) return;
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle = '#121821'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
@@ -2003,15 +2206,15 @@ function renderGame() {
   for (const w of config.walls) ctx.fillRect(w.y*SCALE,w.x*SCALE,w.h*SCALE,w.w*SCALE);
 
   const beamFxNow = performance.now();
-  for (const b of (state.beams || [])) drawBeamFx(b, beamFxNow);
-  for (const p of state.players) if (p.alive && p.character==='jet' && p.jetBoost) drawJetBoostTrail(p, beamFxNow);
-  for (const buffer of state.players) {
+  for (const b of (viewState.beams || [])) drawBeamFx(b, beamFxNow);
+  for (const p of viewState.players) if (p.alive && p.character==='jet' && p.jetBoost) drawJetBoostTrail(p, beamFxNow);
+  for (const buffer of viewState.players) {
     if (!buffer.alive || buffer.character !== 'buffer' || !buffer.bufferLinkActive || !buffer.bufferTargetId) continue;
-    const target = state.players.find(p => p.id === buffer.bufferTargetId && p.alive);
+    const target = viewState.players.find(p => p.id === buffer.bufferTargetId && p.alive);
     if (target) { drawBufferThread(buffer, target, beamFxNow); drawBufferTargetAura(target, beamFxNow); }
   }
 
-  for (const p of state.projectiles) {
+  for (const p of viewState.projectiles) {
     const s=worldToScreen(p.x,p.y), r=Math.max(2,p.radius*SCALE);
     ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2);
     if (p.type === 'heal') ctx.fillStyle = p.character === 'wind' ? '#9ef7d5' : (p.character === 'star' ? '#fff3a8' : (p.character === 'angel' ? '#fff0c8' : '#65d7ff'));
@@ -2028,7 +2231,7 @@ function renderGame() {
 
   drawWorldFx(beamFxNow);
 
-  for (const p of state.players) {
+  for (const p of viewState.players) {
     if (!p.alive) continue;
     const radius = characterRadiusWorld(p.character) * SCALE;
     const renderWorld = renderedPlayerWorldPosition(p, beamFxNow);
@@ -2041,6 +2244,11 @@ function renderGame() {
       ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill(); ctx.restore();
     }
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
+    if (isReplay && p.id === potgReplayPlayback.playerId) {
+      const pulse = 0.72 + 0.20 * Math.sin(beamFxNow * 0.009);
+      ctx.save(); ctx.globalAlpha = pulse; ctx.lineWidth = 3.2; ctx.strokeStyle = '#ffd86a';
+      ctx.beginPath(); ctx.arc(x, y, radius + 10, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
     if (p.shield > 0) {
       const spulse=.72 + .18*Math.sin(beamFxNow*.010 + x*.01);
       ctx.save(); ctx.globalAlpha=spulse; ctx.lineWidth=2.4; ctx.strokeStyle='#67d8ff';
@@ -2048,7 +2256,7 @@ function renderGame() {
       ctx.globalAlpha=.10; ctx.fillStyle='#67d8ff'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.fill(); ctx.restore();
     }
     if (p.id === selectedTargetId) {
-      const meForTarget = state.players.find(q => q.id === myId);
+      const meForTarget = viewState.players.find(q => q.id === myId);
       const targetState = targetSelectionState(meForTarget, p);
       if (targetState && targetState.valid) {
         ctx.save();
@@ -2137,18 +2345,22 @@ function renderGame() {
     drawText(p.name,x,by-7,11,'center','#f6f8fb');
   }
 
-  const me = spectatorMode ? null : state.players.find(p => p.id === myId);
+  const me = (isReplay || spectatorMode) ? null : viewState.players.find(p => p.id === myId);
   if (me && me.character === 'buffer') {
-    const serverTarget = me.bufferTargetId ? state.players.find(p => p.id === me.bufferTargetId && p.alive) : null;
+    const serverTarget = me.bufferTargetId ? viewState.players.find(p => p.id === me.bufferTargetId && p.alive) : null;
     selectedTargetId = serverTarget ? serverTarget.id : null;
-  } else if (!currentTargetingRule() || !state.players.some(p => p.id === selectedTargetId && p.alive)) selectedTargetId = null;
-  const t = Math.ceil(state.timeLeft); $('timer').textContent = `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
-  if (spectatorMode) {
+  } else if (!currentTargetingRule() || !viewState.players.some(p => p.id === selectedTargetId && p.alive)) selectedTargetId = null;
+  const t = Math.ceil(viewState.timeLeft); $('timer').textContent = `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
+  if (isReplay) {
+    $('myInfo').innerHTML = '';
+    $('respawn').textContent = '';
+    $('abilityButton').classList.add('hidden');
+  } else if (spectatorMode) {
     $('myInfo').innerHTML = '';
     $('respawn').textContent = '';
     $('abilityButton').classList.add('hidden');
   }
-  $('scoreA').textContent = Math.floor(state.scoreA); $('scoreB').textContent = Math.floor(state.scoreB);
+  $('scoreA').textContent = Math.floor(viewState.scoreA); $('scoreB').textContent = Math.floor(viewState.scoreB);
   if (me) {
     const m=CHARACTER_META[me.character];
     let extra = '';
@@ -2173,7 +2385,7 @@ function renderGame() {
       else extra = '<br>🚀 부스터 준비 완료';
       if (me.shield > 0 && me.jetShieldMs > 0) extra += ` · 보호막 ${(me.jetShieldMs/1000).toFixed(1)}초`;
     } else if (me.character === 'buffer') {
-      const target = me.bufferTargetId ? state.players.find(p => p.id === me.bufferTargetId && p.alive) : null;
+      const target = me.bufferTargetId ? viewState.players.find(p => p.id === me.bufferTargetId && p.alive) : null;
       if (!target) extra = '<br>🎛️ 연결 대상 선택 필요';
       else extra = `<br>🎛️ ${me.bufferLinkActive ? '연결 중' : '범위 밖 · 지정 유지'} · ${escapeHtml(target.name)}`;
     }
@@ -2211,7 +2423,7 @@ function renderGame() {
       else if (me.jetBoostCooldownMs > 0) { ability.textContent = `🚀 쿨 ${(me.jetBoostCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
       else { ability.textContent = '🚀 부스터'; ability.disabled = false; ability.classList.remove('active'); }
     } else if (me.character === 'angel') {
-      const target = state.players.find(p => p.id === selectedTargetId && p.alive);
+      const target = viewState.players.find(p => p.id === selectedTargetId && p.alive);
       if (!me.alive) { ability.textContent = '😇 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
       else if (me.angelBlessCooldownMs > 0) { ability.textContent = `😇 쿨 ${(me.angelBlessCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
       else if (!target) { ability.textContent = '😇 대상 선택'; ability.disabled = true; ability.classList.remove('active'); }

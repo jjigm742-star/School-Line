@@ -11,7 +11,7 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">Mobile Alpha 1.2 · 4 vs 4 점유전 · 16 캐릭터</p>
+      <p class="subtitle">Mobile Alpha 1.3 · 일반게임 / 경쟁게임 · 21 캐릭터</p>
       <label>닉네임<input id="nameInput" maxlength="12" placeholder="예: 1번" autocomplete="off" /></label>
       <label>방 코드<input id="roomInput" maxlength="10" value="6-1" autocomplete="off" autocapitalize="characters" /></label>
 
@@ -47,8 +47,9 @@
       <div class="panel lobby-main">
         <div class="row between lobby-title-row">
           <div><h2>방 <span id="roomLabel"></span></h2><div id="hostLabel" class="muted"></div></div>
-          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="fullscreenButton">가로 전체화면</button><button id="startButton" class="accent hidden">경기 시작</button></div>
+          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="competitiveStatsButton" type="button">🔒 관리자 통계</button><button id="fullscreenButton">가로 전체화면</button><button id="normalStartButton" class="accent hidden">일반 시작</button><button id="competitiveStartButton" class="competitive-start hidden">경쟁 시작</button></div>
         </div>
+        <div id="modeStartHint" class="mode-start-hint"></div>
         <div id="resultBanner" class="result hidden"></div>
         <div id="resultStats" class="result-stats hidden"></div>
         <button id="storyButton" type="button" class="story-button hidden">📖 내가 플레이한 캐릭터 이야기</button>
@@ -63,8 +64,28 @@
         <div id="lobbyCharacterChoices" class="character-choices compact"></div>
         <div id="lobbyCharacterDetail" class="character-detail"></div>
         <p id="pickNotice" class="pick-notice"></p>
-        <p class="muted small">같은 팀 내 캐릭터 중복 선택 불가. 상대 팀의 캐릭터 픽은 경기 시작 전까지 비공개입니다. 첫 입장자가 방장입니다.</p>
+        <p class="muted small">일반게임은 같은 팀 내 캐릭터 중복 선택 불가이며 상대 픽은 시작 전 비공개입니다. 경쟁게임은 4vs4에서 방장이 시작하며 밴·픽 화면으로 전환됩니다. 첫 입장자가 방장입니다.</p>
       </aside>
+    </section>
+
+
+    <section id="draftScreen" class="hidden draft-layout">
+      <div class="panel draft-panel">
+        <header class="draft-header">
+          <div>
+            <div class="draft-kicker">🏆 경쟁게임 · 방 <span id="draftRoomLabel"></span></div>
+            <h2 id="draftPhaseTitle">밴 단계</h2>
+            <div id="draftPhaseSubtitle" class="muted"></div>
+          </div>
+          <div id="draftTimer" class="draft-timer">10</div>
+        </header>
+        <div id="draftBanSummary" class="draft-ban-summary"></div>
+        <div id="draftOrder" class="draft-order"></div>
+        <div id="draftNotice" class="draft-notice"></div>
+        <div id="draftCharacterGrid" class="draft-character-grid"></div>
+        <div id="readyAssignments" class="ready-assignments hidden"></div>
+        <p id="draftHelp" class="draft-help"></p>
+      </div>
     </section>
 
     <section id="gameScreen" class="hidden game-screen">
@@ -102,6 +123,22 @@
     </section>
 
 
+
+    <div id="competitiveStatsOverlay" class="stats-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="competitiveStatsTitle">
+      <article class="stats-card">
+        <header class="stats-header">
+          <div><div class="stats-kicker">📊 School Line 경쟁게임 기록</div><h2 id="competitiveStatsTitle">캐릭터 통계</h2></div>
+          <button id="competitiveStatsClose" type="button" aria-label="통계 닫기">✕</button>
+        </header>
+        <div id="competitiveStatsSummary" class="stats-summary"></div>
+        <div class="stats-note">밴률·픽률은 해당 캐릭터가 실제 선택 가능했던 경쟁 경기만 분모로 계산합니다. 승률은 무승부를 제외한 승/패 경기 기준입니다.</div>
+        <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>사용가능 경기</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>W-L-D</th><th>승률</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
+        <h3 class="stats-recent-title">최근 경쟁 결과</h3>
+        <div id="competitiveRecentMatches" class="stats-recent"></div>
+        <div class="stats-actions"><button id="competitiveStatsExport" type="button">전체 기록 JSON 저장</button><button id="competitiveStatsCloseBottom" type="button" class="accent">확인</button></div>
+      </article>
+    </div>
+
     <div id="helpGuideOverlay" class="help-guide-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="helpGuideTitle">
       <article class="help-guide-card">
         <header class="help-guide-header">
@@ -128,7 +165,7 @@
           <section class="help-guide-section" data-help-panel="basics" role="tabpanel">
             <div class="help-rule-grid">
               <div class="help-rule"><b>⏱️ 경기 시간</b><span>한 경기는 <strong>3분</strong>입니다.</span></div>
-              <div class="help-rule"><b>🏆 승리 조건</b><span>3분이 끝났을 때 <strong>점수가 더 높은 팀</strong>이 승리합니다.</span></div>
+              <div class="help-rule"><b>🏆 승리 조건</b><span>3분이 끝났을 때 <strong>점수가 더 높은 팀</strong>이 승리합니다. 점수가 완전히 같으면 총 킬 수로 승부하며, 킬 수도 같을 때만 무승부입니다.</span></div>
               <div class="help-rule"><b>🏁 점유 조건</b><span>상대 구역에 우리 팀이 1명 이상 있고, 상대 팀이 0명이면 초당 1점을 얻습니다.</span></div>
               <div class="help-rule"><b>👥 여러 명이 들어가면?</b><span>우리 팀이 여러 명 들어가도 <strong>초당 1점</strong>으로 같습니다.</span></div>
             </div>
@@ -185,14 +222,14 @@
                 <h3>📱 모바일</h3>
                 <p><b>왼쪽 스틱</b><span>이동</span></p>
                 <p><b>오른쪽 스틱</b><span>조준 + 공격/치유</span></p>
-                <p><b>능력 캐릭터</b><span><strong>능력 버튼</strong>으로 고유 능력 사용</span></p>
+                <p><b>능력 캐릭터</b><span><strong>능력 버튼</strong>으로 고유 능력 사용. 대상 지정 능력은 캐릭터를 짧게 터치해 선택</span></p>
               </div>
               <div>
                 <h3>💻 PC</h3>
                 <p><b>WASD / 방향키</b><span>이동</span></p>
                 <p><b>마우스</b><span>조준</span></p>
                 <p><b>마우스 왼쪽</b><span>공격/치유</span></p>
-                <p><b>능력 캐릭터</b><span><strong>Space</strong>로 고유 능력 사용</span></p>
+                <p><b>능력 캐릭터</b><span><strong>Space</strong>로 고유 능력 사용. 대상 지정 능력은 캐릭터를 클릭해 선택</span></p>
               </div>
             </div>
             <p class="help-guide-note">캐릭터별 수치와 고유 능력 설명은 로비의 캐릭터 선택 화면에서 확인할 수 있습니다.</p>

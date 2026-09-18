@@ -1,13 +1,14 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-const joinScreen = $('joinScreen'), lobbyScreen = $('lobbyScreen'), gameScreen = $('gameScreen');
+const joinScreen = $('joinScreen'), lobbyScreen = $('lobbyScreen'), draftScreen = $('draftScreen'), gameScreen = $('gameScreen');
 const canvas = $('gameCanvas'), ctx = canvas.getContext('2d');
 const SCALE = 15; // world y -> screen x, world x -> screen y (mobile landscape rotation)
 
 const CHARACTER_META = {
   iron:    { role:'탱커', name:'아이언', icon:'⚙️', summary:'가장 단단한 정통 탱커' },
   mecha:   { role:'탱커', name:'메카', icon:'🤖', summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커' },
+  jet:     { role:'탱커', name:'제트', icon:'🚀', summary:'부스터로 전선을 가로지르고 보호막으로 착지하는 돌진 탱커' },
   dia:     { role:'탱커', name:'다이아', icon:'💎', summary:'타이밍을 잡아 강해지는 변신 탱커' },
   solar:   { role:'탱커', name:'솔라', icon:'☀️', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커' },
   runner:  { role:'딜러', name:'러너', icon:'🏃', summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러' },
@@ -16,11 +17,15 @@ const CHARACTER_META = {
   cannon:  { role:'딜러', name:'캐논', icon:'💥', summary:'기동성을 버리고 화력을 얻은 중화기 딜러' },
   fire:    { role:'딜러', name:'파이어', icon:'🔥', summary:'빠르게 움직이며 지속 피해를 남기는 딜러' },
   poison:  { role:'딜러', name:'포이즌', icon:'☠️', summary:'외부 치유를 약화시키는 안티힐 광선 딜러' },
+  reactor: { role:'딜러', name:'리액터', icon:'☢️', summary:'공격을 이어갈수록 출력이 상승하는 성장형 딜러' },
+  spray:   { role:'딜러', name:'스프레이', icon:'🔫', summary:'세 갈래 고정 화망을 뿌리는 포킹 딜러' },
   laser:   { role:'딜러', name:'레이저', icon:'🔴', summary:'체력이 높은 적일수록 더 아픈 광선 딜러' },
   ice:     { role:'딜러', name:'아이스', icon:'🧊', summary:'적의 움직임을 묶는 제어형 광선 딜러' },
   water:   { role:'힐러', name:'워터', icon:'💧', summary:'가장 단순하고 안정적인 기본 힐러' },
   wind:    { role:'힐러', name:'윈드', icon:'🌪️', summary:'치유와 기동력 지원을 함께 주는 힐러' },
   star:    { role:'힐러', name:'스타', icon:'⭐', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러' },
+  angel:   { role:'힐러', name:'엔젤', icon:'😇', summary:'축복으로 어디서든 아군을 즉시 구조하는 힐러' },
+  buffer:  { role:'힐러', name:'버퍼', icon:'🎛️', summary:'한 명을 계속 연결해 치유와 행동속도를 함께 증폭하는 힐러' },
   light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' }
 };
 
@@ -100,6 +105,8 @@ const pickerState = {
 };
 let selectedJoinTeam = null;
 let lastLobbyPickerAvailabilityKey = null;
+let lastCompetitiveRenderKey = null;
+let readyDrag = null;
 
 function characterPublicDef(id) {
   return (config && config.characters && config.characters[id]) || null;
@@ -153,9 +160,26 @@ function buildCharacterStats(id) {
     const total = Number(c.beamDps || 0) + projectileDps;
     throughput = `${fmtNumber(total)} (${fmtNumber(c.beamDps)} + ${fmtNumber(projectileDps)})`;
     rate = `태양탄 ${fmtNumber(c.solarFireRate)}발/s`;
+  } else if (id === 'reactor' && Array.isArray(c.reactorOutputBands)) {
+    throughput = c.reactorOutputBands.map(b => fmtNumber(Number(b.damage || 0) * Number(c.fireRate || 0))).join(' / ');
+    rate = `${fmtNumber(c.fireRate)}발/s`;
   } else if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) {
     throughput = c.distanceDamageBands.map(b => fmtNumber(Number(b.damage || 0) * Number(c.fireRate || 0))).join(' / ');
     rate = `${fmtNumber(c.fireRate)}발/s`;
+  } else if (id === 'spray') {
+    const centerDps = Number(c.damage || 0) * Number(c.fireRate || 0);
+    const oneSideDps = (Number(c.damage || 0) + Number(c.spraySideDamage || 0)) * Number(c.fireRate || 0);
+    const maxDps = (Number(c.damage || 0) + 2 * Number(c.spraySideDamage || 0)) * Number(c.fireRate || 0);
+    throughput = `${fmtNumber(centerDps)} / ${fmtNumber(oneSideDps)} / ${fmtNumber(maxDps)}`;
+    rateLabel = '발사 속도';
+    rate = `${fmtNumber(c.fireRate)}발리/s · 발리당 3발`;
+  } else if (id === 'buffer') {
+    attackType = '단일 연결 지원';
+    range = `${fmtNumber(c.range)} m`;
+    throughputLabel = 'HPS';
+    throughput = fmtNumber(c.linkHealHps);
+    rateLabel = '주기형 행동속도';
+    rate = `+${fmtNumber(Number(c.actionSpeedBoost||0)*100)}%`;
   } else if (c.attackType === 'lightBeam') {
     throughputLabel = 'DPS / HPS';
     throughput = `${fmtNumber(c.beamDps)} / ${fmtNumber(c.healHps)}`;
@@ -194,9 +218,12 @@ function buildCharacterMini(id, meta) {
   if (!c) return meta.summary || '';
   const move = speedLabel(c.speed);
   if (c.role === '탱커') return `${fmtNumber(c.hp)} HP · ${move}`;
+  if (id === 'buffer') return `${fmtNumber(c.linkHealHps)} HPS + 행동속도 ${fmtNumber(Number(c.actionSpeedBoost||0)*100)}% · ${move}`;
   if (c.projectileType === 'heal') return `${fmtNumber(Number(c.heal||0)*Number(c.fireRate||0))} HPS · ${move}`;
   if (c.attackType === 'lightBeam') return `${fmtNumber(c.healHps)} HPS · ${move}`;
+  if (id === 'reactor' && Array.isArray(c.reactorOutputBands)) return `${c.reactorOutputBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
   if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) return `${c.distanceDamageBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
+  if (id === 'spray') return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS 중심 · 최대 ${fmtNumber((Number(c.damage||0)+2*Number(c.spraySideDamage||0))*Number(c.fireRate||0))} · ${move}`;
   if (c.attackType === 'beam') return `${fmtNumber(c.beamDps)} DPS · ${move}`;
   return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
 }
@@ -208,6 +235,7 @@ function buildCharacterMechanic(id, fallback='') {
   switch (id) {
     case 'iron': return `높은 ${fmtNumber(c.hp)} HP로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.`;
     case 'mecha': return `사거리 ${fmtNumber(c.range)} m로 짧고 화력은 낮지만, HP ${fmtNumber(c.hp)}와 ${speedLabel(c.speed)} 이동속도로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.`;
+    case 'jet': return `Space 또는 능력 버튼을 누르면 현재 조준 방향으로 최대 ${fmtNumber(c.boostDistance)} m를 ${fmtNumber(c.boostDuration)}초 동안 돌진한다. 돌진 중 일반 이동과 기본공격은 할 수 없고 적 캐릭터는 그대로 관통하지만 피해를 주지 않는다. 벽이나 맵 경계에 닿으면 즉시 돌진이 끝난다. 종료 후 ${fmtNumber(c.boostShield)} 보호막을 ${fmtNumber(c.boostShieldDuration)}초 얻으며, 쿨다운 ${fmtNumber(c.boostCooldown)}초는 사용 즉시 시작한다.`;
     case 'dia': return `카드에는 기본형 수치를 표시한다. Space 또는 능력 버튼을 누르면 ${fmtNumber(c.formDuration)}초간 HP ${fmtNumber(c.formHp)}, 이동속도 ${speedLabel(c.formSpeed)} ${fmtNumber(c.formSpeed)} m/s, 사거리 ${fmtNumber(c.formRange)} m, ${fmtNumber(c.formBeamDps)} DPS 광선폼이 된다. 변신 쿨은 ${fmtNumber(c.formCooldown)}초이며 폼 중 직접 처치하면 남은 쿨다운이 ${fmtNumber(c.formKillCooldownReduction)}초 감소한다.`;
     case 'solar': return `공격하는 동안 사거리 ${fmtNumber(c.range)} m의 ${fmtNumber(c.beamDps)} DPS 광선을 유지하고, 동시에 초당 ${fmtNumber(c.solarFireRate)}발의 사거리 ${fmtNumber(c.solarProjectileRange)} m 태양탄(${fmtNumber(c.solarProjectileDamage)} 피해)을 발사한다. 태양탄이 적 본체에 실제 피해를 주면 HP를 ${fmtNumber(c.solarSelfHeal)} 회복한다.`;
     case 'runner': return `빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. Space 또는 능력 버튼을 누르면 ${fmtNumber(c.sprintDuration)}초 동안 이동속도가 한 단계 올라간다. 질주 재사용 대기시간은 ${fmtNumber(c.sprintCooldown)}초다.`;
@@ -216,11 +244,15 @@ function buildCharacterMechanic(id, fallback='') {
     case 'cannon': return `초당 ${fmtNumber(c.fireRate)}발을 퍼붓는 높은 지속 화력을 가진다. 대신 이동속도가 ${speedLabel(c.speed)} ${fmtNumber(c.speed)} m/s라 위치를 잘못 잡으면 도망치기 어렵다.`;
     case 'fire': return `적중한 적에게 ${fmtNumber(c.burnDuration)}초 동안 ${fmtNumber(c.burnDps)} DPS의 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.`;
     case 'poison': return `광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 ${fmtNumber(c.poisonHealReduction*100)}% 감소한다. 중독은 마지막 적중 후 ${fmtNumber(c.poisonDuration)}초 유지되며 비전투 회복에는 영향을 주지 않는다.`;
+    case 'reactor': return `적 본체에 실제 피해 ${fmtNumber(c.reactorDamagePerOutput)}당 출력이 1%p 상승한다. 출력은 0~32%에서 ${fmtNumber(c.reactorOutputBands?.[0]?.damage*c.fireRate)} DPS, 33~65%에서 ${fmtNumber(c.reactorOutputBands?.[1]?.damage*c.fireRate)} DPS, 66~100%에서 ${fmtNumber(c.reactorOutputBands?.[2]?.damage*c.fireRate)} DPS다. ${fmtNumber(c.reactorDecayDelay)}초 동안 실제 피해를 주지 못하면 초당 ${fmtNumber(c.reactorDecayPerSecond)}%p 감소한다. ${fmtNumber(c.reactorHighThreshold)}% 이상에서는 이동속도가 ${fmtNumber(c.reactorHighSpeed)} m/s가 되고, 적중한 적에게 ${fmtNumber(c.radiationDuration)}초간 방사능을 부여해 외부 치유를 ${fmtNumber(c.radiationHealReduction*100)}% 감소시킨다. 포이즌과 함께 걸리면 감소율은 합산된다.`;
+    case 'spray': return `한 번 공격할 때 세 갈래 고정 화망을 동시에 발사한다. 중앙탄은 조준방향 0°의 빠른 중간 투사체로 ${fmtNumber(c.damage)} 피해를 주고, 좌우 보조탄은 캐릭터 중심에서 각각 ${fmtNumber(c.spraySideOffset)} m 옆에서 ±${fmtNumber(c.spraySideAngleDeg)}° 방향으로 발사되는 빠른 작은 투사체로 각각 ${fmtNumber(c.spraySideDamage)} 피해를 준다. 중앙탄만 계속 맞으면 ${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS이며, 실제 탄로가 겹쳐 같은 적에게 세 발 모두 적중하면 최대 ${fmtNumber((Number(c.damage||0)+2*Number(c.spraySideDamage||0))*Number(c.fireRate||0))} DPS다. 좌우 발사점까지의 경로가 벽이나 경계에 막히면 해당 보조탄만 생성되지 않는다.`;
     case 'laser': return `기본 ${fmtNumber(c.beamDps)} DPS에 대상 최대 HP의 ${fmtNumber(c.maxHpDpsRatio*100)}%/s만큼 피해가 추가되어 체력이 높은 적을 상대할 때 특히 강하다.`;
     case 'ice': return `광선이 적에게 닿으면 이동속도를 ${Math.abs(Number(c.slowTierDelta||-1))}단계 낮춘다. 감속은 마지막 적중 후 ${fmtNumber(c.slowDuration)}초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.`;
     case 'water': return `오른쪽 스틱으로 아군을 조준해 큰 치유탄을 초당 ${fmtNumber(c.fireRate)}발 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.`;
-    case 'wind': return `치유탄에 맞은 아군은 ${fmtNumber(c.tailwindDuration)}초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.`;
+    case 'wind': return `치유탄은 기존처럼 아군을 회복한다. Space 또는 능력 버튼으로 순풍을 사용하면 자신을 포함한 살아 있는 모든 아군의 이동속도가 ${fmtNumber(c.tailwindDuration)}초 동안 1단계 빨라진다. 순풍 쿨다운은 ${fmtNumber(c.tailwindCooldown)}초이며 사용 즉시 시작한다.`;
     case 'star': return `초당 ${fmtNumber(c.fireRate)}발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 ${fmtNumber(c.heal)} 회복한다. 자신은 치유할 수 없고 공격 능력은 없다.`;
+    case 'angel': return `치유탄으로 ${fmtNumber(Number(c.heal||0)*Number(c.fireRate||0))} HPS를 제공한다. 자신 또는 살아 있는 아군을 지정한 뒤 능력 버튼/Space를 누르면 거리 제한과 LOS 없이 즉시 ${fmtNumber(c.abilityHeal)} HP를 회복한다. 축복 쿨다운은 ${fmtNumber(c.abilityCooldown)}초다.`;
+    case 'buffer': return `살아 있는 아군을 클릭하면 그 대상을 계속 지정한다. ${fmtNumber(c.range)} m 안에서는 얇은 연결이 이어지며 ${fmtNumber(c.linkHealHps)} HPS와 주기형 공격·치유 행동속도 +${fmtNumber(Number(c.actionSpeedBoost||0)*100)}%를 동시에 제공한다. 거리를 벗어나면 효과만 멈추고 대상 지정은 유지되며, 다시 범위 안으로 들어오면 자동 재연결된다. 광선·지속형 행동과 능력 쿨다운은 가속하지 않는다.`;
     case 'light': return `광선이 처음 만난 아군 1명을 ${fmtNumber(c.healHps)} HPS로 치유한 뒤 관통하고, 이후 처음 만나는 적에게 ${fmtNumber(c.beamDps)} DPS를 준다. 적을 먼저 만나면 적에게만 피해를 준다.`;
     default: return fallback;
   }
@@ -291,7 +323,9 @@ function selectLobbyCharacter(id) {
 
 let ws = null, myId = null, config = null, state = null;
 let spectatorMode = false;
-let selectedTargetId = null; // Alpha 1.1 targeted-ability selection; current roster has no targeted ability yet.
+let adminStatsAuthorized = false;
+let lastAdminStatsData = null;
+let selectedTargetId = null; // Targeted ability selection (Angel Blessing and future targeted abilities).
 
 // Alpha 1.1.1: render-only snapshot interpolation. Server state remains authoritative.
 const playerMotionTracks = new Map();
@@ -483,6 +517,61 @@ function playDiaTransformCue(local=false) {
   noiseBurst(.075, .012 * scale);
 }
 
+function playJetBoostStartCue() {
+  noiseBurst(.085, .030);
+  synthTone({freq:180, endFreq:620, duration:.13, type:'sawtooth', gain:.026});
+  synthTone({freq:420, endFreq:980, duration:.10, type:'triangle', gain:.015, when:.018});
+}
+
+function playJetBoostEndCue(blocked=false) {
+  synthTone({freq:blocked ? 165 : 240, endFreq:blocked ? 105 : 155, duration:.070, type:'triangle', gain:.020});
+  if (blocked) noiseBurst(.040, .022);
+  synthTone({freq:980, endFreq:1280, duration:.080, type:'sine', gain:.012, when:.028});
+}
+
+function playReactorThresholdCue(level) {
+  if (level === 33) {
+    synthTone({freq:430, endFreq:520, duration:.075, type:'triangle', gain:.014});
+  } else if (level === 66) {
+    synthTone({freq:520, endFreq:680, duration:.085, type:'triangle', gain:.018});
+    synthTone({freq:760, endFreq:980, duration:.090, type:'sine', gain:.014, when:.055});
+  } else if (level === 100) {
+    synthTone({freq:760, endFreq:1180, duration:.11, type:'sawtooth', gain:.018});
+    synthTone({freq:1180, endFreq:1640, duration:.11, type:'triangle', gain:.014, when:.045});
+    noiseBurst(.045, .010);
+  } else if (level === 'down66') {
+    synthTone({freq:620, endFreq:360, duration:.11, type:'triangle', gain:.014});
+  }
+}
+
+function playRadiationApplyCue() {
+  noiseBurst(.040, .011);
+  synthTone({freq:1180, endFreq:720, duration:.055, type:'square', gain:.010});
+}
+
+function playAngelBlessCue() {
+  synthTone({freq:660, endFreq:700, duration:.13, type:'sine', gain:.017});
+  synthTone({freq:830, endFreq:880, duration:.13, type:'sine', gain:.016, when:.045});
+  synthTone({freq:1040, endFreq:1120, duration:.15, type:'sine', gain:.015, when:.090});
+}
+
+function playBufferLinkCue(kind='connect') {
+  if (kind === 'drop') {
+    synthTone({freq:410, endFreq:260, duration:.090, type:'triangle', gain:.010});
+    return;
+  }
+  const reconnect = kind === 'reconnect';
+  synthTone({freq:reconnect ? 540 : 470, endFreq:reconnect ? 760 : 650, duration:.085, type:'triangle', gain:.012});
+  synthTone({freq:reconnect ? 820 : 760, endFreq:reconnect ? 1040 : 940, duration:.090, type:'sine', gain:.010, when:.035});
+}
+
+function playWindTailwindCue(local=false) {
+  const scale = local ? 1 : .72;
+  noiseBurst(.12, .017 * scale);
+  synthTone({freq:260, endFreq:520, duration:.16, type:'triangle', gain:.014 * scale});
+  synthTone({freq:540, endFreq:860, duration:.13, type:'sine', gain:.010 * scale, when:.035});
+}
+
 function playFireIgniteCue() {
   // One-shot ignition cue. Repeated burn refreshes intentionally do not retrigger it.
   noiseBurst(.105, .020);
@@ -595,7 +684,7 @@ function pulseAbilityButton() {
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520};
+  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -689,6 +778,41 @@ function processCombatFeedback(previousState, nextState) {
       playFireIgniteCue();
     }
 
+    if (!before.radiated && after.radiated) {
+      addWorldFx('radiationStart', after);
+      if (after.id===myId || after.radiationSourceId===myId) playRadiationApplyCue();
+    }
+
+    if (after.character==='reactor') {
+      const prevOut=Number(before.reactorOutput)||0, nextOut=Number(after.reactorOutput)||0;
+      if (prevOut < 33 && nextOut >= 33) { addWorldFx('reactor33', after); if (after.id===myId) playReactorThresholdCue(33); }
+      if (prevOut < 66 && nextOut >= 66) { addWorldFx('reactor66', after); if (after.id===myId) playReactorThresholdCue(66); }
+      if (prevOut < 99.999 && nextOut >= 99.999) { addWorldFx('reactor100', after); if (after.id===myId) playReactorThresholdCue(100); }
+      if (prevOut >= 66 && nextOut < 66) { addWorldFx('reactorDown', after); if (after.id===myId) playReactorThresholdCue('down66'); }
+    }
+
+    if (after.character==='jet' && before.jetBoost && !after.jetBoost && after.alive) {
+      const jetDef=characterPublicDef('jet');
+      const blocked=Number(after.jetBoostDistance||0) > 0 && jetDef && Number(after.jetBoostDistance||0) < Number(jetDef.boostDistance||12)-.10;
+      addWorldFx('jetEnd', after);
+      if (blocked) addWorldFx('jetWallSpark', after);
+      if (after.id===myId) playJetBoostEndCue(!!blocked);
+    }
+
+    if (after.character==='buffer') {
+      const oldTarget=before.bufferTargetId || null, newTarget=after.bufferTargetId || null;
+      const target=afterById.get(newTarget);
+      if (newTarget && newTarget !== oldTarget) {
+        if (target) addWorldFx('bufferLink', target, {character:'buffer'});
+        if (after.id===myId || newTarget===myId) playBufferLinkCue('connect');
+      } else if (newTarget && !before.bufferLinkActive && after.bufferLinkActive) {
+        if (target) addWorldFx('bufferLink', target, {character:'buffer'});
+        if (after.id===myId || newTarget===myId) playBufferLinkCue('reconnect');
+      } else if (newTarget && before.bufferLinkActive && !after.bufferLinkActive) {
+        if (after.id===myId) playBufferLinkCue('drop');
+      }
+    }
+
     if ((after.shotSeq||0) > (before.shotSeq||0)) {
       addMuzzleFx(after);
       if (after.id===myId && after.character==='sniper') playSniperShotCue();
@@ -706,12 +830,30 @@ function processCombatFeedback(previousState, nextState) {
 
     if ((after.abilityUseSeq||0) > (before.abilityUseSeq||0)) {
       const diaTransform = after.character==='dia' && !before.diaForm && after.diaForm;
-      addWorldFx(diaTransform ? 'diaTransform' : 'ability', after);
       if (diaTransform) {
+        addWorldFx('diaTransform', after);
         playDiaTransformCue(after.id===myId);
         if (after.id===myId) pulseAbilityButton();
-      } else if (after.id===myId) {
-        playAbilityUseFeedback(); pulseAbilityButton();
+      } else if (after.character==='jet') {
+        let dx=Number(after.jetBoostEndX||after.x)-Number(after.jetBoostStartX||after.x);
+        let dy=Number(after.jetBoostEndY||after.y)-Number(after.jetBoostStartY||after.y);
+        const dl=Math.hypot(dx,dy)||1; dx/=dl; dy/=dl;
+        addWorldFx('jetStart', after, {x:Number(after.jetBoostStartX||after.x),y:Number(after.jetBoostStartY||after.y),dx,dy});
+        if (after.id===myId) { playJetBoostStartCue(); pulseAbilityButton(); }
+      } else if (after.character==='wind') {
+        addWorldFx('windTailwindCast', after);
+        const localPlayer=afterById.get(myId);
+        if (spectatorMode || after.id===myId || (localPlayer && localPlayer.team===after.team)) playWindTailwindCue(after.id===myId);
+        if (after.id===myId) pulseAbilityButton();
+      } else if (after.character==='angel') {
+        const target=afterById.get(after.lastAbilityTargetId);
+        addWorldFx('angelCast', after);
+        if (target) addWorldFx('angelBless', target, {character:'angel'});
+        if (after.id===myId || after.lastAbilityTargetId===myId) playAngelBlessCue();
+        if (after.id===myId) pulseAbilityButton();
+      } else {
+        addWorldFx('ability', after);
+        if (after.id===myId) { playAbilityUseFeedback(); pulseAbilityButton(); }
       }
     }
   }
@@ -765,6 +907,7 @@ $('joinTeamB').onclick = () => selectJoinTeam('B');
 function show(which) {
   joinScreen.classList.toggle('hidden', which !== 'join');
   lobbyScreen.classList.toggle('hidden', which !== 'lobby');
+  draftScreen.classList.toggle('hidden', which !== 'draft');
   gameScreen.classList.toggle('hidden', which !== 'game');
 }
 
@@ -772,6 +915,8 @@ function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${
 
 function openConnection(onOpen) {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  adminStatsAuthorized = false;
+  lastAdminStatsData = null;
   ws = new WebSocket(wsUrl());
   ws.onopen = onOpen;
   ws.onmessage = ev => handleMessage(JSON.parse(ev.data));
@@ -860,6 +1005,20 @@ function handleMessage(msg) {
     show('lobby');
     return;
   }
+  if (msg.type === 'admin_stats_data') {
+    adminStatsAuthorized = true;
+    lastAdminStatsData = msg.data || null;
+    $('competitiveStatsOverlay').classList.remove('hidden');
+    renderCompetitiveStats(msg.data || {});
+    return;
+  }
+  if (msg.type === 'admin_stats_error') {
+    adminStatsAuthorized = false;
+    lastAdminStatsData = null;
+    $('competitiveStatsOverlay').classList.add('hidden');
+    alert(msg.message || '관리자 통계를 열 수 없습니다.');
+    return;
+  }
   if (msg.type === 'pick_error') {
     const notice = $('pickNotice');
     if (notice) notice.textContent = `⚠️ ${msg.message}`;
@@ -890,8 +1049,13 @@ function handleMessage(msg) {
       if (me && !rightStick.active) {
         lastAimDir = me.team === 'A' ? {x:0,y:1} : {x:0,y:-1};
       }
+    } else if (state.state === 'draft' || state.state === 'ready') {
+      stopBgm();
+      show('draft');
+      renderCompetitiveDraft();
     } else {
       stopBgm();
+      lastCompetitiveRenderKey = null;
       show('lobby'); renderLobby();
     }
   }
@@ -936,7 +1100,8 @@ window.addEventListener('keydown', e => {
   }
 });
 
-$('startButton').onclick = () => ws && ws.send(JSON.stringify({ type:'start' }));
+$('normalStartButton').onclick = () => ws && ws.send(JSON.stringify({ type:'start' }));
+$('competitiveStartButton').onclick = () => ws && ws.send(JSON.stringify({ type:'competitive_start' }));
 $('fullscreenButton').onclick = enterGameDisplayMode;
 $('gameFullscreenButton').onclick = enterGameDisplayMode;
 $('soundButton').onclick = toggleSound;
@@ -955,6 +1120,9 @@ function useAbility() {
   if (!abilityId) return;
   if (me.character === 'dia' && (me.diaForm || me.diaCooldownMs > 0)) return;
   if (me.character === 'runner' && (me.sprint || me.sprintCooldownMs > 0)) return;
+  if (me.character === 'wind' && me.windTailwindCooldownMs > 0) return;
+  if (me.character === 'jet' && (me.jetBoost || me.jetBoostCooldownMs > 0)) return;
+  if (me.character === 'angel' && (me.angelBlessCooldownMs > 0 || !selectedTargetId)) return;
   const payload = { type:'ability', ability:abilityId };
   if (selectedTargetId) payload.targetId = selectedTargetId;
   ws.send(JSON.stringify(payload));
@@ -976,6 +1144,7 @@ function formatContributionNumber(value) {
 function contributionSpecialLine(character, stats) {
   if (character === 'wind') return `순풍 적용 ${formatContributionNumber(stats.tailwindApplications)}회`;
   if (character === 'poison') return `감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
+  if (character === 'reactor') return `방사능으로 감소시킨 치유량 ${formatContributionNumber(stats.radiationHealingPrevented)}`;
   if (character === 'dia') return `다이아폼 킬 ${formatContributionNumber(stats.diaFormKills)}회`;
   return '';
 }
@@ -1043,6 +1212,263 @@ function closeMyCharacterStory() {
   if (overlay) overlay.classList.add('hidden');
 }
 
+
+function playerFromState(id) { return state && state.players ? state.players.find(p => p.id === id) : null; }
+function characterLabel(id) {
+  const m = CHARACTER_META[id];
+  const def = characterPublicDef(id);
+  return m ? `${m.icon} ${def?.name || m.name}` : (id || '—');
+}
+function teamPlayerOrder(team, comp) {
+  const ids = comp?.teamOrders?.[team] || [];
+  return ids.map(id => playerFromState(id)).filter(Boolean);
+}
+function renderDraftBanSummary(comp) {
+  const root = $('draftBanSummary');
+  root.innerHTML = '';
+  for (const team of ['A','B']) {
+    const ban = (comp.bans || []).find(b => b.team === team);
+    const box = document.createElement('div');
+    box.className = `draft-ban-box team-${team.toLowerCase()}`;
+    box.innerHTML = `<b>${team === 'A' ? '🔵' : '🔴'} ${team}팀 밴</b><span class="draft-ban-value">${ban ? characterLabel(ban.character) : '대기 중'}</span>`;
+    root.appendChild(box);
+  }
+}
+function renderDraftOrder(comp) {
+  const root = $('draftOrder');
+  root.innerHTML = '';
+  const picksByPlayer = new Map((comp.picks || []).map(p => [p.playerId, p]));
+  (comp.pickSequence || []).forEach((id, index) => {
+    const p = playerFromState(id);
+    const pick = picksByPlayer.get(id);
+    const chip = document.createElement('div');
+    chip.className = `draft-order-chip team-${(p?.team || 'a').toLowerCase()}` + (index < comp.pickIndex ? ' done' : '') + (comp.phase === 'pick' && index === comp.pickIndex ? ' active' : '');
+    chip.innerHTML = `<strong>${index + 1}. ${p?.team || '?'} · ${escapeHtml(p?.name || id)}</strong><span>${pick ? characterLabel(pick.character) + (pick.auto ? ' · AUTO' : '') : '대기'}</span>`;
+    root.appendChild(chip);
+  });
+}
+function draftCardState(id, comp) {
+  const banned = (comp.bans || []).find(b => b.character === id);
+  if (banned) return { locked:true, cls:'banned', text:`🚫 ${banned.team}팀 BAN` };
+  const picked = (comp.picks || []).find(p => p.character === id);
+  if (picked) return { locked:true, cls:`picked-${picked.team.toLowerCase()}`, text:`${picked.team}팀 PICK` };
+  return { locked:false, cls:'', text:'' };
+}
+function renderDraftCharacterGrid(comp) {
+  const root = $('draftCharacterGrid');
+  root.innerHTML = '';
+  const me = !spectatorMode ? playerFromState(myId) : null;
+  const canBan = !!me && comp.phase === 'ban' && me.team === comp.activeBanTeam;
+  const canPick = !!me && comp.phase === 'pick' && comp.currentPickerId === myId;
+  for (const [id, m] of Object.entries(CHARACTER_META)) {
+    const st = draftCardState(id, comp);
+    const votes = Number(comp.banVoteCounts?.[id] || 0);
+    const selectedVote = comp.myBanVote === id;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `draft-char-card ${st.cls}${selectedVote ? ' vote-selected' : ''}`;
+    const role = characterPublicDef(id)?.role || m.role;
+    let stateText = st.text;
+    if (!st.locked && comp.phase === 'ban' && canBan) stateText = votes ? `🗳️ ${votes}표${selectedVote ? ' · 내 표' : ''}` : (selectedVote ? '🗳️ 내 표' : '');
+    if (!st.locked && comp.phase === 'pick' && canPick) stateText = '선택 가능';
+    btn.innerHTML = `<span class="draft-char-name">${m.icon} ${escapeHtml(characterPublicDef(id)?.name || m.name)}</span><span class="draft-char-role">${escapeHtml(role)} · ${escapeHtml(buildCharacterMini(id,m))}</span><span class="draft-char-state">${stateText}</span>`;
+    btn.disabled = st.locked || (!canBan && !canPick);
+    if (!btn.disabled) {
+      btn.onpointerdown = e => {
+        e.preventDefault();
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (comp.phase === 'ban') ws.send(JSON.stringify({ type:'draft_ban_vote', character:id }));
+        else if (comp.phase === 'pick') ws.send(JSON.stringify({ type:'draft_pick', character:id }));
+      };
+    }
+    root.appendChild(btn);
+  }
+}
+function renderReadyAssignments(comp) {
+  const root = $('readyAssignments');
+  root.innerHTML = '';
+  const me = !spectatorMode ? playerFromState(myId) : null;
+  for (const team of ['A','B']) {
+    const section = document.createElement('section');
+    section.className = `ready-team team-${team.toLowerCase()}-ready`;
+    const h = document.createElement('h3');
+    h.textContent = `${team === 'A' ? '🔵' : '🔴'} ${team}팀 ${me?.team === team ? '· 우리 팀은 드래그로 자유 교환' : ''}`;
+    section.appendChild(h);
+    const players = teamPlayerOrder(team, comp);
+    for (const p of players) {
+      const slot = document.createElement('div');
+      slot.className = 'ready-player-slot';
+      slot.dataset.playerId = p.id;
+      const draggable = !!me && me.team === team;
+      const card = document.createElement('div');
+      card.className = 'ready-character-card' + (draggable ? ' draggable' : '');
+      card.dataset.sourcePlayerId = p.id;
+      card.innerHTML = `<span>${characterLabel(p.character)}</span><small>${draggable ? '↔ 드래그' : ''}</small>`;
+      if (draggable) card.onpointerdown = e => startReadyDrag(p.id, e);
+      slot.innerHTML = `<div class="ready-player-name">${p.id === myId ? '⭐ ' : ''}${escapeHtml(p.name)}${p.connected === false ? ' · 📡' : ''}</div>`;
+      slot.appendChild(card);
+      section.appendChild(slot);
+    }
+    root.appendChild(section);
+  }
+}
+function startReadyDrag(sourcePlayerId, e) {
+  if (!state || state.state !== 'ready' || spectatorMode || readyDrag) return;
+  const source = playerFromState(sourcePlayerId);
+  const me = playerFromState(myId);
+  if (!source || !me || source.team !== me.team) return;
+  e.preventDefault();
+  const ghost = document.createElement('div');
+  ghost.className = 'ready-drag-ghost';
+  ghost.textContent = characterLabel(source.character);
+  document.body.appendChild(ghost);
+  readyDrag = { sourcePlayerId, pointerId:e.pointerId, ghost };
+  moveReadyGhost(e.clientX, e.clientY);
+}
+function moveReadyGhost(x,y) {
+  if (!readyDrag?.ghost) return;
+  readyDrag.ghost.style.left = `${x}px`;
+  readyDrag.ghost.style.top = `${y}px`;
+}
+function clearReadyDropTargets() { document.querySelectorAll('.ready-player-slot.drop-target').forEach(el => el.classList.remove('drop-target')); }
+window.addEventListener('pointermove', e => {
+  if (!readyDrag || e.pointerId !== readyDrag.pointerId) return;
+  e.preventDefault();
+  moveReadyGhost(e.clientX, e.clientY);
+  clearReadyDropTargets();
+  const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.ready-player-slot');
+  if (hit) hit.classList.add('drop-target');
+}, { passive:false });
+window.addEventListener('pointerup', e => {
+  if (!readyDrag || e.pointerId !== readyDrag.pointerId) return;
+  const drag = readyDrag;
+  const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.ready-player-slot');
+  const targetPlayerId = hit?.dataset?.playerId || null;
+  if (targetPlayerId && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'ready_swap', sourcePlayerId:drag.sourcePlayerId, targetPlayerId }));
+  }
+  clearReadyDropTargets();
+  drag.ghost?.remove();
+  readyDrag = null;
+});
+window.addEventListener('pointercancel', () => {
+  if (!readyDrag) return;
+  clearReadyDropTargets();
+  readyDrag.ghost?.remove();
+  readyDrag = null;
+});
+function renderCompetitiveDraft() {
+  if (!state || !state.competitive) return;
+  const comp = state.competitive;
+  const me = !spectatorMode ? playerFromState(myId) : null;
+  $('draftRoomLabel').textContent = state.room || '';
+  const seconds = Math.max(0, Math.ceil(Number(comp.phaseTimeLeft || 0)));
+  $('draftTimer').textContent = seconds;
+  $('draftTimer').classList.toggle('danger', seconds <= 3);
+  const structuralKey = JSON.stringify({
+    state:state.state, phase:comp.phase, activeBanTeam:comp.activeBanTeam, bans:comp.bans, picks:comp.picks,
+    pickIndex:comp.pickIndex, currentPickerId:comp.currentPickerId, myBanVote:comp.myBanVote, banVoteCounts:comp.banVoteCounts,
+    assignments:state.players.map(p=>[p.id,p.character,p.connected]), teamOrders:comp.teamOrders
+  });
+  if (structuralKey === lastCompetitiveRenderKey) return;
+  lastCompetitiveRenderKey = structuralKey;
+  renderDraftBanSummary(comp);
+  renderDraftOrder(comp);
+
+  if (state.state === 'ready' || comp.phase === 'ready') {
+    $('draftPhaseTitle').textContent = '준비 단계';
+    $('draftPhaseSubtitle').textContent = '20초 동안 우리 팀의 4개 픽을 팀원 슬롯 사이에서 드래그해 최종 담당자를 정합니다.';
+    $('draftNotice').textContent = me ? '우리 팀 캐릭터 카드를 원하는 팀원에게 드래그하세요. 이미 캐릭터가 있으면 두 픽이 즉시 서로 바뀝니다.' : '양 팀이 최종 담당 캐릭터를 정하는 중입니다.';
+    $('draftCharacterGrid').classList.add('hidden');
+    $('readyAssignments').classList.remove('hidden');
+    $('draftHelp').textContent = '준비시간이 끝나면 자동으로 배치가 잠기고 경쟁 경기가 시작됩니다.';
+    renderReadyAssignments(comp);
+    return;
+  }
+
+  $('draftCharacterGrid').classList.remove('hidden');
+  $('readyAssignments').classList.add('hidden');
+  if (comp.phase === 'ban') {
+    $('draftPhaseTitle').textContent = `${comp.activeBanTeam === 'A' ? '🔵' : '🔴'} ${comp.activeBanTeam}팀 밴 투표`;
+    $('draftPhaseSubtitle').textContent = '팀원 4명이 10초 동안 투표합니다. 최다득표 캐릭터가 밴되며 동률이면 공동 1위 후보 중 무작위로 결정됩니다.';
+    if (me?.team === comp.activeBanTeam) $('draftNotice').textContent = '우리 팀 밴 차례입니다. 원하는 캐릭터를 눌러 투표하세요. 제한시간 안에는 언제든 표를 바꿀 수 있습니다.';
+    else $('draftNotice').textContent = `${comp.activeBanTeam}팀이 밴 투표 중입니다. 상대 팀의 실시간 표는 공개되지 않습니다.`;
+    $('draftHelp').textContent = '한 팀당 1밴, 총 2밴입니다. 표가 하나도 없으면 선택 가능한 캐릭터 중 무작위 밴됩니다.';
+  } else {
+    const picker = playerFromState(comp.currentPickerId);
+    $('draftPhaseTitle').textContent = `${picker?.team === 'A' ? '🔵' : '🔴'} ${escapeHtml(picker?.name || '플레이어')}의 픽`;
+    $('draftPhaseSubtitle').textContent = '스네이크 순서: 선픽 1 → 후픽 2 → 선픽 2 → 후픽 2 → 선픽 1. 밴·픽된 캐릭터는 양 팀 모두 다시 고를 수 없습니다.';
+    $('draftNotice').textContent = comp.currentPickerId === myId ? '내 픽 차례입니다. 우리 팀이 확보할 캐릭터 1명을 선택하세요.' : `${escapeHtml(picker?.name || '현재 플레이어')}의 선택을 기다리는 중입니다.`;
+    $('draftHelp').textContent = '10초 안에 선택하지 않으면 현재 선택 가능한 딜러 중 1명이 자동으로 픽됩니다.';
+  }
+  renderDraftCharacterGrid(comp);
+}
+
+function openCompetitiveStats() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    alert('먼저 방에 입장한 뒤 관리자 통계를 열어주세요.');
+    return;
+  }
+  let pin = null;
+  if (!adminStatsAuthorized) {
+    pin = prompt('관리자 암호 4자리를 입력하세요.');
+    if (pin === null) return;
+    pin = String(pin).replace(/\D/g, '').slice(0, 4);
+    if (pin.length !== 4) { alert('관리자 암호 4자리를 입력하세요.'); return; }
+  }
+  const overlay = $('competitiveStatsOverlay');
+  overlay.classList.remove('hidden');
+  $('competitiveStatsSummary').textContent = '관리자 인증 및 통계를 불러오는 중…';
+  $('competitiveStatsBody').innerHTML = '';
+  $('competitiveRecentMatches').innerHTML = '';
+  ws.send(JSON.stringify({ type:'admin_stats_request', ...(pin ? { pin } : {}) }));
+}
+function exportCompetitiveStatsJson() {
+  if (!lastAdminStatsData) return;
+  const blob = new Blob([JSON.stringify(lastAdminStatsData, null, 2)], { type:'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `school_line_competitive_stats_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+function closeCompetitiveStats() { $('competitiveStatsOverlay').classList.add('hidden'); }
+function percent(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
+function renderCompetitiveStats(data) {
+  const total = Number(data.totalMatches || 0);
+  const rosterLabel = data.currentBuild?.rosterVersion ? ` · 현재 로스터 ${data.currentBuild.rosterVersion}` : '';
+  $('competitiveStatsSummary').textContent = `저장된 경쟁 경기 ${total}판${rosterLabel}${data.updatedAt ? ` · 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
+  const tbody = $('competitiveStatsBody');
+  tbody.innerHTML = '';
+  for (const [id,m] of Object.entries(CHARACTER_META)) {
+    const st = data.characters?.[id] || {};
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${m.icon} ${escapeHtml(characterPublicDef(id)?.name || m.name)}</td><td>${Number(st.availableMatches||0)}</td><td>${Number(st.bans||0)}</td><td>${percent(st.banRate)}</td><td>${Number(st.picks||0)}</td><td>${percent(st.pickRate)}</td><td>${Number(st.wins||0)}-${Number(st.losses||0)}-${Number(st.draws||0)}</td><td>${percent(st.winRate)}</td>`;
+    tbody.appendChild(tr);
+  }
+  const recent = $('competitiveRecentMatches');
+  recent.innerHTML = '';
+  const matches = Array.isArray(data.matches) ? data.matches.slice(-8).reverse() : [];
+  if (!matches.length) recent.innerHTML = '<div class="stats-recent-row"><span>아직 저장된 경쟁 결과가 없습니다.</span></div>';
+  for (const m of matches) {
+    const row = document.createElement('div');
+    row.className = 'stats-recent-row';
+    const scoreA = Math.floor(Number(m.score?.A || 0)), scoreB = Math.floor(Number(m.score?.B || 0));
+    const result = m.winner === 'DRAW' ? '무승부' : `${m.winner}팀 승리`;
+    const killTie = m.winnerReason === 'kills' && m.teamKills ? ` · 킬 ${Number(m.teamKills.A||0)}:${Number(m.teamKills.B||0)}` : '';
+    row.innerHTML = `<span>${escapeHtml(m.room || '')} · ${m.endedAt ? new Date(m.endedAt).toLocaleString('ko-KR') : ''}</span><b>${result} · ${scoreA}:${scoreB}${killTie}</b>`;
+    recent.appendChild(row);
+  }
+}
+$('competitiveStatsButton').onclick = openCompetitiveStats;
+$('competitiveStatsClose').onclick = closeCompetitiveStats;
+$('competitiveStatsCloseBottom').onclick = closeCompetitiveStats;
+$('competitiveStatsExport').onclick = exportCompetitiveStatsJson;
+$('competitiveStatsOverlay').onclick = e => { if (e.target === $('competitiveStatsOverlay')) closeCompetitiveStats(); };
+
 function renderLobby() {
   if (!state) return;
   const me = state.players.find(p => p.id === myId);
@@ -1066,12 +1492,26 @@ function renderLobby() {
     }
   }
   const isHost = !spectatorMode && state.hostId === myId;
-  $('startButton').classList.toggle('hidden', !isHost);
-  $('hostLabel').textContent = spectatorMode ? '📺 관전자 모드 · 경기 시작 대기 중' : (isHost ? '내가 방장입니다.' : '방장이 경기를 시작합니다.');
+  $('competitiveStatsButton').classList.remove('hidden');
+  const countA = state.players.filter(p => p.team === 'A' && p.connected !== false).length;
+  const countB = state.players.filter(p => p.team === 'B' && p.connected !== false).length;
+  const competitiveReady = state.players.length === 8 && countA === 4 && countB === 4 && state.players.every(p => p.connected !== false);
+  $('normalStartButton').classList.toggle('hidden', !isHost);
+  $('competitiveStartButton').classList.toggle('hidden', !isHost);
+  $('competitiveStartButton').disabled = !competitiveReady;
+  $('hostLabel').textContent = spectatorMode ? '📺 관전자 모드 · 경기 시작 대기 중' : (isHost ? '내가 방장입니다. 일반게임 또는 경쟁게임을 시작할 수 있습니다.' : '방장이 게임 모드를 선택해 시작합니다.');
+  $('modeStartHint').textContent = isHost ? (competitiveReady ? '🏆 4 vs 4 완성 · 경쟁 시작 가능' : `🏆 경쟁게임 대기: A ${countA}/4 · B ${countB}/4`) : (competitiveReady ? '🏆 4 vs 4 완성 · 방장이 경쟁게임을 시작할 수 있습니다.' : `현재 A ${countA}/4 · B ${countB}/4`);
   $('resultBanner').classList.toggle('hidden', state.state !== 'ended');
   if (state.state === 'ended') {
     const finalScore = `${Math.floor(state.scoreA)} : ${Math.floor(state.scoreB)}`;
-    $('resultBanner').textContent = state.winner === 'DRAW' ? `무승부! ${finalScore}` : `${state.winner}팀 승리! ${finalScore}`;
+    const modeLabel = state.mode === 'competitive' ? '🏆 경쟁게임 · ' : '';
+    if (state.winner === 'DRAW') {
+      $('resultBanner').textContent = modeLabel + `무승부! ${finalScore} · 킬 ${Number(state.teamKills?.A||0)} : ${Number(state.teamKills?.B||0)}`;
+    } else if (state.winnerReason === 'kills') {
+      $('resultBanner').textContent = modeLabel + `${state.winner}팀 승리! ${finalScore} · 킬 타이브레이크 ${Number(state.teamKills?.A||0)} : ${Number(state.teamKills?.B||0)}`;
+    } else {
+      $('resultBanner').textContent = modeLabel + `${state.winner}팀 승리! ${finalScore}`;
+    }
   }
   renderResultStats();
   updateStoryButton();
@@ -1080,10 +1520,11 @@ function renderLobby() {
     for (const p of state.players.filter(p => p.team === team)) {
       const div = document.createElement('div'); div.className = 'player-row' + (p.id === myId ? ' you' : '') + (p.connected === false ? ' offline' : '');
       const isOwnTeam = !spectatorMode && me && p.team === me.team;
+      const revealAll = state.state === 'ended';
       let pickText;
-      if (spectatorMode || !isOwnTeam) pickText = '🔒 픽 비공개';
+      if (!revealAll && (spectatorMode || !isOwnTeam)) pickText = '🔒 픽 비공개';
       else if (!p.character) pickText = '⌛ 미선택';
-      else pickText = `${CHARACTER_META[p.character].icon} ${CHARACTER_META[p.character].name}`;
+      else pickText = `${CHARACTER_META[p.character]?.icon || '●'} ${CHARACTER_META[p.character]?.name || p.character}`;
       div.innerHTML = `<span>${p.id === state.hostId ? '👑 ' : ''}${escapeHtml(p.name)}${p.connected === false ? ' · 📡' : ''}</span><span>${pickText}</span>`;
       root.appendChild(div);
     }
@@ -1110,7 +1551,8 @@ function localTargetRelation(source, target) {
 function currentTargetingRule() {
   if (!state || !config || !myId) return null;
   const me = state.players.find(p => p.id === myId);
-  return me && config.characters && config.characters[me.character] ? config.characters[me.character].abilityTargeting : null;
+  const def = me && config.characters && config.characters[me.character] ? config.characters[me.character] : null;
+  return def ? (def.linkTargeting || def.abilityTargeting || null) : null;
 }
 function selectableTargetAt(clientX, clientY) {
   const rule = currentTargetingRule();
@@ -1129,11 +1571,18 @@ function selectableTargetAt(clientX, clientY) {
   }
   return best;
 }
-function selectTargetFromPointer(clientX, clientY) {
-  const target = selectableTargetAt(clientX, clientY);
+function commitTargetSelection(target) {
   if (!target) return false;
   selectedTargetId = target.id;
+  const me = state && state.players ? state.players.find(p => p.id === myId) : null;
+  if (me && me.character === 'buffer' && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'link_target', targetId:target.id }));
+  }
   return true;
+}
+function selectTargetFromPointer(clientX, clientY) {
+  const target = selectableTargetAt(clientX, clientY);
+  return commitTargetSelection(target);
 }
 function targetSelectionState(me, target) {
   const rule = currentTargetingRule();
@@ -1162,8 +1611,9 @@ canvas.parentElement.addEventListener('pointerdown', e => {
   if (spectatorMode || gameScreen.classList.contains('hidden')) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (e.target && e.target.closest && e.target.closest('button')) return;
-  // Capture before the virtual-stick zones: directly touching a valid character selects it.
-  // A normal stick touch still reaches the joystick whenever no selectable character is under the finger.
+  // Mouse clicks select immediately. Touches inside joystick zones use tap-vs-drag
+  // handling in makeStick so a target under a thumb does not steal movement/aim input.
+  if (e.pointerType !== 'mouse' && e.target && e.target.closest && e.target.closest('.control-zone')) return;
   if (selectTargetFromPointer(e.clientX, e.clientY)) {
     e.preventDefault();
     e.stopPropagation();
@@ -1196,11 +1646,11 @@ const leftStick = makeStick($('moveZone'), $('moveKnob'), false);
 const rightStick = makeStick($('aimZone'), $('aimKnob'), true);
 
 function makeStick(zone, knob, isAim) {
-  const stick = { zone, knob, isAim, pointerId:null, active:false, cx:0, cy:0, radius:50, dx:0, dy:0 };
+  const stick = { zone, knob, isAim, pointerId:null, active:false, pendingTargetId:null, pendingX:0, pendingY:0, cx:0, cy:0, radius:50, dx:0, dy:0 };
   zone.addEventListener('pointerdown', e => startStick(stick, e));
   zone.addEventListener('pointermove', e => moveStick(stick, e));
   zone.addEventListener('pointerup', e => endStick(stick, e));
-  zone.addEventListener('pointercancel', e => endStick(stick, e));
+  zone.addEventListener('pointercancel', e => { if (e.pointerId === stick.pointerId) { e.preventDefault(); resetStick(stick); } });
   zone.addEventListener('lostpointercapture', e => { if (stick.pointerId === e.pointerId) resetStick(stick); });
   return stick;
 }
@@ -1211,25 +1661,45 @@ function getStickBase(stick) {
 }
 
 function startStick(stick, e) {
-  if (stick.active) return;
+  if (stick.active || stick.pointerId !== null) return;
   e.preventDefault();
-  stick.pointerId = e.pointerId; stick.active = true;
+  stick.pointerId = e.pointerId;
   stick.zone.setPointerCapture(e.pointerId);
+  const target = currentTargetingRule() ? selectableTargetAt(e.clientX, e.clientY) : null;
+  if (target && e.pointerType !== 'mouse') {
+    stick.pendingTargetId = target.id;
+    stick.pendingX = e.clientX; stick.pendingY = e.clientY;
+    return;
+  }
+  stick.active = true;
   const b = getStickBase(stick); stick.cx=b.cx; stick.cy=b.cy; stick.radius=b.radius;
   updateStick(stick, e.clientX, e.clientY);
   if (stick.isAim) firing = true;
 }
 function moveStick(stick, e) {
-  if (!stick.active || e.pointerId !== stick.pointerId) return;
-  e.preventDefault(); updateStick(stick, e.clientX, e.clientY);
+  if (e.pointerId !== stick.pointerId) return;
+  e.preventDefault();
+  if (stick.pendingTargetId) {
+    if (Math.hypot(e.clientX-stick.pendingX, e.clientY-stick.pendingY) < 12) return;
+    stick.pendingTargetId = null;
+    stick.active = true;
+    const b = getStickBase(stick); stick.cx=b.cx; stick.cy=b.cy; stick.radius=b.radius;
+    if (stick.isAim) firing = true;
+  }
+  if (stick.active) updateStick(stick, e.clientX, e.clientY);
 }
 function endStick(stick, e) {
-  if (!stick.active || e.pointerId !== stick.pointerId) return;
-  e.preventDefault(); resetStick(stick);
+  if (e.pointerId !== stick.pointerId) return;
+  e.preventDefault();
+  if (stick.pendingTargetId) {
+    const target = state && state.players ? state.players.find(p => p.id === stick.pendingTargetId && p.alive) : null;
+    if (target && selectableTargetAt(e.clientX, e.clientY)?.id === target.id) commitTargetSelection(target);
+  }
+  resetStick(stick);
 }
 function resetStick(stick) {
   if (!stick) return;
-  stick.active=false; stick.pointerId=null; stick.dx=0; stick.dy=0;
+  stick.active=false; stick.pointerId=null; stick.pendingTargetId=null; stick.pendingX=0; stick.pendingY=0; stick.dx=0; stick.dy=0;
   stick.knob.style.transform = 'translate(-50%,-50%)';
   if (stick.isAim) firing=false;
   else keys = {up:false,down:false,left:false,right:false};
@@ -1310,7 +1780,7 @@ function drawBeamFx(beam, nowMs) {
 }
 
 function fxCharacterColor(character) {
-  return ({iron:'#aab3bf',mecha:'#9af0bd',solar:'#ffd45c',runner:'#ffd27a',shooter:'#8bbcff',sniper:'#eadcff',cannon:'#ffd66b',fire:'#ff9a45',poison:'#c58cff',water:'#65d7ff',wind:'#9ef7d5',star:'#fff3a8',light:'#fff0a6',laser:'#ff699a',ice:'#92efff',dia:'#d9fbff'})[character] || '#ffffff';
+  return ({iron:'#aab3bf',mecha:'#9af0bd',solar:'#ffd45c',runner:'#ffd27a',shooter:'#8bbcff',sniper:'#eadcff',cannon:'#ffd66b',fire:'#ff9a45',poison:'#c58cff',spray:'#9ae7ff',water:'#65d7ff',wind:'#9ef7d5',star:'#fff3a8',angel:'#fff0c8',buffer:'#e5d8ff',light:'#fff0a6',laser:'#ff699a',ice:'#92efff',dia:'#d9fbff'})[character] || '#ffffff';
 }
 
 function drawWorldFx(nowMs) {
@@ -1349,6 +1819,54 @@ function drawWorldFx(nowMs) {
     } else if (fx.type==='ability') {
       ctx.globalAlpha=(1-q)*.55; ctx.strokeStyle='#a8efff'; ctx.lineWidth=2.6*(1-q)+.8;
       ctx.beginPath(); ctx.arc(a.x,a.y,5+q*21,0,Math.PI*2); ctx.stroke();
+    } else if (fx.type==='windTailwindCast') {
+      ctx.strokeStyle='#b1ffe1';
+      for (let k=0;k<3;k++) {
+        const phase=Math.max(0,Math.min(1,q-k*.10));
+        ctx.globalAlpha=(1-phase)*(.62-k*.11);
+        ctx.lineWidth=2.5-k*.45;
+        ctx.beginPath(); ctx.arc(a.x,a.y,5+phase*(24+k*7),0,Math.PI*2); ctx.stroke();
+      }
+      ctx.globalAlpha=(1-q)*.16; ctx.fillStyle='#9ef7d5'; ctx.beginPath(); ctx.arc(a.x,a.y,11+q*6,0,Math.PI*2); ctx.fill();
+    } else if (fx.type==='jetStart') {
+      ctx.globalAlpha=(1-q)*.78; ctx.strokeStyle='#b8ecff'; ctx.lineWidth=3.0*(1-q)+.7;
+      ctx.beginPath(); ctx.arc(a.x,a.y,5+q*24,0,Math.PI*2); ctx.stroke();
+      if (fx.dx!=null) {
+        const ex=worldToScreen(fx.x-fx.dx*(1.2+q*1.4),fx.y-fx.dy*(1.2+q*1.4));
+        ctx.globalAlpha=(1-q)*.65; ctx.strokeStyle='#dff8ff'; ctx.lineWidth=2.1*(1-q)+.5;
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(ex.x,ex.y); ctx.stroke();
+      }
+    } else if (fx.type==='jetEnd') {
+      ctx.globalAlpha=(1-q)*.70; ctx.strokeStyle='#dff8ff'; ctx.lineWidth=2.8*(1-q)+.7;
+      ctx.beginPath(); ctx.arc(a.x,a.y,4+q*20,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=(1-q)*.16; ctx.fillStyle='#8edcff'; ctx.beginPath(); ctx.arc(a.x,a.y,10+q*4,0,Math.PI*2); ctx.fill();
+    } else if (fx.type==='jetWallSpark') {
+      ctx.strokeStyle='#ffffff'; ctx.lineWidth=1.5; ctx.globalAlpha=(1-q)*.86;
+      for (let k=0;k<5;k++) { const ang=k*Math.PI*2/5+.35; const rr1=4+q*5, rr2=9+q*12; ctx.beginPath(); ctx.moveTo(a.x+Math.cos(ang)*rr1,a.y+Math.sin(ang)*rr1); ctx.lineTo(a.x+Math.cos(ang)*rr2,a.y+Math.sin(ang)*rr2); ctx.stroke(); }
+    } else if (fx.type==='reactor33' || fx.type==='reactor66' || fx.type==='reactor100' || fx.type==='reactorDown') {
+      const strong=fx.type==='reactor100'?1:(fx.type==='reactor66' ? .78:(fx.type==='reactor33' ? .48:.34));
+      ctx.globalAlpha=(1-q)*(.50+strong*.32); ctx.strokeStyle=fx.type==='reactorDown'?'#d08a63':'#ff7a2e'; ctx.lineWidth=1.7+strong*2.0;
+      ctx.beginPath(); ctx.arc(a.x,a.y,5+q*(18+strong*15),0,Math.PI*2); ctx.stroke();
+      if (fx.type==='reactor66' || fx.type==='reactor100') {
+        ctx.globalAlpha=(1-q)*.72; ctx.fillStyle=fx.type==='reactor100'?'#fff3cf':'#ffb16b';
+        const count=fx.type==='reactor100'?7:4;
+        for (let k=0;k<count;k++) { const ang=k*Math.PI*2/count+q*1.2; const rr=9+q*22; ctx.beginPath(); ctx.arc(a.x+Math.cos(ang)*rr,a.y+Math.sin(ang)*rr,1.1+(1-q)*1.0,0,Math.PI*2); ctx.fill(); }
+      }
+    } else if (fx.type==='radiationStart') {
+      ctx.strokeStyle='#ff8a3d'; ctx.lineWidth=2.2; ctx.globalAlpha=(1-q)*.80;
+      for (let k=0;k<3;k++) { const r=6+q*(12+k*3); ctx.beginPath(); ctx.arc(a.x,a.y,r,k*2.1+q,k*2.1+q+1.05); ctx.stroke(); }
+    } else if (fx.type==='angelCast') {
+      ctx.globalAlpha=(1-q)*.62; ctx.strokeStyle='#fff0c8'; ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(a.x,a.y,4+q*17,0,Math.PI*2); ctx.stroke();
+    } else if (fx.type==='angelBless') {
+      const alpha=Math.sin(Math.PI*Math.min(1,q));
+      ctx.globalAlpha=alpha*.52; ctx.fillStyle='#fff7dc'; ctx.fillRect(a.x-2.2,a.y-30-q*8,4.4,60+q*16);
+      ctx.globalAlpha=alpha*.84; ctx.strokeStyle='#fff0c8'; ctx.lineWidth=2.2;
+      ctx.beginPath(); ctx.moveTo(a.x-2,a.y); ctx.bezierCurveTo(a.x-12,a.y-9,a.x-19,a.y-2,a.x-23,a.y+4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(a.x+2,a.y); ctx.bezierCurveTo(a.x+12,a.y-9,a.x+19,a.y-2,a.x+23,a.y+4); ctx.stroke();
+      ctx.fillStyle='#fff8df';
+      for (let k=0;k<6;k++) { const ang=k*Math.PI/3+.2; const rr=8+q*(13+k%2*3); ctx.globalAlpha=alpha*(.45+.07*k); ctx.beginPath(); ctx.arc(a.x+Math.cos(ang)*rr,a.y+Math.sin(ang)*rr-q*10,1.2,0,Math.PI*2); ctx.fill(); }
+    } else if (fx.type==='bufferLink') {
+      ctx.globalAlpha=(1-q)*.65; ctx.strokeStyle='#dfb8ff'; ctx.lineWidth=2.4*(1-q)+.7; ctx.beginPath(); ctx.arc(a.x,a.y,5+q*17,0,Math.PI*2); ctx.stroke();
     } else if (fx.type==='diaTransform') {
       const pulse=Math.sin(Math.PI*Math.min(1,q));
       ctx.globalAlpha=pulse*.82; ctx.strokeStyle='#ecffff'; ctx.lineWidth=3.4*(1-q)+1.0;
@@ -1363,6 +1881,65 @@ function drawWorldFx(nowMs) {
     }
     ctx.restore();
   }
+}
+
+function drawJetBoostTrail(player, nowMs) {
+  if (!player || !player.jetBoost) return;
+  const pos=renderedPlayerWorldPosition(player, nowMs);
+  const a=worldToScreen(pos.x,pos.y);
+  let dx=Number(player.jetBoostEndX||0)-Number(player.jetBoostStartX||0), dy=Number(player.jetBoostEndY||0)-Number(player.jetBoostStartY||0);
+  const len=Math.hypot(dx,dy)||1; dx/=len; dy/=len;
+  const sx=dy, sy=-dx;
+  ctx.save();
+  for (let k=0;k<3;k++) {
+    const side=(k-1)*4.0;
+    const tail=13+k*5;
+    ctx.globalAlpha=.44-k*.09; ctx.strokeStyle=k===1?'#e8fbff':'#86d9ff'; ctx.lineWidth=2.2-k*.35;
+    ctx.beginPath(); ctx.moveTo(a.x+sx*side-dx*4,a.y+sy*side-dy*4); ctx.lineTo(a.x+sx*side-dx*tail,a.y+sy*side-dy*tail); ctx.stroke();
+  }
+  for (let k=1;k<=2;k++) {
+    ctx.globalAlpha=.13; ctx.fillStyle='#a6e5ff'; ctx.beginPath(); ctx.arc(a.x-dx*(k*11),a.y-dy*(k*11),Math.max(3,characterRadiusWorld(player.character)*SCALE*(1-k*.22)),0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawBufferTargetAura(target, nowMs) {
+  if (!target) return;
+  const tw=renderedPlayerWorldPosition(target, nowMs), a=worldToScreen(tw.x,tw.y);
+  const radius=characterRadiusWorld(target.character)*SCALE+8;
+  const phase=nowMs*.0018;
+  ctx.save(); ctx.strokeStyle='#d9b3ff'; ctx.lineWidth=2.1; ctx.globalAlpha=.72;
+  for (let k=0;k<4;k++) { const start=phase+k*Math.PI/2; ctx.beginPath(); ctx.arc(a.x,a.y,radius,start,start+.42); ctx.stroke(); }
+  ctx.globalAlpha=.10; ctx.fillStyle='#c99cff'; ctx.beginPath(); ctx.arc(a.x,a.y,radius-2,0,Math.PI*2); ctx.fill(); ctx.restore();
+}
+
+function drawBufferOutOfRangeMarker(target, nowMs) {
+  if (!target) return;
+  const tw=renderedPlayerWorldPosition(target, nowMs), a=worldToScreen(tw.x,tw.y);
+  const y=a.y-characterRadiusWorld(target.character)*SCALE-25;
+  const bob=Math.sin(nowMs*.006)*2;
+  ctx.save(); ctx.translate(a.x,y+bob); ctx.rotate(Math.PI/4); ctx.strokeStyle='#c7b7d8'; ctx.lineWidth=2; ctx.globalAlpha=.82; ctx.strokeRect(-4,-4,8,8); ctx.restore();
+}
+
+function drawBufferThread(buffer, target, nowMs) {
+  if (!buffer || !target || !buffer.bufferLinkActive) return;
+  const bw = renderedPlayerWorldPosition(buffer, nowMs);
+  const tw = renderedPlayerWorldPosition(target, nowMs);
+  const a = worldToScreen(bw.x, bw.y), z = worldToScreen(tw.x, tw.y);
+  const dx = z.x-a.x, dy = z.y-a.y, len = Math.hypot(dx,dy) || 1;
+  const nx = -dy/len, ny = dx/len;
+  const phase = nowMs * 0.008 + (String(buffer.id||'').charCodeAt(0)||0);
+  const amp = Math.min(7, 2.5 + len*0.012);
+  const c1 = { x:a.x+dx*.33 + nx*Math.sin(phase)*amp, y:a.y+dy*.33 + ny*Math.sin(phase)*amp };
+  const c2 = { x:a.x+dx*.66 + nx*Math.sin(phase+1.8)*amp, y:a.y+dy*.66 + ny*Math.sin(phase+1.8)*amp };
+  ctx.save();
+  ctx.lineCap='round';
+  ctx.shadowColor='rgba(220,205,255,.55)'; ctx.shadowBlur=7;
+  ctx.strokeStyle='rgba(225,215,255,.82)'; ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,z.x,z.y); ctx.stroke();
+  ctx.shadowBlur=0; ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=.7;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,z.x,z.y); ctx.stroke();
+  ctx.restore();
 }
 
 function renderGame() {
@@ -1384,12 +1961,20 @@ function renderGame() {
 
   const beamFxNow = performance.now();
   for (const b of (state.beams || [])) drawBeamFx(b, beamFxNow);
+  for (const p of state.players) if (p.alive && p.character==='jet' && p.jetBoost) drawJetBoostTrail(p, beamFxNow);
+  for (const buffer of state.players) {
+    if (!buffer.alive || buffer.character !== 'buffer' || !buffer.bufferLinkActive || !buffer.bufferTargetId) continue;
+    const target = state.players.find(p => p.id === buffer.bufferTargetId && p.alive);
+    if (target) { drawBufferThread(buffer, target, beamFxNow); drawBufferTargetAura(target, beamFxNow); }
+  }
 
   for (const p of state.projectiles) {
     const s=worldToScreen(p.x,p.y), r=Math.max(2,p.radius*SCALE);
     ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2);
-    if (p.type === 'heal') ctx.fillStyle = p.character === 'wind' ? '#9ef7d5' : (p.character === 'star' ? '#fff3a8' : '#65d7ff');
+    if (p.type === 'heal') ctx.fillStyle = p.character === 'wind' ? '#9ef7d5' : (p.character === 'star' ? '#fff3a8' : (p.character === 'angel' ? '#fff0c8' : '#65d7ff'));
     else if (p.character === 'fire') ctx.fillStyle = '#ff9a45';
+    else if (p.character === 'reactor') ctx.fillStyle = Number(p.reactorFxBand) >= 2 ? '#ff6a2c' : (Number(p.reactorFxBand) >= 1 ? '#ffae57' : '#ffd1a3');
+    else if (p.character === 'spray') ctx.fillStyle = '#9ae7ff';
     else if (p.character === 'sniper') ctx.fillStyle = '#e6d5ff';
     else if (p.character === 'mecha') ctx.fillStyle = '#b7ffd1';
     else if (p.character === 'runner') ctx.fillStyle = '#ffd27a';
@@ -1406,7 +1991,7 @@ function renderGame() {
     const renderWorld = renderedPlayerWorldPosition(p, beamFxNow);
     const s=worldToScreen(renderWorld.x,renderWorld.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
+    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
     if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
       ctx.save(); ctx.globalAlpha=.48; ctx.fillStyle='#ffffff';
@@ -1428,10 +2013,30 @@ function renderGame() {
         ctx.setLineDash(targetState.inRange ? [] : [5,4]);
         ctx.beginPath(); ctx.arc(x,y,radius+12,0,Math.PI*2); ctx.stroke();
         ctx.restore();
+        if (meForTarget && meForTarget.character==='buffer' && meForTarget.bufferTargetId===p.id && !meForTarget.bufferLinkActive) drawBufferOutOfRangeMarker(p, beamFxNow);
       }
     }
     if (p.burning) { ctx.save(); ctx.globalAlpha=.68+.24*Math.sin(beamFxNow*.018+x*.02); ctx.lineWidth=2.2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
     if (p.poisoned) { ctx.save(); ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.012+y*.02); ctx.lineWidth=2.5; ctx.strokeStyle='#c58cff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+    if (p.radiated) {
+      ctx.save(); ctx.globalAlpha=.68+.18*Math.sin(beamFxNow*.013+x*.017); ctx.lineWidth=2.3; ctx.strokeStyle='#ff8a3d';
+      const rr=radius+6, rp=beamFxNow*.0022;
+      for (let k=0;k<3;k++) { const start=rp+k*Math.PI*2/3; ctx.beginPath(); ctx.arc(x,y,rr,start,start+.92); ctx.stroke(); }
+      ctx.restore();
+    }
+    const reactorDef = characterPublicDef('reactor');
+    if (p.character === 'reactor' && reactorDef && Number(p.reactorOutput||0) >= Number(reactorDef.reactorHighThreshold||66)) {
+      const glowPulse=.72+.18*Math.sin(beamFxNow*.012+x*.011);
+      ctx.save(); ctx.globalAlpha=.28*glowPulse; ctx.fillStyle='#ff6f22'; ctx.shadowColor='#ff6f22'; ctx.shadowBlur=16;
+      ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=.82; ctx.lineWidth=2.6; ctx.strokeStyle='#ff8a3d'; ctx.beginPath(); ctx.arc(x,y,radius+7,0,Math.PI*2); ctx.stroke(); ctx.restore();
+    }
+    if (p.character === 'jet' && p.jetBoost) {
+      const jp=.72+.22*Math.sin(beamFxNow*.022);
+      ctx.save(); ctx.globalAlpha=.25*jp; ctx.fillStyle='#b8ecff'; ctx.shadowColor='#b8ecff'; ctx.shadowBlur=18;
+      ctx.beginPath(); ctx.arc(x,y,radius+9,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=.90; ctx.lineWidth=2.6; ctx.strokeStyle='#dff8ff'; ctx.beginPath(); ctx.arc(x,y,radius+7,0,Math.PI*2); ctx.stroke(); ctx.restore();
+    }
     if (p.tailwind) { ctx.lineWidth=2; ctx.strokeStyle='#b1ffe1'; ctx.beginPath(); ctx.arc(x,y,radius+7,0,Math.PI*2); ctx.stroke(); }
     if (p.frozen) { ctx.save(); ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.011+x*.015); ctx.lineWidth=2.5; ctx.strokeStyle='#92efff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
     if (p.stunned) { ctx.lineWidth=3; ctx.strokeStyle='#ffe36e'; ctx.beginPath(); ctx.arc(x,y,radius+9,0,Math.PI*2); ctx.stroke(); }
@@ -1477,6 +2082,11 @@ function renderGame() {
     const bw=42,bh=5,bx=x-bw/2,by=y-radius-15;
     ctx.fillStyle='#241e24'; ctx.fillRect(bx,by,bw,bh);
     ctx.fillStyle='#7ee18b'; ctx.fillRect(bx,by,bw*Math.max(0,p.hp/p.maxHp),bh);
+    if (p.character === 'reactor') {
+      const output=Math.max(0,Math.min(100,Number(p.reactorOutput)||0));
+      ctx.fillStyle='rgba(10,13,18,.86)'; ctx.fillRect(bx,by+7,bw,3);
+      ctx.fillStyle='#ffffff'; ctx.fillRect(bx,by+7,bw*(output/100),3);
+    }
     if (p.shield > 0 && p.maxShield > 0) {
       ctx.fillStyle='#1a2734'; ctx.fillRect(bx,by-5,bw,3);
       ctx.fillStyle='#65c7ff'; ctx.fillRect(bx,by-5,bw*Math.max(0,Math.min(1,p.shield/p.maxShield)),3);
@@ -1485,7 +2095,10 @@ function renderGame() {
   }
 
   const me = spectatorMode ? null : state.players.find(p => p.id === myId);
-  if (!currentTargetingRule() || !state.players.some(p => p.id === selectedTargetId && p.alive)) selectedTargetId = null;
+  if (me && me.character === 'buffer') {
+    const serverTarget = me.bufferTargetId ? state.players.find(p => p.id === me.bufferTargetId && p.alive) : null;
+    selectedTargetId = serverTarget ? serverTarget.id : null;
+  } else if (!currentTargetingRule() || !state.players.some(p => p.id === selectedTargetId && p.alive)) selectedTargetId = null;
   const t = Math.ceil(state.timeLeft); $('timer').textContent = `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
   if (spectatorMode) {
     $('myInfo').innerHTML = '';
@@ -1504,6 +2117,27 @@ function renderGame() {
       if (me.sprint) extra = `<br>🏃 질주 ${(me.sprintMs/1000).toFixed(1)}초`;
       else if (me.sprintCooldownMs > 0) extra = `<br>질주 쿨 ${(me.sprintCooldownMs/1000).toFixed(1)}초`;
       else extra = '<br>질주 준비 완료';
+    } else if (me.character === 'wind') {
+      if (me.windTailwindMs > 0) extra = `<br>🌪️ 순풍 ${(me.windTailwindMs/1000).toFixed(1)}초 · 쿨 ${(me.windTailwindCooldownMs/1000).toFixed(1)}초`;
+      else if (me.windTailwindCooldownMs > 0) extra = `<br>🌪️ 순풍 쿨 ${(me.windTailwindCooldownMs/1000).toFixed(1)}초`;
+      else extra = '<br>🌪️ 순풍 준비 완료';
+    } else if (me.character === 'angel') {
+      if (me.angelBlessCooldownMs > 0) extra = `<br>😇 축복 쿨 ${(me.angelBlessCooldownMs/1000).toFixed(1)}초`;
+      else extra = `<br>축복 준비 완료${selectedTargetId ? '' : ' · 대상 선택 필요'}`;
+    } else if (me.character === 'jet') {
+      if (me.jetBoost) extra = `<br>🚀 부스터 ${(me.jetBoostMs/1000).toFixed(1)}초`;
+      else if (me.jetBoostCooldownMs > 0) extra = `<br>🚀 부스터 쿨 ${(me.jetBoostCooldownMs/1000).toFixed(1)}초`;
+      else extra = '<br>🚀 부스터 준비 완료';
+      if (me.shield > 0 && me.jetShieldMs > 0) extra += ` · 보호막 ${(me.jetShieldMs/1000).toFixed(1)}초`;
+    } else if (me.character === 'buffer') {
+      const target = me.bufferTargetId ? state.players.find(p => p.id === me.bufferTargetId && p.alive) : null;
+      if (!target) extra = '<br>🎛️ 연결 대상 선택 필요';
+      else extra = `<br>🎛️ ${me.bufferLinkActive ? '연결 중' : '범위 밖 · 지정 유지'} · ${escapeHtml(target.name)}`;
+    }
+    else if (me.character === 'reactor') {
+      extra = `<br>☢️ 출력 ${Math.round(Number(me.reactorOutput)||0)}%`;
+      const reactorDef = characterPublicDef('reactor');
+      if (reactorDef && Number(me.reactorOutput||0) >= Number(reactorDef.reactorHighThreshold||66)) extra += ' · 방사능 활성';
     }
     const shieldLine = me.shield > 0 ? `<br>🛡️ 보호막 ${Math.ceil(me.shield)}/${Math.ceil(me.maxShield || me.shield)}` : '';
     const stunLine = me.stunned ? '<br>💫 기절' : '';
@@ -1511,7 +2145,7 @@ function renderGame() {
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 
     const ability = $('abilityButton');
-    const hasAbility = me.character === 'dia' || me.character === 'runner';
+    const hasAbility = me.character === 'dia' || me.character === 'runner' || me.character === 'wind' || me.character === 'angel' || me.character === 'jet';
     ability.classList.toggle('hidden', !hasAbility);
     if (me.character === 'dia') {
       if (!me.alive) { ability.textContent = '💎 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
@@ -1523,6 +2157,22 @@ function renderGame() {
       else if (me.sprint) { ability.textContent = `🏃 질주 ${(me.sprintMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.add('active'); }
       else if (me.sprintCooldownMs > 0) { ability.textContent = `🏃 쿨 ${(me.sprintCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
       else { ability.textContent = '🏃 질주'; ability.disabled = false; ability.classList.remove('active'); }
+    } else if (me.character === 'wind') {
+      if (!me.alive) { ability.textContent = '🌪️ 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
+      else if (me.windTailwindMs > 0) { ability.textContent = `🌪️ 순풍 ${(me.windTailwindMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.add('active'); }
+      else if (me.windTailwindCooldownMs > 0) { ability.textContent = `🌪️ 쿨 ${(me.windTailwindCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
+      else { ability.textContent = '🌪️ 순풍'; ability.disabled = false; ability.classList.remove('active'); }
+    } else if (me.character === 'jet') {
+      if (!me.alive) { ability.textContent = '🚀 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
+      else if (me.jetBoost) { ability.textContent = `🚀 부스터 ${(me.jetBoostMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.add('active'); }
+      else if (me.jetBoostCooldownMs > 0) { ability.textContent = `🚀 쿨 ${(me.jetBoostCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
+      else { ability.textContent = '🚀 부스터'; ability.disabled = false; ability.classList.remove('active'); }
+    } else if (me.character === 'angel') {
+      const target = state.players.find(p => p.id === selectedTargetId && p.alive);
+      if (!me.alive) { ability.textContent = '😇 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
+      else if (me.angelBlessCooldownMs > 0) { ability.textContent = `😇 쿨 ${(me.angelBlessCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
+      else if (!target) { ability.textContent = '😇 대상 선택'; ability.disabled = true; ability.classList.remove('active'); }
+      else { ability.textContent = `😇 축복 · ${target.name}`; ability.disabled = false; ability.classList.remove('active'); }
     }
   }
 }

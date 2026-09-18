@@ -28,11 +28,14 @@ const SPECTATOR_LOCK_MS = 30000;
 const ADMIN_STATS_PIN_HASH = SPECTATOR_PIN_HASH; // Same administrator PIN, kept hashed server-side.
 const ADMIN_STATS_MAX_FAILURES = 5;
 const ADMIN_STATS_LOCK_MS = 30000;
+const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN hash; plaintext never leaves the browser request.
+const ACCESS_ADMIN_MAX_FAILURES = 5;
+const ACCESS_ADMIN_LOCK_MS = 30000;
 const BALANCE_VERSION = '1.3';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.3-r21-potg-1';
+const COMPETITIVE_BUILD_ID = 'alpha-1.3-r21-potg-1-access-lock';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r21-spray';
 
 // Competitive-only Play of the Game (POTG) 1.0.
@@ -197,6 +200,9 @@ const CHARACTERS = {
 const rooms = new Map();
 const spectatorAuthFailures = new Map();
 const adminStatsAuthFailures = new Map();
+const accessAdminAuthFailures = new Map();
+const activeConnections = new Set();
+let schoolLineAccessOpen = false; // Safe default: a server restart returns School Line to LOCKED.
 let idCounter = 1;
 let spectatorCounter = 1;
 
@@ -433,6 +439,20 @@ function noteAdminStatsAuthFailure(remoteAddress, now = Date.now()) {
   adminStatsAuthFailures.set(remoteAddress, entry);
 }
 function clearAdminStatsAuthFailure(remoteAddress) { adminStatsAuthFailures.delete(remoteAddress); }
+function accessAdminAuthLocked(remoteAddress, now = Date.now()) {
+  const entry = accessAdminAuthFailures.get(remoteAddress);
+  if (!entry) return false;
+  if (entry.lockUntil && entry.lockUntil > now) return true;
+  if (entry.lockUntil && entry.lockUntil <= now) accessAdminAuthFailures.delete(remoteAddress);
+  return false;
+}
+function noteAccessAdminAuthFailure(remoteAddress, now = Date.now()) {
+  const entry = accessAdminAuthFailures.get(remoteAddress) || { count: 0, lockUntil: 0 };
+  entry.count += 1;
+  if (entry.count >= ACCESS_ADMIN_MAX_FAILURES) { entry.count = 0; entry.lockUntil = now + ACCESS_ADMIN_LOCK_MS; }
+  accessAdminAuthFailures.set(remoteAddress, entry);
+}
+function clearAccessAdminAuthFailure(remoteAddress) { accessAdminAuthFailures.delete(remoteAddress); }
 function validCharacter(value) { return CHARACTERS[value] ? value : 'shooter'; }
 function speedWithTierDelta(speed, delta) {
   let best = 0;
@@ -613,6 +633,101 @@ function applyShield(room, source, target, amount, options = {}) {
   return Math.max(0, target.shield - before);
 }
 
+function schoolLineAccessPayload() {
+  return { open: !!schoolLineAccessOpen, state: schoolLineAccessOpen ? 'OPEN' : 'LOCKED' };
+}
+
+function sendJson(res, statusCode, value) {
+  const data = Buffer.from(JSON.stringify(value), 'utf8');
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Content-Length': data.length
+  });
+  res.end(data);
+}
+
+function readJsonBody(req, callback) {
+  let raw = '';
+  let done = false;
+  const finish = (err, value) => {
+    if (done) return;
+    done = true;
+    callback(err, value);
+  };
+  req.setEncoding('utf8');
+  req.on('data', chunk => {
+    raw += chunk;
+    if (raw.length > 2048) finish(new Error('body_too_large'));
+  });
+  req.on('end', () => {
+    if (done) return;
+    try { finish(null, raw ? JSON.parse(raw) : {}); }
+    catch (_) { finish(new Error('invalid_json')); }
+  });
+  req.on('error', err => finish(err));
+}
+
+function setSchoolLineAccess(open) {
+  const desired = !!open;
+  if (schoolLineAccessOpen === desired) return;
+  schoolLineAccessOpen = desired;
+  if (desired) return;
+
+  // Immediate classroom lock: terminate every current room/session and return all connected
+  // browsers to the locked screen. No match or resume reservation survives the lock.
+  const conns = [...activeConnections];
+  for (const conn of conns) {
+    try { conn.send({ type: 'access_locked', message: '지금은 스쿨라인 이용 시간이 아닙니다.' }); } catch (_) {}
+  }
+  for (const room of rooms.values()) {
+    for (const player of room.players.values()) neutralizePlayerInput(player);
+  }
+  rooms.clear();
+  setTimeout(() => {
+    for (const conn of conns) {
+      conn.playerId = null;
+      conn.spectatorId = null;
+      conn.roomCode = null;
+      try { conn.close(); } catch (_) {}
+    }
+  }, 80);
+}
+
+function handleAccessControlRequest(req, res) {
+  const remoteAddress = req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  if (accessAdminAuthLocked(remoteAddress, now)) {
+    sendJson(res, 429, { ok: false, error: 'locked_out', message: '관리자 암호 입력이 잠시 잠겼습니다. 30초 뒤 다시 시도하세요.', ...schoolLineAccessPayload() });
+    return;
+  }
+  readJsonBody(req, (err, body) => {
+    if (err) {
+      sendJson(res, 400, { ok: false, error: 'bad_request', message: '요청을 처리할 수 없습니다.', ...schoolLineAccessPayload() });
+      return;
+    }
+    const pin = safePin(body && body.pin);
+    if (pin.length !== 4 || hashText(pin) !== ACCESS_ADMIN_PIN_HASH) {
+      noteAccessAdminAuthFailure(remoteAddress, Date.now());
+      sendJson(res, 403, { ok: false, error: 'bad_pin', message: '관리자 암호가 올바르지 않습니다.', ...schoolLineAccessPayload() });
+      return;
+    }
+    const action = String(body && body.action || '').toLowerCase();
+    if (action !== 'open' && action !== 'lock') {
+      sendJson(res, 400, { ok: false, error: 'bad_action', message: '열기 또는 잠그기 동작을 선택하세요.', ...schoolLineAccessPayload() });
+      return;
+    }
+    clearAccessAdminAuthFailure(remoteAddress);
+    setSchoolLineAccess(action === 'open');
+    sendJson(res, 200, {
+      ok: true,
+      action,
+      message: action === 'open' ? '스쿨라인을 열었습니다.' : '스쿨라인을 잠갔습니다. 진행 중인 방과 경기는 종료되었습니다.',
+      ...schoolLineAccessPayload()
+    });
+  });
+}
+
 function mimeType(file) {
   const ext = path.extname(file).toLowerCase();
   return ({ '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' })[ext] || 'application/octet-stream';
@@ -620,6 +735,14 @@ function mimeType(file) {
 
 const server = http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (urlPath === '/access-status.json' && req.method === 'GET') {
+    sendJson(res, 200, schoolLineAccessPayload());
+    return;
+  }
+  if (urlPath === '/admin/access-control' && req.method === 'POST') {
+    handleAccessControlRequest(req, res);
+    return;
+  }
   if (urlPath === '/competitive-stats.json') {
     const data = Buffer.from(JSON.stringify({ error: 'admin_only' }), 'utf8');
     res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': data.length });
@@ -696,9 +819,10 @@ server.on('upgrade', (req, socket) => {
   ].join('\r\n'));
 
   const conn = makeWsConnection(socket, req.socket.remoteAddress || 'unknown');
+  activeConnections.add(conn);
   socket.on('data', chunk => parseWsData(conn, chunk));
-  socket.on('close', () => disconnect(conn));
-  socket.on('error', () => disconnect(conn));
+  socket.on('close', () => { activeConnections.delete(conn); disconnect(conn); });
+  socket.on('error', () => { activeConnections.delete(conn); disconnect(conn); });
 });
 
 function parseWsData(conn, chunk) {
@@ -1258,6 +1382,10 @@ function spawnPoint(room, player) {
 
 function onMessage(conn, msg) {
   if (!msg || typeof msg !== 'object') return;
+  if (!schoolLineAccessOpen) {
+    conn.send({ type: 'access_locked', message: '지금은 스쿨라인 이용 시간이 아닙니다.' });
+    return;
+  }
   if (msg.type === 'admin_stats_request') return sendAdminCompetitiveStats(conn, msg);
   if (msg.type === 'spectator_join') return joinSpectator(conn, msg);
   if (msg.type === 'resume') return resumeRoom(conn, msg);

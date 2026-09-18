@@ -375,3 +375,34 @@ body.post-game-sequence .respawn,
 body.post-game-sequence .ability-button,
 body.post-game-sequence .spectator-badge { display:none !important; }
 @keyframes potg-intro-in { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
+
+
+/* Alpha 1.3 classroom manual access lock */
+.access-lock-screen { position: fixed; inset: 0; z-index: 500; display: grid; place-items: center; padding: 20px; background: radial-gradient(circle at 50% 35%, #17263a 0, #0b1119 48%, #070b10 100%); }
+.access-lock-screen.hidden { display: none; }
+.access-lock-card { width: min(480px, 92vw); padding: 34px 26px; text-align: center; border-radius: 22px; background: rgba(16,25,37,.96); border: 1px solid #40536b; box-shadow: 0 28px 80px rgba(0,0,0,.55); }
+.access-lock-icon { font-size: 54px; line-height: 1; }
+.access-lock-card h1 { margin: 13px 0 8px; font-size: clamp(30px, 7vw, 44px); }
+.access-lock-card p { margin: 0; color: #c1cfdf; font-size: 16px; line-height: 1.6; }
+.access-lock-card button { margin-top: 22px; min-height: 46px; padding: 10px 18px; background: #25364b; border-color: #587391; font-weight: 900; }
+.access-admin-floating { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); z-index: 230; padding: 9px 12px; border-radius: 12px; background: rgba(22,32,45,.94); border: 1px solid #455d78; color: #dfeafb; font-weight: 900; box-shadow: 0 8px 28px rgba(0,0,0,.3); }
+body.access-locked .access-admin-floating { display: none; }
+.access-admin-overlay { position: fixed; inset: 0; z-index: 520; display: grid; place-items: center; padding: 18px; background: rgba(3,7,12,.86); backdrop-filter: blur(5px); }
+.access-admin-overlay.hidden { display: none; }
+.access-admin-card { width: min(500px, 94vw); padding: 22px; border-radius: 18px; background: #111a25; border: 1px solid #465d78; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+.access-admin-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.access-admin-kicker { color: #9fc5f5; font-size: 12px; font-weight: 900; }
+.access-admin-header h2 { margin: 5px 0 0; font-size: 23px; }
+.access-admin-header > button { width: 42px; height: 42px; padding: 0; border-radius: 11px; font-size: 18px; }
+.access-admin-status { margin: 18px 0 14px; padding: 12px 14px; border-radius: 12px; font-weight: 950; text-align: center; background: #0d151f; border: 1px solid #304258; }
+.access-admin-status.open { color: #baf7ca; border-color: rgba(83,205,118,.55); background: rgba(25,73,42,.35); }
+.access-admin-status.locked { color: #ffd2d2; border-color: rgba(239,92,92,.55); background: rgba(90,28,28,.35); }
+.access-admin-pin-label { display: grid; gap: 7px; color: #b9c8da; font-size: 13px; font-weight: 800; }
+.access-admin-pin-label input { letter-spacing: .25em; text-align: center; font-weight: 950; font-size: 18px; }
+.access-admin-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
+.access-admin-actions button { min-height: 46px; font-weight: 950; }
+.access-admin-actions .danger { background: #5a2528; border-color: #a64d53; color: #fff0f0; }
+.access-admin-actions button:disabled { opacity: .38; cursor: not-allowed; }
+.access-admin-message { min-height: 20px; margin: 10px 0 0; color: #ffce77; font-size: 13px; font-weight: 800; text-align: center; }
+.access-admin-help { margin: 8px 0 0; color: #8295ad; font-size: 11px; line-height: 1.5; }
+@media (max-width: 520px) { .access-admin-actions { grid-template-columns: 1fr; } }

@@ -343,6 +343,9 @@ function selectLobbyCharacter(id) {
 
 let ws = null, myId = null, config = null, state = null;
 let spectatorMode = false;
+let schoolLineAccessOpen = false;
+let accessLockActive = true;
+let accessStatusRequestInFlight = false;
 let postGameSequence = { active:false, timers:[], finalState:null, potg:null };
 let potgReplayPlayback = { active:false, frames:[], startPerf:0, durationMs:0, currentIndex:0, playerId:null, potg:null };
 let adminStatsAuthorized = false;
@@ -1077,6 +1080,124 @@ $('roomInput').value = localStorage.getItem('schoolLineRoom') || '6-1';
 
 
 const RESUME_TOKEN_KEY = 'schoolLineResumeToken';
+function updateAccessUi(open, message='') {
+  schoolLineAccessOpen = !!open;
+  accessLockActive = !schoolLineAccessOpen;
+  document.body.classList.remove('access-checking');
+  document.body.classList.toggle('access-locked', accessLockActive);
+  $('accessLockScreen')?.classList.toggle('hidden', schoolLineAccessOpen);
+  if ($('accessLockMessage')) $('accessLockMessage').textContent = schoolLineAccessOpen
+    ? ''
+    : (message || '지금은 스쿨라인 이용 시간이 아닙니다. 선생님이 이용을 허용한 시간에 다시 접속해주세요.');
+  const status = $('accessAdminStatus');
+  if (status) {
+    status.textContent = schoolLineAccessOpen ? '🟢 현재 상태: 이용 가능' : '🔴 현재 상태: 이용 불가';
+    status.classList.toggle('open', schoolLineAccessOpen);
+    status.classList.toggle('locked', !schoolLineAccessOpen);
+  }
+  if ($('accessOpenButton')) $('accessOpenButton').disabled = schoolLineAccessOpen;
+  if ($('accessLockButton')) $('accessLockButton').disabled = !schoolLineAccessOpen;
+  for (const id of ['joinButton','resumeButton','spectatorJoinButton','joinTeamA','joinTeamB']) {
+    const el = $(id);
+    if (el) el.disabled = !schoolLineAccessOpen;
+  }
+}
+
+function resetClientForAccessLock(message='') {
+  updateAccessUi(false, message);
+  resetPostGameSequence();
+  stopBgm();
+  stopBeamHum();
+  clearResumeCredentials();
+  myId = null;
+  spectatorMode = false;
+  state = null;
+  config = null;
+  selectedTargetId = null;
+  document.body.classList.remove('spectator-mode');
+  $('spectatorBadge')?.classList.add('hidden');
+  show('join');
+}
+
+async function refreshAccessStatus() {
+  if (accessStatusRequestInFlight) return;
+  if (ws && ws.readyState === WebSocket.OPEN && (myId || spectatorMode)) return; // Active sessions receive an immediate server push on lock.
+  accessStatusRequestInFlight = true;
+  try {
+    const res = await fetch('/access-status.json', { cache:'no-store' });
+    if (!res.ok) throw new Error('status');
+    const data = await res.json();
+    if (!data.open && schoolLineAccessOpen) resetClientForAccessLock('지금은 스쿨라인 이용 시간이 아닙니다.');
+    else updateAccessUi(!!data.open);
+  } catch (_) {
+    if (document.body.classList.contains('access-checking')) {
+      updateAccessUi(false, '서버 이용 상태를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.');
+    }
+  } finally {
+    accessStatusRequestInFlight = false;
+  }
+}
+
+function openAccessAdmin() {
+  $('accessAdminMessage').textContent = '';
+  $('accessAdminOverlay').classList.remove('hidden');
+  setTimeout(() => $('accessAdminPin')?.focus(), 0);
+}
+function closeAccessAdmin() {
+  $('accessAdminOverlay').classList.add('hidden');
+  $('accessAdminMessage').textContent = '';
+  if ($('accessAdminPin')) $('accessAdminPin').value = '';
+}
+
+async function submitAccessControl(action) {
+  const pin = String($('accessAdminPin')?.value || '').replace(/\D/g, '').slice(0, 4);
+  if (pin.length !== 4) {
+    $('accessAdminMessage').textContent = '관리자 비밀번호 4자리를 입력하세요.';
+    return;
+  }
+  const buttons = [$('accessOpenButton'), $('accessLockButton')].filter(Boolean);
+  buttons.forEach(btn => btn.disabled = true);
+  $('accessAdminMessage').textContent = '처리 중...';
+  try {
+    const res = await fetch('/admin/access-control', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      cache:'no-store',
+      body:JSON.stringify({ pin, action })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      $('accessAdminMessage').textContent = data.message || '이용 상태를 변경하지 못했습니다.';
+      updateAccessUi(!!data.open);
+      return;
+    }
+    if (action === 'lock') resetClientForAccessLock(data.message || '지금은 스쿨라인 이용 시간이 아닙니다.');
+    else updateAccessUi(true);
+    $('accessAdminMessage').textContent = data.message || (action === 'open' ? '스쿨라인을 열었습니다.' : '스쿨라인을 잠갔습니다.');
+    if ($('accessAdminPin')) $('accessAdminPin').value = '';
+    if (action === 'open') setTimeout(closeAccessAdmin, 450);
+  } catch (_) {
+    $('accessAdminMessage').textContent = '서버에 연결하지 못했습니다.';
+  } finally {
+    if ($('accessOpenButton')) $('accessOpenButton').disabled = schoolLineAccessOpen;
+    if ($('accessLockButton')) $('accessLockButton').disabled = !schoolLineAccessOpen;
+  }
+}
+
+$('accessAdminButton').onclick = openAccessAdmin;
+$('accessLockAdminButton').onclick = openAccessAdmin;
+$('accessAdminClose').onclick = closeAccessAdmin;
+$('accessAdminOverlay').addEventListener('click', e => { if (e.target === $('accessAdminOverlay')) closeAccessAdmin(); });
+$('accessOpenButton').onclick = () => submitAccessControl('open');
+$('accessLockButton').onclick = () => submitAccessControl('lock');
+$('accessAdminPin').addEventListener('input', e => { e.target.value = String(e.target.value || '').replace(/\D/g, '').slice(0, 4); });
+$('accessAdminPin').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  submitAccessControl(schoolLineAccessOpen ? 'lock' : 'open');
+});
+refreshAccessStatus();
+setInterval(refreshAccessStatus, 3000);
+
 const RESUME_ROOM_KEY = 'schoolLineResumeRoom';
 
 function getResumeCredentials() {
@@ -1127,6 +1248,7 @@ function show(which) {
 function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`; }
 
 function openConnection(onOpen) {
+  if (accessLockActive) { $('joinError').textContent = '지금은 스쿨라인 이용 시간이 아닙니다.'; return; }
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   adminStatsAuthorized = false;
   lastAdminStatsData = null;
@@ -1136,6 +1258,7 @@ function openConnection(onOpen) {
   ws.onmessage = ev => handleMessage(JSON.parse(ev.data));
   ws.onerror = () => $('joinError').textContent = '서버에 연결하지 못했습니다.';
   ws.onclose = () => {
+    if (accessLockActive) return;
     if (myId || spectatorMode) {
       alert(spectatorMode ? '서버 연결이 끊겼습니다.' : '서버 연결이 끊겼습니다. 다시 접속한 뒤 진행 중인 게임으로 돌아가기를 눌러주세요.');
       location.reload();
@@ -1179,6 +1302,11 @@ $('spectatorJoinButton').onclick = () => {
 };
 
 function handleMessage(msg) {
+  if (msg.type === 'access_locked') {
+    resetClientForAccessLock(msg.message || '지금은 스쿨라인 이용 시간이 아닙니다.');
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
+    return;
+  }
   if (msg.type === 'error') {
     $('joinError').textContent = msg.message;
     if (msg.code === 'resume_invalid' || msg.code === 'resume_unavailable') clearResumeCredentials();

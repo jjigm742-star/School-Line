@@ -73,7 +73,8 @@ const CHARACTERS = {
   sniper: {
     name: '스나이퍼', role: '딜러', hp: 150, speed: 5.0, radius: 0.65,
     fireRate: 1, range: 36, projectileSpeed: 42, projectileRadius: 0.16,
-    projectileType: 'attack', distanceDamage: true
+    projectileType: 'attack', distanceDamage: true,
+    distanceDamageBands: [{ max: 16, damage: 80 }, { max: 36, damage: 110 }]
   },
   cannon: {
     name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
@@ -123,7 +124,7 @@ const CHARACTERS = {
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.16,
     projectileType: 'attack', damage: 13,
     formDuration: 6, formCooldown: 16, formHp: 400, formSpeed: 6.0,
-    formRange: 16, formBeamDps: 80, abilityId: 'form'
+    formRange: 16, formBeamDps: 80, formKillCooldownReduction: 6, abilityId: 'form'
   }
 };
 
@@ -165,6 +166,14 @@ function speedWithTierDelta(speed, delta) {
     if (Math.abs(SPEED_TIERS[i] - speed) < Math.abs(SPEED_TIERS[best] - speed)) best = i;
   }
   return SPEED_TIERS[clamp(best + delta, 0, SPEED_TIERS.length - 1)];
+}
+
+function resolveDistanceDamage(bands, traveled, fallback = 0) {
+  if (!Array.isArray(bands) || bands.length === 0) return fallback;
+  for (const band of bands) {
+    if (traveled <= Number(band.max) + 1e-6) return Number(band.damage) || 0;
+  }
+  return Number(bands[bands.length - 1].damage) || fallback;
 }
 
 function isDiaForm(player, now) {
@@ -563,13 +572,29 @@ function joinRoom(conn, msg) {
 
 function publicCharacterDefs() {
   const out = {};
+  const displayFields = [
+    'range', 'fireRate', 'projectileType', 'attackType', 'damage', 'heal',
+    'projectileSpeed', 'projectileRadius', 'beamDps', 'healHps', 'maxHpDpsRatio',
+    'burnDps', 'burnDuration', 'poisonHealReduction', 'poisonDuration',
+    'slowTierDelta', 'slowDuration', 'tailwindDuration',
+    'solarFireRate', 'solarProjectileRange', 'solarProjectileSpeed',
+    'solarProjectileRadius', 'solarProjectileDamage', 'solarSelfHeal',
+    'sprintDuration', 'sprintCooldown',
+    'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction'
+  ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
-    out[id] = {
+    const def = {
       name: c.name, role: c.role, hp: c.hp, speed: c.speed, radius: c.radius,
-      fireRate: c.fireRate || 0, projectileType: c.projectileType || null, attackType: c.attackType || 'projectile',
       abilityId: c.abilityId || null,
       abilityTargeting: c.abilityTargeting ? { ...c.abilityTargeting, relations: [...(c.abilityTargeting.relations || [])] } : null
     };
+    for (const field of displayFields) {
+      if (c[field] !== undefined) def[field] = c[field];
+    }
+    if (Array.isArray(c.distanceDamageBands)) {
+      def.distanceDamageBands = c.distanceDamageBands.map(b => ({ max: b.max, damage: b.damage }));
+    }
+    out[id] = def;
   }
   return out;
 }
@@ -652,7 +677,7 @@ function registerKill(room, attackerId, now, direct = true) {
   stats.kills += 1;
   if (direct && attacker.alive && isDiaForm(attacker, now)) {
     stats.diaFormKills += 1;
-    attacker.diaCooldownUntil = Math.max(now, attacker.diaCooldownUntil - 6000);
+    attacker.diaCooldownUntil = Math.max(now, attacker.diaCooldownUntil - CHARACTERS.dia.formKillCooldownReduction * 1000);
   }
 }
 
@@ -947,6 +972,7 @@ function spawnProjectile(room, player, def, now) {
     radius: def.projectileRadius,
     damage: def.damage || 0,
     distanceDamage: !!def.distanceDamage,
+    distanceDamageBands: Array.isArray(def.distanceDamageBands) ? def.distanceDamageBands.map(b => ({ ...b })) : null,
     heal: def.heal || 0,
     range: def.range,
     traveled: 0,
@@ -975,6 +1001,7 @@ function spawnSolarProjectile(room, player, def, now) {
     radius: def.solarProjectileRadius,
     damage: def.solarProjectileDamage,
     distanceDamage: false,
+    distanceDamageBands: null,
     heal: 0,
     selfHealOnHit: def.solarSelfHeal,
     range: def.solarProjectileRange,
@@ -1022,7 +1049,7 @@ function updateProjectiles(room, dt, now) {
         if (p.type === 'attack') {
           if (t.invulnerableUntil <= now) {
             const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
-            const hitDamage = p.distanceDamage ? (impactDistance <= 16 + 1e-6 ? 80 : 110) : p.damage;
+            const hitDamage = p.distanceDamage ? resolveDistanceDamage(p.distanceDamageBands, impactDistance, p.damage) : p.damage;
             const damageResult = dealDamageDetailed(room, p.ownerId, t, hitDamage, now);
             if (damageResult.total > 0) {
               const owner = room.players.get(p.ownerId);

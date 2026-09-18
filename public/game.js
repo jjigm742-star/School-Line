@@ -6,102 +6,22 @@ const canvas = $('gameCanvas'), ctx = canvas.getContext('2d');
 const SCALE = 15; // world y -> screen x, world x -> screen y (mobile landscape rotation)
 
 const CHARACTER_META = {
-  iron: {
-    role:'탱커', name:'아이언', icon:'⚙️', mini:'HP 600 · 느림',
-    stats:[['체력','600 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','65'],['공격 속도','5발/s'],['이동속도','느림 · 5.0 m/s'],['크기','큼']],
-    summary:'가장 단단한 정통 탱커',
-    mechanic:'높은 체력으로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.'
-  },
-  mecha: {
-    role:'탱커', name:'메카', icon:'🤖', mini:'HP 550 · 빠름',
-    stats:[['체력','550 HP'],['공격 방식','투사체'],['사거리','16 m'],['DPS','45'],['공격 속도','5발/s'],['이동속도','빠름 · 7.0 m/s'],['크기','큼']],
-    summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커',
-    mechanic:'사거리 16 m로 짧고 화력은 낮지만, HP 550과 빠른 이동속도로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.'
-  },
-  dia: {
-    role:'탱커', name:'다이아', icon:'💎', mini:'HP 350 · 변신',
-    stats:[['체력','350 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','65'],['공격 속도','5발/s'],['이동속도','느림 · 5.0 m/s'],['크기','큼']],
-    summary:'타이밍을 잡아 강해지는 변신 탱커',
-    mechanic:'카드에는 기본형 수치를 표시한다. Space 또는 능력 버튼을 누르면 6초간 HP 400, 이동속도 보통 6.0 m/s, 사거리 16 m, 80 DPS 광선폼이 된다. 변신 쿨은 16초이며 폼 중 직접 처치하면 6초 감소한다.'
-  },
-  solar: {
-    role:'탱커', name:'솔라', icon:'☀️', mini:'광선 · 태양탄 자힐',
-    stats:[['체력','375 HP'],['공격 방식','광선 + 투사체'],['사거리','16 m / 24 m'],['DPS','80 (55 + 25)'],['공격 속도','태양탄 1발/s'],['이동속도','느림 · 5.0 m/s'],['크기','큼']],
-    summary:'광선과 태양탄을 함께 다루는 자가회복 탱커',
-    mechanic:'공격하는 동안 사거리 16 m의 55 DPS 광선을 유지하고, 동시에 1초마다 같은 조준 방향으로 사거리 24 m의 태양탄(25 피해)을 발사한다. 태양탄이 적 본체에 실제 피해를 주면 HP를 25 회복하며, 이 자가회복은 포이즌의 외부 치유 감소 영향을 받지 않는다.'
-  },
-  runner: {
-    role:'딜러', name:'러너', icon:'🏃', mini:'55 DPS · 질주',
-    stats:[['체력','175 HP'],['공격 방식','투사체'],['사거리','16 m'],['DPS','55'],['공격 속도','5발/s'],['이동속도','빠름 · 7.0 m/s'],['크기','작음']],
-    summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러',
-    mechanic:'빠른 작은 투사체를 초당 5발 발사하며 한 발당 11 피해를 준다. Space 또는 능력 버튼을 누르면 4초 동안 이동속도가 한 단계 올라 매우 빠름 8.0 m/s가 된다. 질주 재사용 대기시간은 10초이며, 윈드의 순풍과 함께 적용되면 초고속 9.2 m/s까지 올라갈 수 있다.'
-  },
-  shooter: {
-    role:'딜러', name:'슈터', icon:'🎯', mini:'100 DPS · 안정적',
-    stats:[['체력','250 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','100'],['공격 속도','5발/s'],['이동속도','보통 · 6.0 m/s'],['크기','중간']],
-    summary:'가장 표준적인 원거리 딜러',
-    mechanic:'빠르고 작은 탄을 초당 5발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.'
-  },
-  sniper: {
-    role:'딜러', name:'스나이퍼', icon:'🔭', mini:'장거리 · 거리비례 피해',
-    stats:[['체력','150 HP'],['공격 방식','투사체'],['사거리','36 m'],['DPS','80 / 110'],['공격 속도','1발/s'],['이동속도','느림 · 5.0 m/s'],['크기','작음']],
-    summary:'멀수록 한 발이 강해지는 초장거리 딜러',
-    mechanic:'매우 빠른 작은 투사체를 초당 1발 발사한다. 실제 비행거리 기준 0~16 m에서는 80 피해, 16 m 초과~36 m에서는 110 피해를 준다.'
-  },
-  cannon: {
-    role:'딜러', name:'캐논', icon:'💥', mini:'130 DPS · 느림',
-    stats:[['체력','275 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','130'],['공격 속도','10발/s'],['이동속도','매우 느림 · 4.0 m/s'],['크기','큼']],
-    summary:'기동성을 버리고 화력을 얻은 중화기 딜러',
-    mechanic:'초당 10발을 퍼붓는 최고 수준의 지속 화력을 가진다. 대신 이동속도가 매우 느려 위치를 잘못 잡으면 도망치기 어렵다.'
-  },
-  fire: {
-    role:'딜러', name:'파이어', icon:'🔥', mini:'80 DPS · 화상',
-    stats:[['체력','200 HP'],['공격 방식','투사체'],['사거리','24 m'],['DPS','80'],['공격 속도','5발/s'],['이동속도','빠름 · 7.0 m/s'],['크기','중간']],
-    summary:'빠르게 움직이며 지속 피해를 남기는 딜러',
-    mechanic:'적중한 적에게 2초 동안 10 DPS의 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.'
-  },
-  poison: {
-    role:'딜러', name:'포이즌', icon:'☠️', mini:'85 DPS · 치유 감소',
-    stats:[['체력','250 HP'],['공격 방식','광선'],['사거리','16 m'],['DPS','85'],['공격 속도','없음 (지속형)'],['이동속도','보통 · 6.0 m/s'],['크기','중간']],
-    summary:'외부 치유를 약화시키는 안티힐 광선 딜러',
-    mechanic:'광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 50% 감소한다. 중독은 마지막 적중 후 1.5초 유지되며 다시 맞으면 갱신된다. 비전투 회복에는 영향을 주지 않는다.'
-  },
-  laser: {
-    role:'딜러', name:'레이저', icon:'🔴', mini:'광선 · 탱커 압박',
-    stats:[['체력','275 HP'],['공격 방식','광선'],['사거리','16 m'],['DPS','80 + 최대 HP 10%/s'],['공격 속도','없음 (지속형)'],['이동속도','보통 · 6.0 m/s'],['크기','중간']],
-    summary:'체력이 높은 적일수록 더 아픈 광선 딜러',
-    mechanic:'조준한 방향으로 즉시 광선을 연결한다. 기본 80 DPS에 대상 최대 HP의 10%/s만큼 피해가 추가되어 탱커를 상대할 때 특히 강하다.'
-  },
-  ice: {
-    role:'딜러', name:'아이스', icon:'🧊', mini:'80 DPS · 감속',
-    stats:[['체력','275 HP'],['공격 방식','광선'],['사거리','16 m'],['DPS','80'],['공격 속도','없음 (지속형)'],['이동속도','보통 · 6.0 m/s'],['크기','중간']],
-    summary:'적의 움직임을 묶는 제어형 광선 딜러',
-    mechanic:'광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 감속은 마지막 적중 후 1.5초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.'
-  },
-  water: {
-    role:'힐러', name:'워터', icon:'💧', mini:'70 HPS · 안정 치유',
-    stats:[['체력','250 HP'],['공격 방식','치유 투사체'],['사거리','24 m'],['HPS','70'],['치유 속도','5발/s'],['이동속도','보통 · 6.0 m/s'],['크기','작음']],
-    summary:'가장 단순하고 안정적인 기본 힐러',
-    mechanic:'오른쪽 스틱으로 아군을 조준해 큰 치유탄을 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.'
-  },
-  wind: {
-    role:'힐러', name:'윈드', icon:'🌪️', mini:'55 HPS · 순풍',
-    stats:[['체력','225 HP'],['공격 방식','치유 투사체'],['사거리','24 m'],['HPS','55'],['치유 속도','5발/s'],['이동속도','빠름 · 7.0 m/s'],['크기','작음']],
-    summary:'치유와 기동력 지원을 함께 주는 힐러',
-    mechanic:'치유탄에 맞은 아군은 2초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.'
-  },
-  star: {
-    role:'힐러', name:'스타', icon:'⭐', mini:'70 HPS · 초장거리',
-    stats:[['체력','175 HP'],['공격 방식','치유 투사체'],['사거리','30 m'],['HPS','70'],['치유 속도','2발/s'],['이동속도','느림 · 5.0 m/s'],['크기','중간']],
-    summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러',
-    mechanic:'초당 2발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 35 회복한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시키며 자신은 치유할 수 없다. 공격 능력은 없다.'
-  },
-  light: {
-    role:'힐러', name:'라이트', icon:'✨', mini:'광선 · 힐+딜',
-    stats:[['체력','225 HP'],['공격 방식','광선 (치유 + 공격)'],['사거리','16 m'],['DPS / HPS','60 / 50'],['공격·치유 속도','없음 (지속형)'],['이동속도','보통 · 6.0 m/s'],['크기','작음']],
-    summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러',
-    mechanic:'광선이 처음 만난 아군 1명을 치유한 뒤 그 아군을 관통한다. 이후 처음 만나는 적에게 60 DPS를 주고 그 적에서 광선이 끝난다. 적을 먼저 만나면 적에게만 피해를 준다.'
-  }
+  iron:    { role:'탱커', name:'아이언', icon:'⚙️', summary:'가장 단단한 정통 탱커' },
+  mecha:   { role:'탱커', name:'메카', icon:'🤖', summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커' },
+  dia:     { role:'탱커', name:'다이아', icon:'💎', summary:'타이밍을 잡아 강해지는 변신 탱커' },
+  solar:   { role:'탱커', name:'솔라', icon:'☀️', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커' },
+  runner:  { role:'딜러', name:'러너', icon:'🏃', summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러' },
+  shooter: { role:'딜러', name:'슈터', icon:'🎯', summary:'가장 표준적인 원거리 딜러' },
+  sniper:  { role:'딜러', name:'스나이퍼', icon:'🔭', summary:'멀수록 한 발이 강해지는 초장거리 딜러' },
+  cannon:  { role:'딜러', name:'캐논', icon:'💥', summary:'기동성을 버리고 화력을 얻은 중화기 딜러' },
+  fire:    { role:'딜러', name:'파이어', icon:'🔥', summary:'빠르게 움직이며 지속 피해를 남기는 딜러' },
+  poison:  { role:'딜러', name:'포이즌', icon:'☠️', summary:'외부 치유를 약화시키는 안티힐 광선 딜러' },
+  laser:   { role:'딜러', name:'레이저', icon:'🔴', summary:'체력이 높은 적일수록 더 아픈 광선 딜러' },
+  ice:     { role:'딜러', name:'아이스', icon:'🧊', summary:'적의 움직임을 묶는 제어형 광선 딜러' },
+  water:   { role:'힐러', name:'워터', icon:'💧', summary:'가장 단순하고 안정적인 기본 힐러' },
+  wind:    { role:'힐러', name:'윈드', icon:'🌪️', summary:'치유와 기동력 지원을 함께 주는 힐러' },
+  star:    { role:'힐러', name:'스타', icon:'⭐', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러' },
+  light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' }
 };
 
 const CHARACTER_STORIES = {
@@ -181,6 +101,131 @@ const pickerState = {
 let selectedJoinTeam = null;
 let lastLobbyPickerAvailabilityKey = null;
 
+function characterPublicDef(id) {
+  return (config && config.characters && config.characters[id]) || null;
+}
+
+function fmtNumber(value, digits=1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return Number.isInteger(n) ? String(n) : n.toFixed(digits).replace(/\.0$/, '');
+}
+
+function speedLabel(speed) {
+  const n = Number(speed);
+  if (n <= 4.01) return '매우 느림';
+  if (n <= 5.01) return '느림';
+  if (n <= 6.01) return '보통';
+  if (n <= 7.01) return '빠름';
+  if (n <= 8.01) return '매우 빠름';
+  return '초고속';
+}
+
+function sizeLabel(radius) {
+  const r = Number(radius);
+  if (r <= .66) return '작음';
+  if (r <= .81) return '중간';
+  return '큼';
+}
+
+function attackDisplayName(c) {
+  if (!c) return '—';
+  if (c.attackType === 'lightBeam') return '광선 (치유 + 공격)';
+  if (c.attackType === 'beam') return '광선';
+  if (c.projectileType === 'heal') return '치유 투사체';
+  return '투사체';
+}
+
+function buildCharacterStats(id) {
+  const c = characterPublicDef(id);
+  if (!c) return [];
+  let attackType = attackDisplayName(c);
+  let range = c.range != null ? `${fmtNumber(c.range)} m` : '—';
+  let throughputLabel = 'DPS';
+  let throughput = '—';
+  let rateLabel = '공격 속도';
+  let rate = '—';
+
+  if (id === 'solar') {
+    attackType = '광선 + 투사체';
+    range = `${fmtNumber(c.range)} m / ${fmtNumber(c.solarProjectileRange)} m`;
+    const projectileDps = Number(c.solarProjectileDamage || 0) * Number(c.solarFireRate || 0);
+    const total = Number(c.beamDps || 0) + projectileDps;
+    throughput = `${fmtNumber(total)} (${fmtNumber(c.beamDps)} + ${fmtNumber(projectileDps)})`;
+    rate = `태양탄 ${fmtNumber(c.solarFireRate)}발/s`;
+  } else if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) {
+    throughput = c.distanceDamageBands.map(b => fmtNumber(b.damage)).join(' / ');
+    rate = `${fmtNumber(c.fireRate)}발/s`;
+  } else if (c.attackType === 'lightBeam') {
+    throughputLabel = 'DPS / HPS';
+    throughput = `${fmtNumber(c.beamDps)} / ${fmtNumber(c.healHps)}`;
+    rateLabel = '공격·치유 속도';
+    rate = '없음 (지속형)';
+  } else if (c.attackType === 'beam') {
+    if (Number(c.maxHpDpsRatio || 0) > 0) {
+      throughput = `${fmtNumber(c.beamDps)} + 최대 HP ${fmtNumber(c.maxHpDpsRatio * 100)}%/s`;
+    } else {
+      throughput = fmtNumber(c.beamDps);
+    }
+    rate = '없음 (지속형)';
+  } else if (c.projectileType === 'heal') {
+    throughputLabel = 'HPS';
+    throughput = fmtNumber(Number(c.heal || 0) * Number(c.fireRate || 0));
+    rateLabel = '치유 속도';
+    rate = `${fmtNumber(c.fireRate)}발/s`;
+  } else {
+    throughput = fmtNumber(Number(c.damage || 0) * Number(c.fireRate || 0));
+    rate = `${fmtNumber(c.fireRate)}발/s`;
+  }
+
+  return [
+    ['체력', `${fmtNumber(c.hp)} HP`],
+    ['공격 방식', attackType],
+    ['사거리', range],
+    [throughputLabel, throughput],
+    [rateLabel, rate],
+    ['이동속도', `${speedLabel(c.speed)} · ${fmtNumber(c.speed)} m/s`],
+    ['크기', sizeLabel(c.radius)]
+  ];
+}
+
+function buildCharacterMini(id, meta) {
+  const c = characterPublicDef(id);
+  if (!c) return meta.summary || '';
+  const move = speedLabel(c.speed);
+  if (c.role === '탱커') return `${fmtNumber(c.hp)} HP · ${move}`;
+  if (c.projectileType === 'heal') return `${fmtNumber(Number(c.heal||0)*Number(c.fireRate||0))} HPS · ${move}`;
+  if (c.attackType === 'lightBeam') return `${fmtNumber(c.healHps)} HPS · ${move}`;
+  if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) return `${c.distanceDamageBands.map(b=>fmtNumber(b.damage)).join('/')} 피해 · ${move}`;
+  if (c.attackType === 'beam') return `${fmtNumber(c.beamDps)} DPS · ${move}`;
+  return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
+}
+
+function buildCharacterMechanic(id, fallback='') {
+  const c = characterPublicDef(id);
+  if (!c) return fallback;
+  const bands = Array.isArray(c.distanceDamageBands) ? c.distanceDamageBands : [];
+  switch (id) {
+    case 'iron': return `높은 ${fmtNumber(c.hp)} HP로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.`;
+    case 'mecha': return `사거리 ${fmtNumber(c.range)} m로 짧고 화력은 낮지만, HP ${fmtNumber(c.hp)}와 ${speedLabel(c.speed)} 이동속도로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.`;
+    case 'dia': return `카드에는 기본형 수치를 표시한다. Space 또는 능력 버튼을 누르면 ${fmtNumber(c.formDuration)}초간 HP ${fmtNumber(c.formHp)}, 이동속도 ${speedLabel(c.formSpeed)} ${fmtNumber(c.formSpeed)} m/s, 사거리 ${fmtNumber(c.formRange)} m, ${fmtNumber(c.formBeamDps)} DPS 광선폼이 된다. 변신 쿨은 ${fmtNumber(c.formCooldown)}초이며 폼 중 직접 처치하면 남은 쿨다운이 ${fmtNumber(c.formKillCooldownReduction)}초 감소한다.`;
+    case 'solar': return `공격하는 동안 사거리 ${fmtNumber(c.range)} m의 ${fmtNumber(c.beamDps)} DPS 광선을 유지하고, 동시에 초당 ${fmtNumber(c.solarFireRate)}발의 사거리 ${fmtNumber(c.solarProjectileRange)} m 태양탄(${fmtNumber(c.solarProjectileDamage)} 피해)을 발사한다. 태양탄이 적 본체에 실제 피해를 주면 HP를 ${fmtNumber(c.solarSelfHeal)} 회복한다.`;
+    case 'runner': return `빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. Space 또는 능력 버튼을 누르면 ${fmtNumber(c.sprintDuration)}초 동안 이동속도가 한 단계 올라간다. 질주 재사용 대기시간은 ${fmtNumber(c.sprintCooldown)}초다.`;
+    case 'shooter': return `빠르고 작은 탄을 초당 ${fmtNumber(c.fireRate)}발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.`;
+    case 'sniper': return bands.length >= 2 ? `매우 빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. 실제 비행거리 ${fmtNumber(bands[0].max)} m 이하는 ${fmtNumber(bands[0].damage)} 피해, 그보다 멀어 최대 ${fmtNumber(bands[1].max)} m까지는 ${fmtNumber(bands[1].damage)} 피해를 준다.` : fallback;
+    case 'cannon': return `초당 ${fmtNumber(c.fireRate)}발을 퍼붓는 높은 지속 화력을 가진다. 대신 이동속도가 ${speedLabel(c.speed)} ${fmtNumber(c.speed)} m/s라 위치를 잘못 잡으면 도망치기 어렵다.`;
+    case 'fire': return `적중한 적에게 ${fmtNumber(c.burnDuration)}초 동안 ${fmtNumber(c.burnDps)} DPS의 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.`;
+    case 'poison': return `광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 ${fmtNumber(c.poisonHealReduction*100)}% 감소한다. 중독은 마지막 적중 후 ${fmtNumber(c.poisonDuration)}초 유지되며 비전투 회복에는 영향을 주지 않는다.`;
+    case 'laser': return `기본 ${fmtNumber(c.beamDps)} DPS에 대상 최대 HP의 ${fmtNumber(c.maxHpDpsRatio*100)}%/s만큼 피해가 추가되어 체력이 높은 적을 상대할 때 특히 강하다.`;
+    case 'ice': return `광선이 적에게 닿으면 이동속도를 ${Math.abs(Number(c.slowTierDelta||-1))}단계 낮춘다. 감속은 마지막 적중 후 ${fmtNumber(c.slowDuration)}초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.`;
+    case 'water': return `오른쪽 스틱으로 아군을 조준해 큰 치유탄을 초당 ${fmtNumber(c.fireRate)}발 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.`;
+    case 'wind': return `치유탄에 맞은 아군은 ${fmtNumber(c.tailwindDuration)}초 동안 이동속도가 1단계 빨라진다. 빠른 본체 속도까지 활용해 전선을 따라다니기 좋다.`;
+    case 'star': return `초당 ${fmtNumber(c.fireRate)}발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 ${fmtNumber(c.heal)} 회복한다. 자신은 치유할 수 없고 공격 능력은 없다.`;
+    case 'light': return `광선이 처음 만난 아군 1명을 ${fmtNumber(c.healHps)} HPS로 치유한 뒤 관통하고, 이후 처음 만나는 적에게 ${fmtNumber(c.beamDps)} DPS를 준다. 적을 먼저 만나면 적에게만 피해를 준다.`;
+    default: return fallback;
+  }
+}
+
 function isTeamCharacterTaken(id) {
   if (!state || !myId) return false;
   const me = state.players.find(p => p.id === myId);
@@ -208,14 +253,16 @@ function renderPicker(kind) {
     tabs.appendChild(btn);
   }
 
-  const roleEntries = Object.entries(CHARACTER_META).filter(([,m]) => m.role === ps.role);
+  const roleEntries = Object.entries(CHARACTER_META).filter(([id,m]) => (characterPublicDef(id)?.role || m.role) === ps.role);
   for (const [id, m] of roleEntries) {
     const taken = kind === 'lobby' && isTeamCharacterTaken(id);
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.disabled = taken;
     btn.className = 'character-choice' + (ps.selected === id ? ' selected' : '') + (taken ? ' unavailable' : '');
-    btn.innerHTML = `<span class="char-name">${m.icon} ${m.name}</span><span class="char-mini">${taken ? '🔒 사용 중' : m.mini}</span>`;
+    const publicDef = characterPublicDef(id);
+    const displayName = publicDef?.name || m.name;
+    btn.innerHTML = `<span class="char-name">${m.icon} ${displayName}</span><span class="char-mini">${taken ? '🔒 사용 중' : buildCharacterMini(id, m)}</span>`;
     btn.onclick = () => {
       if (taken) return;
       ps.selected = id;
@@ -230,9 +277,12 @@ function renderPicker(kind) {
   let detailId = visibleIds.includes(ps.selected) ? ps.selected : null;
   if (!detailId) detailId = visibleIds.find(id => kind !== 'lobby' || !isTeamCharacterTaken(id)) || visibleIds[0];
   const m = CHARACTER_META[detailId];
+  const publicDef = characterPublicDef(detailId);
+  const displayName = publicDef?.name || m.name;
+  const displayRole = publicDef?.role || m.role;
   const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
-  const statHtml = (m.stats || []).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
-  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${m.name}</div><span class="role-badge">${m.role}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${m.mechanic}</div></div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
+  const statHtml = buildCharacterStats(detailId).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
+  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div></div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
 }
 
 function selectLobbyCharacter(id) {

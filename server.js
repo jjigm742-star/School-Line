@@ -45,85 +45,85 @@ const WALLS = [
 const CHARACTERS = {
   iron: {
     name: '아이언', role: '탱커', hp: 600, speed: 5.0, radius: 1.00,
-    fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.26,
+    fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.32,
     projectileType: 'attack', damage: 13
   },
   mecha: {
     name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
-    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.16,
+    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 9
   },
   solar: {
     name: '솔라', role: '탱커', hp: 375, speed: 5.0, radius: 1.00,
     attackType: 'beam', range: 16, beamDps: 55,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
-    solarProjectileRadius: 0.26, solarProjectileDamage: 25, solarSelfHeal: 25
+    solarProjectileRadius: 0.32, solarProjectileDamage: 25, solarSelfHeal: 25
   },
   runner: {
-    name: '러너', role: '딜러', hp: 175, speed: 7.0, radius: 0.65,
-    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.16,
+    name: '러너', role: '딜러', hp: 175, speed: 8.0, radius: 0.65,
+    fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 11,
-    sprintDuration: 4, sprintCooldown: 10, abilityId: 'sprint'
+    sprintDuration: 4, sprintCooldown: 8, abilityId: 'sprint'
   },
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
-    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.16,
+    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 20
   },
   sniper: {
     name: '스나이퍼', role: '딜러', hp: 150, speed: 5.0, radius: 0.65,
-    fireRate: 1, range: 36, projectileSpeed: 42, projectileRadius: 0.16,
+    fireRate: 2, range: 36, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'attack', distanceDamage: true,
-    distanceDamageBands: [{ max: 16, damage: 80 }, { max: 36, damage: 110 }]
+    distanceDamageBands: [{ max: 16, damage: 45 }, { max: 36, damage: 60 }]
   },
   cannon: {
     name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
-    fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.26,
+    fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
     projectileType: 'attack', damage: 13
   },
   fire: {
     name: '파이어', role: '딜러', hp: 200, speed: 7.0, radius: 0.80,
-    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.16,
+    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 16, burnDps: 10, burnDuration: 2
   },
   poison: {
     name: '포이즌', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
-    attackType: 'beam', range: 16, beamDps: 85,
+    attackType: 'beam', range: 16, beamDps: 75,
     poisonHealReduction: 0.50, poisonDuration: 1.5
   },
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.44,
-    projectileType: 'heal', heal: 14
+    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
+    projectileType: 'heal', heal: 16
   },
   wind: {
     name: '윈드', role: '힐러', hp: 225, speed: 7.0, radius: 0.65,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.44,
-    projectileType: 'heal', heal: 11, tailwindDuration: 2
+    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
+    projectileType: 'heal', heal: 13, tailwindDuration: 2
   },
   star: {
     name: '스타', role: '힐러', hp: 175, speed: 5.0, radius: 0.80,
-    fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.16,
-    projectileType: 'heal', heal: 35
+    fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
+    projectileType: 'heal', heal: 40
   },
   light: {
     name: '라이트', role: '힐러', hp: 225, speed: 6.0, radius: 0.65,
-    attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 60
+    attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 50
   },
   laser: {
     name: '레이저', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
-    attackType: 'beam', range: 16, beamDps: 80, maxHpDpsRatio: 0.10
+    attackType: 'beam', range: 16, beamDps: 65, maxHpDpsRatio: 0.10
   },
   ice: {
     name: '아이스', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
-    attackType: 'beam', range: 16, beamDps: 80,
+    attackType: 'beam', range: 16, beamDps: 70,
     slowTierDelta: -1, slowDuration: 1.5
   },
   dia: {
     name: '다이아', role: '탱커', hp: 350, speed: 5.0, radius: 1.00,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.16,
+    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13,
-    formDuration: 6, formCooldown: 16, formHp: 400, formSpeed: 6.0,
+    formDuration: 6, formCooldown: 18, formHp: 400, formSpeed: 6.0,
     formRange: 16, formBeamDps: 80, formKillCooldownReduction: 6, abilityId: 'form'
   }
 };
@@ -145,6 +145,11 @@ function safeRoom(value) {
 }
 function safePin(value) { return String(value || '').replace(/\D/g, '').slice(0, 4); }
 function hashText(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
+function newResumeToken() { return crypto.randomBytes(24).toString('hex'); }
+function safeResumeToken(value) {
+  const token = String(value || '').trim().toLowerCase();
+  return /^[0-9a-f]{48}$/.test(token) ? token : '';
+}
 function spectatorAuthLocked(remoteAddress, now = Date.now()) {
   const entry = spectatorAuthFailures.get(remoteAddress);
   if (!entry) return false;
@@ -403,6 +408,7 @@ function newRoom(code) {
     scoreA: 0,
     scoreB: 0,
     matchEndAt: 0,
+    endedAt: 0,
     winner: null,
     projectileCounter: 1
   };
@@ -442,6 +448,7 @@ function spawnPoint(room, player) {
 function onMessage(conn, msg) {
   if (!msg || typeof msg !== 'object') return;
   if (msg.type === 'spectator_join') return joinSpectator(conn, msg);
+  if (msg.type === 'resume') return resumeRoom(conn, msg);
   if (msg.type === 'join') return joinRoom(conn, msg);
   const room = rooms.get(conn.roomCode);
   if (!room || !conn.playerId) return;
@@ -463,6 +470,11 @@ function onMessage(conn, msg) {
     return;
   }
   if (msg.type === 'start' && room.hostId === player.id && room.state !== 'playing') {
+    if (room.state === 'ended') {
+      for (const [pid, p] of [...room.players.entries()]) {
+        if (p.connected === false) { room.players.delete(pid); room.clients.delete(pid); }
+      }
+    }
     const unpicked = [...room.players.values()].filter(p => !p.character);
     if (unpicked.length) {
       conn.send({ type: 'start_error', message: `아직 캐릭터를 선택하지 않은 참가자가 ${unpicked.length}명 있습니다.` });
@@ -545,6 +557,7 @@ function joinRoom(conn, msg) {
   const id = `P${idCounter++}`;
   const player = {
     id, name: safeName(msg.name), team, character: null,
+    resumeToken: newResumeToken(), connected: true, disconnectedAt: 0,
     x: 21, y: team === 'A' ? 5 : 63,
     hp: 0, maxHp: 0, alive: true, respawnAt: 0, invulnerableUntil: 0,
     aimX: 21, aimY: team === 'A' ? 20 : 48,
@@ -564,9 +577,65 @@ function joinRoom(conn, msg) {
   conn.playerId = id; conn.roomCode = code;
   const sp = spawnPoint(room, player); player.x = sp.x; player.y = sp.y;
   conn.send({
-    type: 'joined', id, room: code, team,
+    type: 'joined', id, room: code, team, resumeToken: player.resumeToken,
     config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
   });
+  broadcast(room);
+}
+
+
+function neutralizePlayerInput(player) {
+  if (!player) return;
+  player.input = { up: false, down: false, left: false, right: false, fire: false };
+}
+
+function resumeRoom(conn, msg) {
+  if (conn.playerId || conn.spectatorId) return;
+  const code = safeRoom(msg.room);
+  const token = safeResumeToken(msg.resumeToken);
+  if (!token) {
+    conn.send({ type: 'error', code: 'resume_invalid', message: '재접속 정보가 올바르지 않습니다. 다시 입장해주세요.' });
+    return;
+  }
+  const room = rooms.get(code);
+  if (!room) {
+    conn.send({ type: 'error', code: 'resume_invalid', message: '재접속할 방을 찾을 수 없습니다. 다시 입장해주세요.' });
+    return;
+  }
+  const player = [...room.players.values()].find(p => p.resumeToken === token);
+  if (!player) {
+    conn.send({ type: 'error', code: 'resume_invalid', message: '이 경기의 재접속 자리를 찾을 수 없습니다. 다시 입장해주세요.' });
+    return;
+  }
+  if (room.state !== 'playing' && room.state !== 'ended') {
+    conn.send({ type: 'error', code: 'resume_unavailable', message: '현재는 경기 재접속 상태가 아닙니다. 일반 입장을 이용해주세요.' });
+    return;
+  }
+
+  const previousConn = room.clients.get(player.id);
+  if (previousConn && previousConn !== conn) {
+    // A mobile network change can leave the old TCP socket half-open. The token owner
+    // is authoritative; replace the transport without letting the stale close event
+    // mark the player offline again.
+    previousConn.playerId = null;
+    previousConn.roomCode = null;
+    try { previousConn.close(); } catch (_) {}
+  }
+
+  room.clients.set(player.id, conn);
+  player.connected = true;
+  player.disconnectedAt = 0;
+  neutralizePlayerInput(player);
+  conn.playerId = player.id;
+  conn.roomCode = code;
+  if (!room.hostId || !room.players.get(room.hostId)?.connected) room.hostId = player.id;
+
+  conn.send({
+    type: 'resumed', id: player.id, room: code, team: player.team,
+    resumeToken: player.resumeToken,
+    config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
+  });
+  conn.send(snapshot(room, player.id));
   broadcast(room);
 }
 
@@ -612,18 +681,43 @@ function disconnect(conn) {
     return;
   }
   if (!conn.playerId) return;
-  room.players.delete(conn.playerId);
-  room.clients.delete(conn.playerId);
-  for (const [pid, proj] of room.projectiles) if (proj.ownerId === conn.playerId) room.projectiles.delete(pid);
-  if (room.hostId === conn.playerId) room.hostId = room.players.keys().next().value || null;
-  if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code); else broadcast(room);
-  conn.playerId = null; conn.roomCode = null;
+
+  const playerId = conn.playerId;
+  const player = room.players.get(playerId);
+  // Ignore a late close from a transport that has already been replaced by resumeRoom.
+  if (room.clients.get(playerId) !== conn) {
+    conn.playerId = null;
+    conn.roomCode = null;
+    return;
+  }
+
+  room.clients.delete(playerId);
+
+  if (room.state === 'playing' && player) {
+    // Keep the authoritative player object reserved for the rest of this match.
+    // The body stays in-world and can take damage, but cannot move/fire or contest objectives.
+    player.connected = false;
+    player.disconnectedAt = Date.now();
+    neutralizePlayerInput(player);
+    if (room.hostId === playerId) {
+      room.hostId = [...room.players.values()].find(p => p.id !== playerId && p.connected)?.id || null;
+    }
+    broadcast(room);
+  } else {
+    room.players.delete(playerId);
+    for (const [pid, proj] of room.projectiles) if (proj.ownerId === playerId) room.projectiles.delete(pid);
+    if (room.hostId === playerId) room.hostId = [...room.players.values()].find(p => p.connected !== false)?.id || null;
+    if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code); else broadcast(room);
+  }
+
+  conn.playerId = null;
+  conn.roomCode = null;
 }
 
 function startMatch(room) {
   const now = Date.now();
   room.state = 'playing';
-  room.scoreA = 0; room.scoreB = 0; room.winner = null;
+  room.scoreA = 0; room.scoreB = 0; room.winner = null; room.endedAt = 0;
   room.matchEndAt = now + MATCH_SECONDS * 1000;
   room.projectiles.clear();
   room.beams = [];
@@ -632,6 +726,7 @@ function startMatch(room) {
     const sp = spawnPoint(room, p);
     Object.assign(p, {
       x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0, invulnerableUntil: 0,
+      connected: p.connected !== false, disconnectedAt: p.connected === false ? (p.disconnectedAt || now) : 0,
       nextFireAt: 0, statuses: Object.create(null), shield: 0, maxShield: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, lastCombatAt: now,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, abilityUseSeq: 0,
@@ -1090,9 +1185,20 @@ function updateProjectiles(room, dt, now) {
 }
 
 function updateRoom(room, dt, now) {
+  if (room.state === 'ended') {
+    if (room.endedAt && now - room.endedAt >= 60000) {
+      for (const [pid, p] of [...room.players.entries()]) {
+        if (p.connected === false) { room.players.delete(pid); room.clients.delete(pid); }
+      }
+      if (room.hostId && !room.players.has(room.hostId)) room.hostId = [...room.players.values()].find(p => p.connected !== false)?.id || null;
+      if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code);
+    }
+    return;
+  }
   if (room.state !== 'playing') return;
   if (now >= room.matchEndAt) {
     room.state = 'ended';
+    room.endedAt = now;
     room.winner = room.scoreA === room.scoreB ? 'DRAW' : (room.scoreA > room.scoreB ? 'A' : 'B');
     room.projectiles.clear();
     room.beams = [];
@@ -1152,7 +1258,7 @@ function updateRoom(room, dt, now) {
 
   let aInB = false, bInB = false, bInA = false, aInA = false;
   for (const p of room.players.values()) {
-    if (!p.alive) continue;
+    if (!p.alive || p.connected === false) continue;
     if (p.y >= WORLD.bZoneStart) { if (p.team === 'A') aInB = true; else bInB = true; }
     if (p.y <= WORLD.aZoneEnd) { if (p.team === 'B') bInA = true; else aInA = true; }
   }
@@ -1175,7 +1281,7 @@ function snapshot(room, viewerId = null, spectator = false) {
       const burnStatus = getStatus(p, 'burn', now);
       return {
         id: p.id, name: p.name, team: p.team, character: hideCharacter ? null : p.character,
-        x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, shield: Math.max(0, p.shield || 0), maxShield: Math.max(0, p.maxShield || 0), alive: p.alive,
+        x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, shield: Math.max(0, p.shield || 0), maxShield: Math.max(0, p.maxShield || 0), alive: p.alive, connected: p.connected !== false,
         respawnMs: p.alive ? 0 : Math.max(0, p.respawnAt - now),
         invulnerable: p.alive && p.invulnerableUntil > now,
         invulnerableMs: p.alive ? Math.max(0, p.invulnerableUntil - now) : 0,
@@ -1214,7 +1320,7 @@ if (require.main === module) {
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`
-School Line Mobile Alpha 1.1.1`);
+School Line Mobile Alpha 1.2`);
     console.log(`Local: http://localhost:${PORT}`);
     console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}
 `);
@@ -1229,5 +1335,5 @@ module.exports = {
   effectiveSpeed, updateRoom, snapshot, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, endDiaForm,
-  registerDirectKill, die, respawn
+  registerDirectKill, die, respawn, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken
 };

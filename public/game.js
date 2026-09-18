@@ -154,7 +154,7 @@ function buildCharacterStats(id) {
     throughput = `${fmtNumber(total)} (${fmtNumber(c.beamDps)} + ${fmtNumber(projectileDps)})`;
     rate = `태양탄 ${fmtNumber(c.solarFireRate)}발/s`;
   } else if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) {
-    throughput = c.distanceDamageBands.map(b => fmtNumber(b.damage)).join(' / ');
+    throughput = c.distanceDamageBands.map(b => fmtNumber(Number(b.damage || 0) * Number(c.fireRate || 0))).join(' / ');
     rate = `${fmtNumber(c.fireRate)}발/s`;
   } else if (c.attackType === 'lightBeam') {
     throughputLabel = 'DPS / HPS';
@@ -196,7 +196,7 @@ function buildCharacterMini(id, meta) {
   if (c.role === '탱커') return `${fmtNumber(c.hp)} HP · ${move}`;
   if (c.projectileType === 'heal') return `${fmtNumber(Number(c.heal||0)*Number(c.fireRate||0))} HPS · ${move}`;
   if (c.attackType === 'lightBeam') return `${fmtNumber(c.healHps)} HPS · ${move}`;
-  if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) return `${c.distanceDamageBands.map(b=>fmtNumber(b.damage)).join('/')} 피해 · ${move}`;
+  if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) return `${c.distanceDamageBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
   if (c.attackType === 'beam') return `${fmtNumber(c.beamDps)} DPS · ${move}`;
   return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
 }
@@ -212,7 +212,7 @@ function buildCharacterMechanic(id, fallback='') {
     case 'solar': return `공격하는 동안 사거리 ${fmtNumber(c.range)} m의 ${fmtNumber(c.beamDps)} DPS 광선을 유지하고, 동시에 초당 ${fmtNumber(c.solarFireRate)}발의 사거리 ${fmtNumber(c.solarProjectileRange)} m 태양탄(${fmtNumber(c.solarProjectileDamage)} 피해)을 발사한다. 태양탄이 적 본체에 실제 피해를 주면 HP를 ${fmtNumber(c.solarSelfHeal)} 회복한다.`;
     case 'runner': return `빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. Space 또는 능력 버튼을 누르면 ${fmtNumber(c.sprintDuration)}초 동안 이동속도가 한 단계 올라간다. 질주 재사용 대기시간은 ${fmtNumber(c.sprintCooldown)}초다.`;
     case 'shooter': return `빠르고 작은 탄을 초당 ${fmtNumber(c.fireRate)}발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.`;
-    case 'sniper': return bands.length >= 2 ? `매우 빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. 실제 비행거리 ${fmtNumber(bands[0].max)} m 이하는 ${fmtNumber(bands[0].damage)} 피해, 그보다 멀어 최대 ${fmtNumber(bands[1].max)} m까지는 ${fmtNumber(bands[1].damage)} 피해를 준다.` : fallback;
+    case 'sniper': return bands.length >= 2 ? `매우 빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. 실제 비행거리 ${fmtNumber(bands[0].max)} m 이하는 발당 ${fmtNumber(bands[0].damage)} 피해(${fmtNumber(Number(bands[0].damage||0)*Number(c.fireRate||0))} DPS), 그보다 멀어 최대 ${fmtNumber(bands[1].max)} m까지는 발당 ${fmtNumber(bands[1].damage)} 피해(${fmtNumber(Number(bands[1].damage||0)*Number(c.fireRate||0))} DPS)를 준다.` : fallback;
     case 'cannon': return `초당 ${fmtNumber(c.fireRate)}발을 퍼붓는 높은 지속 화력을 가진다. 대신 이동속도가 ${speedLabel(c.speed)} ${fmtNumber(c.speed)} m/s라 위치를 잘못 잡으면 도망치기 어렵다.`;
     case 'fire': return `적중한 적에게 ${fmtNumber(c.burnDuration)}초 동안 ${fmtNumber(c.burnDps)} DPS의 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.`;
     case 'poison': return `광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 ${fmtNumber(c.poisonHealReduction*100)}% 감소한다. 중독은 마지막 적중 후 ${fmtNumber(c.poisonDuration)}초 유지되며 비전투 회복에는 영향을 주지 않는다.`;
@@ -720,6 +720,40 @@ function processCombatFeedback(previousState, nextState) {
 $('nameInput').value = localStorage.getItem('schoolLineName') || '';
 $('roomInput').value = localStorage.getItem('schoolLineRoom') || '6-1';
 
+
+const RESUME_TOKEN_KEY = 'schoolLineResumeToken';
+const RESUME_ROOM_KEY = 'schoolLineResumeRoom';
+
+function getResumeCredentials() {
+  const resumeToken = String(localStorage.getItem(RESUME_TOKEN_KEY) || '');
+  const room = String(localStorage.getItem(RESUME_ROOM_KEY) || '');
+  return resumeToken && room ? { resumeToken, room } : null;
+}
+function saveResumeCredentials(room, resumeToken) {
+  if (!room || !resumeToken) return;
+  localStorage.setItem(RESUME_ROOM_KEY, room);
+  localStorage.setItem(RESUME_TOKEN_KEY, resumeToken);
+  refreshResumeButton();
+}
+function clearResumeCredentials() {
+  localStorage.removeItem(RESUME_ROOM_KEY);
+  localStorage.removeItem(RESUME_TOKEN_KEY);
+  refreshResumeButton();
+}
+function refreshResumeButton() {
+  const btn = $('resumeButton');
+  const hint = $('resumeHint');
+  if (!btn || !hint) return;
+  const saved = getResumeCredentials();
+  btn.classList.toggle('hidden', !saved);
+  hint.classList.toggle('hidden', !saved);
+  if (saved) {
+    btn.textContent = `↩️ ${saved.room} 경기로 돌아가기`;
+    hint.textContent = '경기 중 새로고침하거나 연결이 끊겼다면 기존 캐릭터·HP·위치·쿨다운으로 복귀합니다.';
+  }
+}
+refreshResumeButton();
+
 function selectJoinTeam(team) {
   selectedJoinTeam = team;
   $('joinTeamA').classList.toggle('selected', team === 'A');
@@ -743,9 +777,21 @@ function openConnection(onOpen) {
   ws.onmessage = ev => handleMessage(JSON.parse(ev.data));
   ws.onerror = () => $('joinError').textContent = '서버에 연결하지 못했습니다.';
   ws.onclose = () => {
-    if (myId || spectatorMode) { alert('서버 연결이 끊겼습니다.'); location.reload(); }
+    if (myId || spectatorMode) {
+      alert(spectatorMode ? '서버 연결이 끊겼습니다.' : '서버 연결이 끊겼습니다. 다시 접속한 뒤 진행 중인 게임으로 돌아가기를 눌러주세요.');
+      location.reload();
+    }
   };
 }
+
+$('resumeButton').onclick = () => {
+  ensureAudio();
+  updateSoundButton();
+  $('joinError').textContent = '';
+  const saved = getResumeCredentials();
+  if (!saved) { refreshResumeButton(); return; }
+  openConnection(() => ws.send(JSON.stringify({ type:'resume', room:saved.room, resumeToken:saved.resumeToken })));
+};
 
 $('joinButton').onclick = () => {
   ensureAudio();
@@ -774,14 +820,32 @@ $('spectatorJoinButton').onclick = () => {
 };
 
 function handleMessage(msg) {
-  if (msg.type === 'error') { $('joinError').textContent = msg.message; if (ws) ws.close(); return; }
+  if (msg.type === 'error') {
+    $('joinError').textContent = msg.message;
+    if (msg.code === 'resume_invalid' || msg.code === 'resume_unavailable') clearResumeCredentials();
+    if (ws) ws.close();
+    return;
+  }
   if (msg.type === 'joined') {
     myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room;
+    saveResumeCredentials(msg.room, msg.resumeToken);
     pickerState.lobby.selected = null;
     lastLobbyPickerAvailabilityKey = null;
     const notice = $('pickNotice');
     if (notice) notice.textContent = `${msg.team}팀으로 입장했습니다. 캐릭터를 선택하세요.`;
     show('lobby'); return;
+  }
+  if (msg.type === 'resumed') {
+    spectatorMode = false;
+    document.body.classList.remove('spectator-mode');
+    myId = msg.id;
+    config = msg.config;
+    $('roomLabel').textContent = msg.room;
+    saveResumeCredentials(msg.room, msg.resumeToken);
+    const notice = $('pickNotice');
+    if (notice) notice.textContent = '↩️ 기존 경기 자리로 재접속했습니다.';
+    show('lobby');
+    return;
   }
   if (msg.type === 'spectator_joined') {
     spectatorMode = true;
@@ -1014,13 +1078,13 @@ function renderLobby() {
   for (const team of ['A','B']) {
     const root = $(team === 'A' ? 'teamAList' : 'teamBList'); root.innerHTML = '';
     for (const p of state.players.filter(p => p.team === team)) {
-      const div = document.createElement('div'); div.className = 'player-row' + (p.id === myId ? ' you' : '');
+      const div = document.createElement('div'); div.className = 'player-row' + (p.id === myId ? ' you' : '') + (p.connected === false ? ' offline' : '');
       const isOwnTeam = !spectatorMode && me && p.team === me.team;
       let pickText;
       if (spectatorMode || !isOwnTeam) pickText = '🔒 픽 비공개';
       else if (!p.character) pickText = '⌛ 미선택';
       else pickText = `${CHARACTER_META[p.character].icon} ${CHARACTER_META[p.character].name}`;
-      div.innerHTML = `<span>${p.id === state.hostId ? '👑 ' : ''}${escapeHtml(p.name)}</span><span>${pickText}</span>`;
+      div.innerHTML = `<span>${p.id === state.hostId ? '👑 ' : ''}${escapeHtml(p.name)}${p.connected === false ? ' · 📡' : ''}</span><span>${pickText}</span>`;
       root.appendChild(div);
     }
   }

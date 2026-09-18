@@ -11,9 +11,12 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">Mobile Alpha 1.1.1 · 4 vs 4 점유전 · 16 캐릭터</p>
+      <p class="subtitle">Mobile Alpha 1.2 · 4 vs 4 점유전 · 16 캐릭터</p>
       <label>닉네임<input id="nameInput" maxlength="12" placeholder="예: 1번" autocomplete="off" /></label>
       <label>방 코드<input id="roomInput" maxlength="10" value="6-1" autocomplete="off" autocapitalize="characters" /></label>
+
+      <button id="resumeButton" type="button" class="resume-game-button hidden">↩️ 진행 중인 게임으로 돌아가기</button>
+      <div id="resumeHint" class="resume-game-hint hidden"></div>
 
       <div class="team-select-shell">
         <div class="picker-heading">팀 선택</div>

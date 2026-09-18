@@ -324,6 +324,9 @@ body.spectator-mode .lobby-layout { grid-template-columns: 1fr; max-width: 820px
 .stats-header h2 { margin:4px 0 0; }
 .stats-header button { width:42px; height:42px; padding:0; }
 .stats-summary { margin-top:12px; padding:10px 12px; border-radius:11px; background:#162235; font-weight:850; font-size:13px; }
+.stats-version-row { display:flex; align-items:center; gap:8px; margin:8px 0 0; font-size:12px; font-weight:850; color:#b8c8db; }
+.stats-version-row select { min-width:112px; padding:7px 9px; border-radius:8px; border:1px solid #3b4e66; background:#111a25; color:#eaf3ff; font-weight:800; }
+.stats-note-secondary { margin-top:-4px; opacity:.85; }
 .stats-note { margin:8px 0; color:#9fb0c6; font-size:11px; line-height:1.45; }
 .stats-table-wrap { min-height:0; overflow:auto; border:1px solid #2e3d50; border-radius:11px; }
 .stats-table { width:100%; border-collapse:collapse; min-width:650px; font-size:12px; }

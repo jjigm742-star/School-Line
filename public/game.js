@@ -38,6 +38,10 @@ const CHARACTER_STORIES = {
     title:'메카', icon:'🤖',
     text:'오랫동안 창고에 방치되어 있던 기계에 어느 날 갑자기 영혼이 깃들었다. 깨어나자마자 세상을 구경하고 싶어졌고, 튼튼한 몸과 빠른 다리를 이용해 여기저기 돌아다니며 싸움에도 끼어들고 있다. 자신이 왜 깨어났는지는 메카 자신도 모른다.'
   },
+  jet: {
+    title:'제트', icon:'🚀',
+    text:'어릴 때부터 우주를 동경해 우주비행사가 되었다. 하지만 지금은 로켓 기술을 이용해 싸움터를 누비는 것이 더 즐겁다고 한다.'
+  },
   dia: {
     title:'다이아', icon:'💎',
     text:'광선 자매들의 엄마. 반짝이는 것을 너무 좋아한 나머지 특별한 기술을 이용해 잠시 동안 자기 몸을 다이아몬드처럼 변화시키는 능력을 얻었다. 문제는 이제 평범한 모습보다 다이아몬드 모습의 자신을 훨씬 더 마음에 들어 한다는 것이다.'
@@ -82,6 +86,14 @@ const CHARACTER_STORIES = {
     title:'포이즌 — 셋째', icon:'☠️',
     text:'광선 자매의 셋째. 언니들처럼 눈에 띄는 재능이 없다는 말을 듣자 독기를 품고 혼자 열심히 연습했다. 그 결과 상대를 직접 쓰러뜨리는 것보다 상대가 치료받는 것을 방해하는 심술궂은 능력을 터득했다.'
   },
+  reactor: {
+    title:'리액터', icon:'☢️',
+    text:'버퍼가 개발한 인공지능 원자로. 의도적으로 과부하를 일으켜 엄청난 괴력을 얻을 수 있다. 주인인 버퍼에게 충성스럽지만 언제나 붙어다니는 것은 가끔 불편하다고.'
+  },
+  spray: {
+    title:'스프레이', icon:'🔫',
+    text:'여러 개의 탄환을 만들어낼 수 있는 초능력자. 정작 이 능력 때문에 아무도 자신에게 정면으로 다가오지 않아서 조금 슬퍼하지만, 본인은 부정하고 있다.'
+  },
   light: {
     title:'라이트 — 넷째', icon:'✨',
     text:'광선 자매의 넷째. 언니들과 달리 싸우는 것보다 남을 도와주는 데 관심이 많다. 결국 광선을 이용해 공격과 치유를 동시에 하는 자기만의 기술을 만들었고, 자매들 중 가장 먼저 독립해서 살기 시작했다. 언니들은 아직도 라이트가 집을 나간 것을 싫어한다.'
@@ -93,6 +105,14 @@ const CHARACTER_STORIES = {
   star: {
     title:'스타', icon:'⭐',
     text:'오랫동안 별을 바라보다가 어느 순간부터 자신이 별이라고 착각하고 있다. 멀리서 싸우는 사람들을 지켜보며 치유탄을 쏴 주는데, 가끔은 그 사람들이 자신을 바라보며 감사해 주기를 은근히 기대한다.'
+  },
+  angel: {
+    title:'엔젤', icon:'😇',
+    text:'고통받는 사람들을 치유하기 위해 원격 치료 기술을 개발했다. 하지만 자신의 원격 치료를 받고 다시 싸우러 뛰쳐나가는 이들을 보면 한숨이 나온다.'
+  },
+  buffer: {
+    title:'버퍼', icon:'🎛️',
+    text:'남을 칭찬하는 것을 좋아하는 과학자. 버퍼가 칭찬해준 사람은 반드시 큰 일을 해낸다고 한다. 하지만 정작 본인은 아무에게도 칭찬받은 적이 없어서 공격 능력이 전혀 없다.'
   }
 };
 
@@ -235,8 +255,8 @@ function buildCharacterMechanic(id, fallback='') {
   switch (id) {
     case 'iron': return `높은 ${fmtNumber(c.hp)} HP로 전선을 버티는 캐릭터. 탄속은 느리지만 꾸준히 공격하면서 적 진입을 받아내기 좋다.`;
     case 'mecha': return `사거리 ${fmtNumber(c.range)} m로 짧고 화력은 낮지만, HP ${fmtNumber(c.hp)}와 ${speedLabel(c.speed)} 이동속도로 먼저 공간을 차지하고 적의 공격을 받아내는 데 강하다.`;
-    case 'jet': return `Space 또는 능력 버튼을 누르면 현재 조준 방향으로 최대 ${fmtNumber(c.boostDistance)} m를 ${fmtNumber(c.boostDuration)}초 동안 돌진한다. 돌진 중 일반 이동과 기본공격은 할 수 없고 적 캐릭터는 그대로 관통하지만 피해를 주지 않는다. 벽이나 맵 경계에 닿으면 즉시 돌진이 끝난다. 종료 후 ${fmtNumber(c.boostShield)} 보호막을 ${fmtNumber(c.boostShieldDuration)}초 얻으며, 쿨다운 ${fmtNumber(c.boostCooldown)}초는 사용 즉시 시작한다.`;
-    case 'dia': return `카드에는 기본형 수치를 표시한다. Space 또는 능력 버튼을 누르면 ${fmtNumber(c.formDuration)}초간 HP ${fmtNumber(c.formHp)}, 이동속도 ${speedLabel(c.formSpeed)} ${fmtNumber(c.formSpeed)} m/s, 사거리 ${fmtNumber(c.formRange)} m, ${fmtNumber(c.formBeamDps)} DPS 광선폼이 된다. 변신 쿨은 ${fmtNumber(c.formCooldown)}초이며 폼 중 직접 처치하면 남은 쿨다운이 ${fmtNumber(c.formKillCooldownReduction)}초 감소한다.`;
+    case 'jet': return `능력을 사용하면 현재 조준 방향으로 최대 12m를 돌진한다. 돌진 중 벽이나 맵 경계에 닿으면 즉시 돌진이 끝난다. 돌진 후 50의 보호막을 얻는다.`;
+    case 'dia': return `능력을 사용하면 6초간 다이아폼으로 변신해 50 더 높은 체력, 한 단계 더 높은 이동속도, 짧지만 더 강한 광선형 공격으로 변한다. 다이아폼에서 적을 직접 처치하면 남은 쿨다운이 6초 감소한다.`;
     case 'solar': return `공격하는 동안 사거리 ${fmtNumber(c.range)} m의 ${fmtNumber(c.beamDps)} DPS 광선을 유지하고, 동시에 초당 ${fmtNumber(c.solarFireRate)}발의 사거리 ${fmtNumber(c.solarProjectileRange)} m 태양탄(${fmtNumber(c.solarProjectileDamage)} 피해)을 발사한다. 태양탄이 적 본체에 실제 피해를 주면 HP를 ${fmtNumber(c.solarSelfHeal)} 회복한다.`;
     case 'runner': return `빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. Space 또는 능력 버튼을 누르면 ${fmtNumber(c.sprintDuration)}초 동안 이동속도가 한 단계 올라간다. 질주 재사용 대기시간은 ${fmtNumber(c.sprintCooldown)}초다.`;
     case 'shooter': return `빠르고 작은 탄을 초당 ${fmtNumber(c.fireRate)}발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.`;
@@ -244,15 +264,15 @@ function buildCharacterMechanic(id, fallback='') {
     case 'cannon': return `초당 ${fmtNumber(c.fireRate)}발을 퍼붓는 높은 지속 화력을 가진다. 대신 이동속도가 ${speedLabel(c.speed)} ${fmtNumber(c.speed)} m/s라 위치를 잘못 잡으면 도망치기 어렵다.`;
     case 'fire': return `적중한 적에게 ${fmtNumber(c.burnDuration)}초 동안 ${fmtNumber(c.burnDps)} DPS의 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.`;
     case 'poison': return `광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 ${fmtNumber(c.poisonHealReduction*100)}% 감소한다. 중독은 마지막 적중 후 ${fmtNumber(c.poisonDuration)}초 유지되며 비전투 회복에는 영향을 주지 않는다.`;
-    case 'reactor': return `적 본체에 실제 피해 ${fmtNumber(c.reactorDamagePerOutput)}당 출력이 1%p 상승한다. 출력은 0~32%에서 ${fmtNumber(c.reactorOutputBands?.[0]?.damage*c.fireRate)} DPS, 33~65%에서 ${fmtNumber(c.reactorOutputBands?.[1]?.damage*c.fireRate)} DPS, 66~100%에서 ${fmtNumber(c.reactorOutputBands?.[2]?.damage*c.fireRate)} DPS다. ${fmtNumber(c.reactorDecayDelay)}초 동안 실제 피해를 주지 못하면 초당 ${fmtNumber(c.reactorDecayPerSecond)}%p 감소한다. ${fmtNumber(c.reactorHighThreshold)}% 이상에서는 이동속도가 ${fmtNumber(c.reactorHighSpeed)} m/s가 되고, 적중한 적에게 ${fmtNumber(c.radiationDuration)}초간 방사능을 부여해 외부 치유를 ${fmtNumber(c.radiationHealReduction*100)}% 감소시킨다. 포이즌과 함께 걸리면 감소율은 합산된다.`;
-    case 'spray': return `한 번 공격할 때 세 갈래 고정 화망을 동시에 발사한다. 중앙탄은 조준방향 0°의 빠른 중간 투사체로 ${fmtNumber(c.damage)} 피해를 주고, 좌우 보조탄은 캐릭터 중심에서 각각 ${fmtNumber(c.spraySideOffset)} m 옆에서 ±${fmtNumber(c.spraySideAngleDeg)}° 방향으로 발사되는 빠른 작은 투사체로 각각 ${fmtNumber(c.spraySideDamage)} 피해를 준다. 중앙탄만 계속 맞으면 ${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS이며, 실제 탄로가 겹쳐 같은 적에게 세 발 모두 적중하면 최대 ${fmtNumber((Number(c.damage||0)+2*Number(c.spraySideDamage||0))*Number(c.fireRate||0))} DPS다. 좌우 발사점까지의 경로가 벽이나 경계에 막히면 해당 보조탄만 생성되지 않는다.`;
+    case 'reactor': return `적에게 피해를 준 만큼 출력이 조금씩 상승한다. 출력이 높아질수록 공격력이 증가하며, 66% 이상의 출력에 도달하면 '각성 상태'가 시작되어 이동속도가 한 단계 상승하고 투사체가 적중한 적에게 1.5초간 외부 치유가 25% 감소하는 상태 이상을 건다. 적에게 피해를 주지 못하면 출력이 다시 떨어지고, 죽었다 부활하면 출력이 0%가 된다.`;
+    case 'spray': return `세 갈래로 나눠서 공격한다. 중앙탄은 가장 대미지가 높고, 좌우 보조탄은 대미지가 약하다. DPS는 중앙탄 75 / 좌측 보조탄 25 / 우측 보조탄 25다.`;
     case 'laser': return `기본 ${fmtNumber(c.beamDps)} DPS에 대상 최대 HP의 ${fmtNumber(c.maxHpDpsRatio*100)}%/s만큼 피해가 추가되어 체력이 높은 적을 상대할 때 특히 강하다.`;
-    case 'ice': return `광선이 적에게 닿으면 이동속도를 ${Math.abs(Number(c.slowTierDelta||-1))}단계 낮춘다. 감속은 마지막 적중 후 ${fmtNumber(c.slowDuration)}초 유지되며 윈드의 순풍과 만나면 서로 상쇄된다.`;
+    case 'ice': return `광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 이 효과는 마지막 적중 후 1.5초 유지된다.`;
     case 'water': return `오른쪽 스틱으로 아군을 조준해 큰 치유탄을 초당 ${fmtNumber(c.fireRate)}발 발사한다. 치유탄은 적을 통과하고 처음 맞은 아군을 회복시킨다.`;
     case 'wind': return `치유탄은 기존처럼 아군을 회복한다. Space 또는 능력 버튼으로 순풍을 사용하면 자신을 포함한 살아 있는 모든 아군의 이동속도가 ${fmtNumber(c.tailwindDuration)}초 동안 1단계 빨라진다. 순풍 쿨다운은 ${fmtNumber(c.tailwindCooldown)}초이며 사용 즉시 시작한다.`;
     case 'star': return `초당 ${fmtNumber(c.fireRate)}발의 매우 빠른 작은 치유탄을 발사하며, 한 발당 아군 HP를 ${fmtNumber(c.heal)} 회복한다. 자신은 치유할 수 없고 공격 능력은 없다.`;
-    case 'angel': return `치유탄으로 ${fmtNumber(Number(c.heal||0)*Number(c.fireRate||0))} HPS를 제공한다. 자신 또는 살아 있는 아군을 지정한 뒤 능력 버튼/Space를 누르면 거리 제한과 LOS 없이 즉시 ${fmtNumber(c.abilityHeal)} HP를 회복한다. 축복 쿨다운은 ${fmtNumber(c.abilityCooldown)}초다.`;
-    case 'buffer': return `살아 있는 아군을 클릭하면 그 대상을 계속 지정한다. ${fmtNumber(c.range)} m 안에서는 얇은 연결이 이어지며 ${fmtNumber(c.linkHealHps)} HPS와 주기형 공격·치유 행동속도 +${fmtNumber(Number(c.actionSpeedBoost||0)*100)}%를 동시에 제공한다. 거리를 벗어나면 효과만 멈추고 대상 지정은 유지되며, 다시 범위 안으로 들어오면 자동 재연결된다. 광선·지속형 행동과 능력 쿨다운은 가속하지 않는다.`;
+    case 'angel': return `자신 또는 살아 있는 아군을 지정한 뒤 능력을 사용하면 위치와 상관없이 즉시 100 HP를 회복시킨다.`;
+    case 'buffer': return `살아 있는 아군을 클릭하면 그 대상을 강화한다. 16m 안에서 연결이 이어지며, 40 HPS와 공격 속도 25% 증가를 제공한다. 16m 밖으로 나가면 연결이 끊어진다. 광선형 공격과 능력 쿨다운은 가속하지 못한다.`;
     case 'light': return `광선이 처음 만난 아군 1명을 ${fmtNumber(c.healHps)} HPS로 치유한 뒤 관통하고, 이후 처음 만나는 적에게 ${fmtNumber(c.beamDps)} DPS를 준다. 적을 먼저 만나면 적에게만 피해를 준다.`;
     default: return fallback;
   }
@@ -325,6 +345,7 @@ let ws = null, myId = null, config = null, state = null;
 let spectatorMode = false;
 let adminStatsAuthorized = false;
 let lastAdminStatsData = null;
+let selectedCompetitiveStatsVersion = null;
 let selectedTargetId = null; // Targeted ability selection (Angel Blessing and future targeted abilities).
 
 // Alpha 1.1.1: render-only snapshot interpolation. Server state remains authoritative.
@@ -917,6 +938,7 @@ function openConnection(onOpen) {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   adminStatsAuthorized = false;
   lastAdminStatsData = null;
+  selectedCompetitiveStatsVersion = null;
   ws = new WebSocket(wsUrl());
   ws.onopen = onOpen;
   ws.onmessage = ev => handleMessage(JSON.parse(ev.data));
@@ -1008,6 +1030,7 @@ function handleMessage(msg) {
   if (msg.type === 'admin_stats_data') {
     adminStatsAuthorized = true;
     lastAdminStatsData = msg.data || null;
+    selectedCompetitiveStatsVersion = msg.data?.statsVersion || selectedCompetitiveStatsVersion;
     $('competitiveStatsOverlay').classList.remove('hidden');
     renderCompetitiveStats(msg.data || {});
     return;
@@ -1015,6 +1038,7 @@ function handleMessage(msg) {
   if (msg.type === 'admin_stats_error') {
     adminStatsAuthorized = false;
     lastAdminStatsData = null;
+    selectedCompetitiveStatsVersion = null;
     $('competitiveStatsOverlay').classList.add('hidden');
     alert(msg.message || '관리자 통계를 열 수 없습니다.');
     return;
@@ -1421,7 +1445,7 @@ function openCompetitiveStats() {
   $('competitiveStatsSummary').textContent = '관리자 인증 및 통계를 불러오는 중…';
   $('competitiveStatsBody').innerHTML = '';
   $('competitiveRecentMatches').innerHTML = '';
-  ws.send(JSON.stringify({ type:'admin_stats_request', ...(pin ? { pin } : {}) }));
+  ws.send(JSON.stringify({ type:'admin_stats_request', ...(pin ? { pin } : {}), ...(selectedCompetitiveStatsVersion ? { statsVersion:selectedCompetitiveStatsVersion } : {}) }));
 }
 function exportCompetitiveStatsJson() {
   if (!lastAdminStatsData) return;
@@ -1439,8 +1463,22 @@ function closeCompetitiveStats() { $('competitiveStatsOverlay').classList.add('h
 function percent(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
 function renderCompetitiveStats(data) {
   const total = Number(data.totalMatches || 0);
+  const allTimeTotal = Number(data.allTimeTotalMatches ?? total);
+  const statsVersion = String(data.statsVersion || data.currentBuild?.statsVersion || '');
+  selectedCompetitiveStatsVersion = statsVersion || selectedCompetitiveStatsVersion;
+  const versionSelect = $('competitiveStatsVersion');
+  const versions = Array.isArray(data.availableStatsVersions) ? data.availableStatsVersions : (statsVersion ? [statsVersion] : []);
+  versionSelect.innerHTML = '';
+  for (const version of versions) {
+    const option = document.createElement('option');
+    option.value = String(version);
+    option.textContent = `${version} 통계`;
+    option.selected = String(version) === statsVersion;
+    versionSelect.appendChild(option);
+  }
+  versionSelect.disabled = versions.length <= 1;
   const rosterLabel = data.currentBuild?.rosterVersion ? ` · 현재 로스터 ${data.currentBuild.rosterVersion}` : '';
-  $('competitiveStatsSummary').textContent = `저장된 경쟁 경기 ${total}판${rosterLabel}${data.updatedAt ? ` · 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
+  $('competitiveStatsSummary').textContent = `${statsVersion || '현재'} 버전 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
   const tbody = $('competitiveStatsBody');
   tbody.innerHTML = '';
   for (const [id,m] of Object.entries(CHARACTER_META)) {
@@ -1463,6 +1501,11 @@ function renderCompetitiveStats(data) {
     recent.appendChild(row);
   }
 }
+$('competitiveStatsVersion').onchange = () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !adminStatsAuthorized) return;
+  selectedCompetitiveStatsVersion = $('competitiveStatsVersion').value || null;
+  ws.send(JSON.stringify({ type:'admin_stats_request', statsVersion:selectedCompetitiveStatsVersion }));
+};
 $('competitiveStatsButton').onclick = openCompetitiveStats;
 $('competitiveStatsClose').onclick = closeCompetitiveStats;
 $('competitiveStatsCloseBottom').onclick = closeCompetitiveStats;

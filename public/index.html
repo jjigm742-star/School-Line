@@ -131,7 +131,9 @@
           <button id="competitiveStatsClose" type="button" aria-label="통계 닫기">✕</button>
         </header>
         <div id="competitiveStatsSummary" class="stats-summary"></div>
-        <div class="stats-note">밴률·픽률은 해당 캐릭터가 실제 선택 가능했던 경쟁 경기만 분모로 계산합니다. 승률은 무승부를 제외한 승/패 경기 기준입니다.</div>
+        <div class="stats-version-row"><label for="competitiveStatsVersion">통계 버전</label><select id="competitiveStatsVersion" aria-label="경쟁 통계 버전"></select></div>
+        <div class="stats-note">같은 번호의 패치는 하나의 캐릭터 통계로 합산합니다. 밴률·픽률은 해당 캐릭터가 실제 선택 가능했던 경기만 분모로 계산합니다. 승률은 무승부를 제외한 승/패 경기 기준입니다.</div>
+        <div class="stats-note stats-note-secondary">빌드 ID·로스터 ID는 기록용 메타데이터일 뿐 캐릭터 통계를 분리하지 않습니다.</div>
         <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>사용가능 경기</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>W-L-D</th><th>승률</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
         <h3 class="stats-recent-title">최근 경쟁 결과</h3>
         <div id="competitiveRecentMatches" class="stats-recent"></div>

@@ -28,8 +28,10 @@ const SPECTATOR_LOCK_MS = 30000;
 const ADMIN_STATS_PIN_HASH = SPECTATOR_PIN_HASH; // Same administrator PIN, kept hashed server-side.
 const ADMIN_STATS_MAX_FAILURES = 5;
 const ADMIN_STATS_LOCK_MS = 30000;
-const GAME_VERSION = 'Alpha 1.3';
-const COMPETITIVE_STATS_SCHEMA_VERSION = 2;
+const BALANCE_VERSION = '1.3';
+const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
+const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
+const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
 const COMPETITIVE_BUILD_ID = 'alpha-1.3-r21-spray-kill-tiebreak';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r21-spray';
 
@@ -192,6 +194,10 @@ function emptyCompetitiveCharacterStats() {
   return { availableMatches: 0, bans: 0, picks: 0, wins: 0, losses: 0, draws: 0 };
 }
 
+function emptyCompetitiveVersionStats() {
+  return { totalMatches: 0, updatedAt: null, characters: {} };
+}
+
 function emptyCompetitiveStats() {
   const characters = {};
   for (const id of Object.keys(CHARACTERS)) characters[id] = emptyCompetitiveCharacterStats();
@@ -200,8 +206,56 @@ function emptyCompetitiveStats() {
     totalMatches: 0,
     updatedAt: null,
     characters,
+    versions: {},
     matches: []
   };
+}
+
+function normalizeStatsVersion(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/(?:^|\b)(\d+\.\d+)(?:\b|$)/);
+  return match ? match[1] : '';
+}
+
+function statsVersionFromMatch(match) {
+  return normalizeStatsVersion(match?.statsVersion) || normalizeStatsVersion(match?.gameVersion) || '';
+}
+
+function ensureVersionCharacterStats(bucket, id) {
+  if (!bucket.characters[id]) bucket.characters[id] = emptyCompetitiveCharacterStats();
+  return bucket.characters[id];
+}
+
+function addRecordedMatchToVersionBucket(bucket, match) {
+  bucket.totalMatches += 1;
+  bucket.updatedAt = typeof match?.endedAt === 'string' ? match.endedAt : bucket.updatedAt;
+  for (const id of Array.isArray(match?.availableCharacters) ? match.availableCharacters : []) {
+    ensureVersionCharacterStats(bucket, id).availableMatches += 1;
+  }
+  for (const ban of Array.isArray(match?.bans) ? match.bans : []) {
+    if (ban?.character) ensureVersionCharacterStats(bucket, ban.character).bans += 1;
+  }
+  for (const assignment of Array.isArray(match?.finalAssignments) ? match.finalAssignments : []) {
+    if (!assignment?.character) continue;
+    const stat = ensureVersionCharacterStats(bucket, assignment.character);
+    stat.picks += 1;
+    if (match.winner === 'DRAW') stat.draws += 1;
+    else if (match.winner === assignment.team) stat.wins += 1;
+    else stat.losses += 1;
+  }
+}
+
+function normalizeVersionBucket(raw) {
+  const bucket = emptyCompetitiveVersionStats();
+  if (!raw || typeof raw !== 'object') return bucket;
+  bucket.totalMatches = Math.max(0, Number(raw.totalMatches) || 0);
+  bucket.updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : null;
+  for (const [id, srcRaw] of Object.entries(raw.characters || {})) {
+    const src = srcRaw && typeof srcRaw === 'object' ? srcRaw : {};
+    const stat = ensureVersionCharacterStats(bucket, id);
+    for (const key of ['availableMatches','bans','picks','wins','losses','draws']) stat[key] = Math.max(0, Number(src[key]) || 0);
+  }
+  return bucket;
 }
 
 function normalizeCompetitiveStats(raw) {
@@ -212,34 +266,43 @@ function normalizeCompetitiveStats(raw) {
   base.updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : null;
   base.matches = Array.isArray(raw.matches) ? raw.matches : [];
 
-  // Preserve historical character rows, including characters that may later leave the active roster.
+  // Preserve all-time counters for export/backward compatibility.
   for (const [id, srcRaw] of Object.entries(raw.characters || {})) {
     if (!base.characters[id]) base.characters[id] = emptyCompetitiveCharacterStats();
     const src = srcRaw && typeof srcRaw === 'object' ? srcRaw : {};
-    for (const key of ['bans','picks','wins','losses','draws']) {
-      base.characters[id][key] = Math.max(0, Number(src[key]) || 0);
-    }
-    if (sourceSchema >= 2 && Number.isFinite(Number(src.availableMatches))) {
-      base.characters[id].availableMatches = Math.max(0, Number(src.availableMatches) || 0);
-    } else {
-      // Schema v1 had no availability denominator. A row that existed in that file is
-      // treated as having been available for those legacy matches. Newly introduced
-      // characters absent from the old file start at zero and accumulate exactly.
-      base.characters[id].availableMatches = base.totalMatches;
-    }
+    for (const key of ['bans','picks','wins','losses','draws']) base.characters[id][key] = Math.max(0, Number(src[key]) || 0);
+    if (sourceSchema >= 2 && Number.isFinite(Number(src.availableMatches))) base.characters[id].availableMatches = Math.max(0, Number(src.availableMatches) || 0);
+    else base.characters[id].availableMatches = base.totalMatches;
   }
 
-  // If schema-v2 match records contain roster snapshots, never let an exact reconstructed
-  // denominator be lower than what those snapshots prove.
-  const provenAvailability = Object.create(null);
-  for (const match of base.matches) {
-    for (const id of Array.isArray(match?.availableCharacters) ? match.availableCharacters : []) {
-      provenAvailability[id] = (provenAvailability[id] || 0) + 1;
+  // v3 stores explicit balance-version buckets. When upgrading v1/v2, reconstruct them
+  // from saved match records. A match's version number, not its build/roster id, defines
+  // which character-stat bucket it belongs to.
+  if (sourceSchema >= 3 && raw.versions && typeof raw.versions === 'object') {
+    for (const [version, bucketRaw] of Object.entries(raw.versions)) {
+      const key = normalizeStatsVersion(version);
+      if (key) base.versions[key] = normalizeVersionBucket(bucketRaw);
     }
+  } else if (base.matches.length) {
+    for (const match of base.matches) {
+      const version = statsVersionFromMatch(match) || COMPETITIVE_STATS_VERSION;
+      if (!match.statsVersion) match.statsVersion = version;
+      if (!base.versions[version]) base.versions[version] = emptyCompetitiveVersionStats();
+      addRecordedMatchToVersionBucket(base.versions[version], match);
+    }
+  } else if (base.totalMatches > 0) {
+    // Aggregate-only legacy fallback. At the moment of this migration the live balance
+    // number is 1.3, so old counters without per-match metadata are assigned to 1.3.
+    const bucket = emptyCompetitiveVersionStats();
+    bucket.totalMatches = base.totalMatches;
+    bucket.updatedAt = base.updatedAt;
+    for (const [id, stat] of Object.entries(base.characters)) bucket.characters[id] = { ...stat };
+    base.versions[COMPETITIVE_STATS_VERSION] = bucket;
   }
-  for (const [id, count] of Object.entries(provenAvailability)) {
-    if (!base.characters[id]) base.characters[id] = emptyCompetitiveCharacterStats();
-    base.characters[id].availableMatches = Math.max(base.characters[id].availableMatches || 0, count);
+
+  // Ensure every stored match has an explicit statsVersion for future migrations.
+  for (const match of base.matches) {
+    if (!match.statsVersion) match.statsVersion = statsVersionFromMatch(match) || COMPETITIVE_STATS_VERSION;
   }
   base.schemaVersion = COMPETITIVE_STATS_SCHEMA_VERSION;
   return base;
@@ -270,10 +333,21 @@ function saveCompetitiveStats() {
   }
 }
 
-function publicCompetitiveStats() {
-  const total = Math.max(0, Number(competitiveStats.totalMatches) || 0);
+function versionSort(a, b) {
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
+  const availableStatsVersions = Object.keys(competitiveStats.versions || {}).sort(versionSort);
+  if (!availableStatsVersions.includes(COMPETITIVE_STATS_VERSION)) availableStatsVersions.push(COMPETITIVE_STATS_VERSION);
+  availableStatsVersions.sort(versionSort);
+  const requested = normalizeStatsVersion(requestedVersion);
+  const statsVersion = requested && availableStatsVersions.includes(requested) ? requested : COMPETITIVE_STATS_VERSION;
+  const bucket = competitiveStats.versions?.[statsVersion] || emptyCompetitiveVersionStats();
   const characters = {};
-  for (const [id, src] of Object.entries(competitiveStats.characters || {})) {
+  const ids = new Set([...Object.keys(CHARACTERS), ...Object.keys(bucket.characters || {})]);
+  for (const id of ids) {
+    const src = bucket.characters?.[id] || emptyCompetitiveCharacterStats();
     const available = Math.max(0, Number(src.availableMatches) || 0);
     const decided = (src.wins || 0) + (src.losses || 0);
     characters[id] = {
@@ -284,18 +358,23 @@ function publicCompetitiveStats() {
       winRate: decided > 0 ? (src.wins || 0) / decided : 0
     };
   }
+  const versionMatches = (Array.isArray(competitiveStats.matches) ? competitiveStats.matches : []).filter(m => (statsVersionFromMatch(m) || COMPETITIVE_STATS_VERSION) === statsVersion);
   return {
     schemaVersion: competitiveStats.schemaVersion || COMPETITIVE_STATS_SCHEMA_VERSION,
-    totalMatches: total,
-    updatedAt: competitiveStats.updatedAt || null,
+    statsVersion,
+    availableStatsVersions,
+    totalMatches: Math.max(0, Number(bucket.totalMatches) || 0),
+    allTimeTotalMatches: Math.max(0, Number(competitiveStats.totalMatches) || 0),
+    updatedAt: bucket.updatedAt || null,
+    allTimeUpdatedAt: competitiveStats.updatedAt || null,
     currentBuild: {
-      gameVersion: GAME_VERSION,
-      buildId: COMPETITIVE_BUILD_ID,
-      rosterVersion: COMPETITIVE_ROSTER_VERSION,
+      gameVersion: GAME_VERSION, statsVersion: COMPETITIVE_STATS_VERSION,
+      buildId: COMPETITIVE_BUILD_ID, rosterVersion: COMPETITIVE_ROSTER_VERSION,
       availableCharacters: Object.keys(CHARACTERS)
     },
     characters,
-    matches: Array.isArray(competitiveStats.matches) ? competitiveStats.matches : []
+    matches: versionMatches,
+    allMatches: Array.isArray(competitiveStats.matches) ? competitiveStats.matches : []
   };
 }
 
@@ -886,6 +965,7 @@ function recordCompetitiveResult(room, now = Date.now()) {
   }));
   const result = {
     matchId: `${now}-${crypto.randomBytes(4).toString('hex')}`,
+    statsVersion: COMPETITIVE_STATS_VERSION,
     gameVersion: GAME_VERSION, buildId: COMPETITIVE_BUILD_ID, rosterVersion: COMPETITIVE_ROSTER_VERSION,
     availableCharacters: Object.keys(CHARACTERS), room: room.code,
     draftStartedAt: comp.draftStartedAt ? new Date(comp.draftStartedAt).toISOString() : null,
@@ -920,6 +1000,8 @@ function recordCompetitiveResult(room, now = Date.now()) {
   }
   competitiveStats.matches.push(result);
   competitiveStats.updatedAt = new Date(now).toISOString();
+  if (!competitiveStats.versions[COMPETITIVE_STATS_VERSION]) competitiveStats.versions[COMPETITIVE_STATS_VERSION] = emptyCompetitiveVersionStats();
+  addRecordedMatchToVersionBucket(competitiveStats.versions[COMPETITIVE_STATS_VERSION], result);
   saveCompetitiveStats();
   return true;
 }
@@ -1065,7 +1147,7 @@ function sendAdminCompetitiveStats(conn, msg) {
     return;
   }
   if (conn.adminStatsAuthorized) {
-    conn.send({ type: 'admin_stats_data', data: publicCompetitiveStats() });
+    conn.send({ type: 'admin_stats_data', data: publicCompetitiveStats(msg.statsVersion) });
     return;
   }
   const now = Date.now();
@@ -1081,7 +1163,7 @@ function sendAdminCompetitiveStats(conn, msg) {
   }
   clearAdminStatsAuthFailure(conn.remoteAddress);
   conn.adminStatsAuthorized = true;
-  conn.send({ type: 'admin_stats_data', data: publicCompetitiveStats() });
+  conn.send({ type: 'admin_stats_data', data: publicCompetitiveStats(msg.statsVersion) });
 }
 
 function joinSpectator(conn, msg) {
@@ -2154,7 +2236,7 @@ if (require.main === module) {
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`
-School Line Mobile Alpha 1.3 · Competitive Mode`);
+School Line Mobile ${GAME_VERSION} · Competitive Mode`);
     console.log(`Local: http://localhost:${PORT}`);
     console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}
 `);
@@ -2172,6 +2254,6 @@ module.exports = {
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
-  competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster,
+  competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, statsVersionFromMatch,
   teamKillTotals, resolveMatchWinner
 };

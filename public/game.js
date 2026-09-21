@@ -1424,6 +1424,45 @@ function expandPotgReplayPayload(potg) {
   return potg;
 }
 
+
+function expandCompactPlayerRow(p) {
+  if (!Array.isArray(p)) return p;
+  const flags = Number(p[17] || 0);
+  const out = {
+    id:p[0], name:p[1], team:p[2] === 1 ? 'B' : 'A', character:p[3] || null,
+    x:Number(p[4] || 0), y:Number(p[5] || 0), hp:Number(p[6] || 0), maxHp:Number(p[7] || 0),
+    shield:Number(p[8] || 0), maxShield:Number(p[9] || 0), alive:!!p[10],
+    aimX:Number(p[11] || 0), aimY:Number(p[12] || 0),
+    shotSeq:Number(p[13] || 0), projectileHitSeq:Number(p[14] || 0), healHitSeq:Number(p[15] || 0), abilityUseSeq:Number(p[16] || 0),
+    connected:p[18] !== 0
+  };
+  const setNum = (key, index) => { if (p[index] != null) out[key] = Number(p[index] || 0); };
+  if (flags & (1 << 0)) out.burning = true;
+  if (flags & (1 << 1)) out.poisoned = true;
+  if (flags & (1 << 2)) out.radiated = true;
+  if (flags & (1 << 3)) out.tailwind = true;
+  if (flags & (1 << 4)) out.frozen = true;
+  if (flags & (1 << 5)) out.stunned = true;
+  if (flags & (1 << 6)) out.invulnerable = true;
+  if (flags & (1 << 7)) out.diaForm = true;
+  if (flags & (1 << 8)) out.sprint = true;
+  if (flags & (1 << 9)) out.jetBoost = true;
+  if (flags & (1 << 10)) out.bufferLinkActive = true;
+  setNum('respawnMs', 19); setNum('shieldMs', 20); setNum('invulnerableMs', 21);
+  if (p[22]) out.burnSourceId = p[22];
+  if (p[23]) out.radiationSourceId = p[23];
+  setNum('diaFormMs', 24); setNum('diaCooldownMs', 25); setNum('sprintMs', 26); setNum('sprintCooldownMs', 27);
+  setNum('windTailwindMs', 28); setNum('windTailwindCooldownMs', 29); setNum('angelBlessCooldownMs', 30);
+  if (p[31] != null) out.shieldAbilityCharges = Number(p[31] || 0);
+  setNum('shieldRechargeMs', 32); setNum('jetBoostMs', 33); setNum('jetBoostStartX', 34); setNum('jetBoostStartY', 35);
+  setNum('jetBoostEndX', 36); setNum('jetBoostEndY', 37); setNum('jetBoostDistance', 38); setNum('jetBoostCooldownMs', 39);
+  setNum('jetShieldMs', 40); setNum('reactorOutput', 41);
+  if (p[42]) out.bufferTargetId = p[42];
+  if (p[43]) out.lastHealTargetId = p[43];
+  if (p[44]) out.lastAbilityTargetId = p[44];
+  return out;
+}
+
 function expandWireMessage(msg) {
   if (!msg) return msg;
   if (msg.type === 'post_game_sequence' && msg.potg) {
@@ -1436,13 +1475,14 @@ function expandWireMessage(msg) {
     delete msg.wireFormat;
     return msg;
   }
-  if (msg.wireFormat !== 'c1' && msg.wireFormat !== 'c2') return msg;
+  if (msg.wireFormat !== 'c1' && msg.wireFormat !== 'c2' && msg.wireFormat !== 'c3') return msg;
   const wireFormat = msg.wireFormat;
+  if (wireFormat === 'c3') msg.players = (msg.players || []).map(expandCompactPlayerRow);
   msg.projectiles = (msg.projectiles || []).map(p => ({
     id:p[0], x:p[1], y:p[2], radius:p[3], type:p[4], team:p[5], character:p[6],
     reactorFxBand:p[7] == null ? null : p[7]
   }));
-  if (wireFormat === 'c2') {
+  if (wireFormat === 'c2' || wireFormat === 'c3') {
     for (const volley of (msg.sprayVolleys || [])) {
       const volleyId = volley[0];
       const team = volley[1] ? 'B' : 'A';
@@ -2057,7 +2097,9 @@ function renderCompetitiveStats(data) {
   }
   versionSelect.disabled = versions.length <= 1;
   const rosterLabel = data.currentBuild?.rosterVersion ? ` · 현재 로스터 ${data.currentBuild.rosterVersion}` : '';
-  $('competitiveStatsSummary').textContent = `${statsVersion || '현재'} 버전 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
+  const net = data.network || null;
+  const netLabel = net ? ` · WS ${Number(net.totalMiB || 0).toFixed(1)}MB / 현재 ${Number(net.activeConnections || 0)}연결 / 차단 ${Number(net.skippedLiveSnapshots || 0)}회` : '';
+  $('competitiveStatsSummary').textContent = `${statsVersion || '현재'} 버전 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${netLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
   const tbody = $('competitiveStatsBody');
   tbody.innerHTML = '';
   for (const [id,m] of Object.entries(CHARACTER_META)) {

@@ -16,8 +16,15 @@ const TICK_RATE = 50;
 // Draft/ready/idle states are event-driven and only need light heartbeat updates.
 const SNAPSHOT_RATE_PLAYING = 10;
 const SNAPSHOT_RATE_DRAFT = 1;
-const SNAPSHOT_RATE_IDLE = 1;
+// Lobby/ended states are event-driven in BWOpt4; there is no periodic idle heartbeat.
+const SNAPSHOT_RATE_IDLE = 0;
 const SNAPSHOT_SCHEDULER_HZ = 20;
+// BWOpt4 hard safety budget. The authoritative simulation remains 50 Hz; only outbound
+// live snapshots are skipped when a room would exceed this byte budget.
+const LIVE_ROOM_BUDGET_BPS = Math.max(32768, Number(process.env.SCHOOL_LINE_LIVE_ROOM_BUDGET_BPS || 131072));
+const MAX_WS_PENDING_BYTES = Math.max(65536, Number(process.env.SCHOOL_LINE_MAX_WS_PENDING_BYTES || 262144));
+const WS_PING_INTERVAL_MS = Math.max(5000, Number(process.env.SCHOOL_LINE_WS_PING_INTERVAL_MS || 20000));
+const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS + 5000, Number(process.env.SCHOOL_LINE_WS_STALE_TIMEOUT_MS || 45000));
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
 const COMPETITIVE_BAN_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_BAN_MS || 10000));
@@ -42,7 +49,7 @@ const BALANCE_VERSION = '1.3';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-potg-1-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25';
+const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-potg-1-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r22-shield';
 
 // Competitive-only Play of the Game (POTG) 1.0.
@@ -299,9 +306,126 @@ const spectatorAuthFailures = new Map();
 const adminStatsAuthFailures = new Map();
 const accessAdminAuthFailures = new Map();
 const activeConnections = new Set();
+const NETWORK_METRICS = {
+  startedAt: Date.now(), totalBytes: 0, totalFrames: 0, byKind: Object.create(null),
+  droppedBackpressure: 0, skippedLiveSnapshots: 0, staleConnectionsClosed: 0
+};
 let schoolLineAccessOpen = false; // Safe default: a server restart returns School Line to LOCKED.
 let idCounter = 1;
 let spectatorCounter = 1;
+
+
+function ensureRoomNetwork(room) {
+  if (!room) return null;
+  if (!room.network) {
+    room.network = {
+      totalBytes: 0, totalFrames: 0, byKind: Object.create(null),
+      rateWindowStartedAt: Date.now(), rateWindowBytes: 0, recentBps: 0,
+      budgetWindowStartedAt: Date.now(), budgetWindowBytes: 0,
+      skippedLiveSnapshots: 0, droppedBackpressure: 0
+    };
+  }
+  return room.network;
+}
+
+function websocketFrameSize(payloadBytes) {
+  const n = Math.max(0, Number(payloadBytes) || 0);
+  return n + (n < 126 ? 2 : (n < 65536 ? 4 : 10));
+}
+
+function refreshRoomNetworkRate(room, now = Date.now()) {
+  const net = ensureRoomNetwork(room);
+  if (!net) return 0;
+  const elapsed = Math.max(1, now - net.rateWindowStartedAt);
+  if (elapsed >= 1000) {
+    net.recentBps = Math.round(net.rateWindowBytes * 1000 / elapsed);
+    net.rateWindowBytes = 0;
+    net.rateWindowStartedAt = now;
+  }
+  return net.recentBps;
+}
+
+function recordWsOutbound(conn, frameBytes, kind = 'message', now = Date.now()) {
+  const bytes = Math.max(0, Number(frameBytes) || 0);
+  if (!bytes) return;
+  NETWORK_METRICS.totalBytes += bytes;
+  NETWORK_METRICS.totalFrames += 1;
+  NETWORK_METRICS.byKind[kind] = (NETWORK_METRICS.byKind[kind] || 0) + bytes;
+  if (conn) {
+    conn.outboundBytes = (conn.outboundBytes || 0) + bytes;
+    conn.outboundFrames = (conn.outboundFrames || 0) + 1;
+  }
+  const room = conn?.roomCode ? rooms.get(conn.roomCode) : null;
+  if (room) {
+    const net = ensureRoomNetwork(room);
+    net.totalBytes += bytes;
+    net.totalFrames += 1;
+    net.byKind[kind] = (net.byKind[kind] || 0) + bytes;
+    net.rateWindowBytes += bytes;
+    refreshRoomNetworkRate(room, now);
+  }
+}
+
+function noteBackpressureDrop(conn) {
+  NETWORK_METRICS.droppedBackpressure += 1;
+  const room = conn?.roomCode ? rooms.get(conn.roomCode) : null;
+  if (room) ensureRoomNetwork(room).droppedBackpressure += 1;
+}
+
+function allowLiveRoomBroadcast(room, frameBytes, recipientCount, now = Date.now()) {
+  if (!room || recipientCount <= 0) return false;
+  const net = ensureRoomNetwork(room);
+  if (now - net.budgetWindowStartedAt >= 1000) {
+    net.budgetWindowStartedAt = now;
+    net.budgetWindowBytes = 0;
+  }
+  const projected = Math.max(0, Number(frameBytes) || 0) * Math.max(0, Number(recipientCount) || 0);
+  if (net.budgetWindowBytes + projected > LIVE_ROOM_BUDGET_BPS) {
+    net.skippedLiveSnapshots += 1;
+    NETWORK_METRICS.skippedLiveSnapshots += 1;
+    return false;
+  }
+  net.budgetWindowBytes += projected;
+  return true;
+}
+
+function publicNetworkStats() {
+  const now = Date.now();
+  const roomsOut = [];
+  for (const room of rooms.values()) {
+    const net = ensureRoomNetwork(room);
+    refreshRoomNetworkRate(room, now);
+    roomsOut.push({
+      room: room.code, state: room.state,
+      players: room.players.size, spectators: room.spectators.size,
+      totalBytes: net.totalBytes, totalMiB: Math.round(net.totalBytes / 1048576 * 100) / 100,
+      recentBps: net.recentBps,
+      liveStateBytes: net.byKind.live_state || 0,
+      skippedLiveSnapshots: net.skippedLiveSnapshots,
+      droppedBackpressure: net.droppedBackpressure,
+      liveBudgetBps: LIVE_ROOM_BUDGET_BPS
+    });
+  }
+  const byKind = {};
+  for (const [kind, bytes] of Object.entries(NETWORK_METRICS.byKind)) byKind[kind] = bytes;
+  return {
+    startedAt: new Date(NETWORK_METRICS.startedAt).toISOString(),
+    totalBytes: NETWORK_METRICS.totalBytes,
+    totalMiB: Math.round(NETWORK_METRICS.totalBytes / 1048576 * 100) / 100,
+    totalFrames: NETWORK_METRICS.totalFrames,
+    activeConnections: activeConnections.size,
+    droppedBackpressure: NETWORK_METRICS.droppedBackpressure,
+    skippedLiveSnapshots: NETWORK_METRICS.skippedLiveSnapshots,
+    staleConnectionsClosed: NETWORK_METRICS.staleConnectionsClosed,
+    liveRoomBudgetBps: LIVE_ROOM_BUDGET_BPS,
+    byKind,
+    rooms: roomsOut
+  };
+}
+
+function publicAdminStatsPayload(statsVersion) {
+  return { ...publicCompetitiveStats(statsVersion), network: publicNetworkStats() };
+}
 
 function emptyCompetitiveCharacterStats() {
   return { availableMatches: 0, bans: 0, picks: 0, wins: 0, losses: 0, draws: 0 };
@@ -979,7 +1103,9 @@ function sendFrame(socket, opcode, payload) {
     header[1] = 127;
     header.writeBigUInt64BE(BigInt(body.length), 2);
   }
-  socket.write(Buffer.concat([header, body]));
+  const frame = Buffer.concat([header, body]);
+  socket.write(frame);
+  return frame.length;
 }
 
 function makeWsConnection(socket, remoteAddress = '') {
@@ -991,18 +1117,35 @@ function makeWsConnection(socket, remoteAddress = '') {
     spectatorId: null,
     roomCode: null,
     remoteAddress,
-    send(obj) {
-      if (this.closed || socket.destroyed) return;
-      try { sendFrame(socket, 0x1, JSON.stringify(obj)); } catch (_) {}
+    lastPongAt: Date.now(),
+    lastPingAt: 0,
+    outboundBytes: 0,
+    outboundFrames: 0,
+    send(obj, kind = null) {
+      if (this.closed || socket.destroyed) return false;
+      try {
+        const messageKind = kind || String(obj?.type || 'message');
+        const bytes = sendFrame(socket, 0x1, JSON.stringify(obj));
+        recordWsOutbound(this, bytes, messageKind);
+        return true;
+      } catch (_) { return false; }
     },
-    sendSerialized(text) {
-      if (this.closed || socket.destroyed) return;
-      try { sendFrame(socket, 0x1, text); } catch (_) {}
+    sendSerialized(text, kind = 'message') {
+      if (this.closed || socket.destroyed) return false;
+      if (kind === 'live_state' && Number(socket.writableLength || 0) > MAX_WS_PENDING_BYTES) {
+        noteBackpressureDrop(this);
+        return false;
+      }
+      try {
+        const bytes = sendFrame(socket, 0x1, text);
+        recordWsOutbound(this, bytes, kind);
+        return true;
+      } catch (_) { return false; }
     },
     close() {
       if (this.closed) return;
       this.closed = true;
-      try { sendFrame(socket, 0x8, Buffer.alloc(0)); } catch (_) {}
+      try { const bytes = sendFrame(socket, 0x8, Buffer.alloc(0)); recordWsOutbound(this, bytes, 'close'); } catch (_) {}
       try { socket.end(); } catch (_) {}
     }
   };
@@ -1058,7 +1201,11 @@ function parseWsData(conn, chunk) {
     conn.buffer = conn.buffer.subarray(offset + maskLen + len);
 
     if (opcode === 0x8) { conn.close(); return; }
-    if (opcode === 0x9) { sendFrame(conn.socket, 0xA, payload); continue; }
+    if (opcode === 0x9) {
+      try { const bytes = sendFrame(conn.socket, 0xA, payload); recordWsOutbound(conn, bytes, 'pong'); } catch (_) {}
+      continue;
+    }
+    if (opcode === 0xA) { conn.lastPongAt = Date.now(); continue; }
     if (opcode !== 0x1) continue;
     try { onMessage(conn, JSON.parse(payload.toString('utf8'))); } catch (_) {}
   }
@@ -1089,7 +1236,8 @@ function newRoom(code) {
     cannonNetPendingRemoves: new Set(),
     lastCannonNetSyncAt: 0,
     potg: createPotgState(false),
-    lastBroadcastAt: 0
+    lastBroadcastAt: 0,
+    network: null
   };
 }
 
@@ -1393,8 +1541,8 @@ function sendCompetitivePostGameSequence(room, candidate) {
     potg: potgSequencePayload(candidate)
   };
   const text = JSON.stringify(payload);
-  for (const conn of room.clients.values()) conn.sendSerialized(text);
-  for (const conn of room.spectators.values()) conn.sendSerialized(text);
+  for (const conn of room.clients.values()) conn.sendSerialized(text, 'post_game_sequence');
+  for (const conn of room.spectators.values()) conn.sendSerialized(text, 'post_game_sequence');
 }
 
 function isCharacterTakenOnTeam(room, team, character, excludePlayerId = null) {
@@ -1806,7 +1954,7 @@ function sendAdminCompetitiveStats(conn, msg) {
     return;
   }
   if (conn.adminStatsAuthorized) {
-    conn.send({ type: 'admin_stats_data', data: publicCompetitiveStats(msg.statsVersion) });
+    conn.send({ type: 'admin_stats_data', data: publicAdminStatsPayload(msg.statsVersion) });
     return;
   }
   const now = Date.now();
@@ -1822,7 +1970,7 @@ function sendAdminCompetitiveStats(conn, msg) {
   }
   clearAdminStatsAuthFailure(conn.remoteAddress);
   conn.adminStatsAuthorized = true;
-  conn.send({ type: 'admin_stats_data', data: publicCompetitiveStats(msg.statsVersion) });
+  conn.send({ type: 'admin_stats_data', data: publicAdminStatsPayload(msg.statsVersion) });
 }
 
 function joinSpectator(conn, msg) {
@@ -2842,6 +2990,10 @@ function updateRoom(room, dt, now) {
       const finalPotg = finalizePotg(room);
       recordCompetitiveResult(room, now);
       sendCompetitivePostGameSequence(room, finalPotg);
+    } else {
+      // Idle/ended heartbeat was removed in BWOpt4, so normal games need one explicit
+      // final state push at the transition.
+      broadcast(room, now);
     }
     return;
   }
@@ -3147,6 +3299,39 @@ function roundWireNumber(value, digits = 3) {
   return Math.round(n * factor) / factor;
 }
 
+
+function compactPlayerWireRow(p) {
+  let flags = 0;
+  if (p.burning) flags |= 1 << 0;
+  if (p.poisoned) flags |= 1 << 1;
+  if (p.radiated) flags |= 1 << 2;
+  if (p.tailwind) flags |= 1 << 3;
+  if (p.frozen) flags |= 1 << 4;
+  if (p.stunned) flags |= 1 << 5;
+  if (p.invulnerable) flags |= 1 << 6;
+  if (p.diaForm) flags |= 1 << 7;
+  if (p.sprint) flags |= 1 << 8;
+  if (p.jetBoost) flags |= 1 << 9;
+  if (p.bufferLinkActive) flags |= 1 << 10;
+  const ms = value => value == null ? null : Math.max(0, Math.round(Number(value) || 0));
+  const num = (value, digits = 3) => value == null ? null : roundWireNumber(value, digits);
+  const row = [
+    p.id, p.name, p.team === 'B' ? 1 : 0, p.character || null,
+    num(p.x), num(p.y), num(p.hp), num(p.maxHp), num(p.shield), num(p.maxShield), p.alive ? 1 : 0,
+    num(p.aimX), num(p.aimY), p.shotSeq || 0, p.projectileHitSeq || 0, p.healHitSeq || 0, p.abilityUseSeq || 0,
+    flags, p.connected === false ? 0 : 1,
+    ms(p.respawnMs), ms(p.shieldMs), ms(p.invulnerableMs), p.burnSourceId || null, p.radiationSourceId || null,
+    ms(p.diaFormMs), ms(p.diaCooldownMs), ms(p.sprintMs), ms(p.sprintCooldownMs),
+    ms(p.windTailwindMs), ms(p.windTailwindCooldownMs), ms(p.angelBlessCooldownMs),
+    p.shieldAbilityCharges == null ? null : Math.max(0, Math.floor(Number(p.shieldAbilityCharges) || 0)), ms(p.shieldRechargeMs),
+    ms(p.jetBoostMs), num(p.jetBoostStartX), num(p.jetBoostStartY), num(p.jetBoostEndX), num(p.jetBoostEndY), num(p.jetBoostDistance),
+    ms(p.jetBoostCooldownMs), ms(p.jetShieldMs), p.reactorOutput == null ? null : num(p.reactorOutput, 2),
+    p.bufferTargetId || null, p.lastHealTargetId || null, p.lastAbilityTargetId || null
+  ];
+  while (row.length && row[row.length - 1] == null) row.pop();
+  return row;
+}
+
 function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), forceCannonSync = false) {
   if (!state || state.state !== 'playing') return state;
 
@@ -3211,36 +3396,12 @@ function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), for
 
   const out = {
     ...state,
-    wireFormat: 'c2',
+    wireFormat: 'c3',
     scoreA: roundWireNumber(state.scoreA, 3),
     scoreB: roundWireNumber(state.scoreB, 3),
     timeLeft: roundWireNumber(state.timeLeft, 2),
-    players: (state.players || []).map(p => {
-      const row = {
-        ...p,
-        x: roundWireNumber(p.x, 3),
-        y: roundWireNumber(p.y, 3),
-        hp: roundWireNumber(p.hp, 3),
-        maxHp: roundWireNumber(p.maxHp, 3),
-        shield: roundWireNumber(p.shield, 3),
-        maxShield: roundWireNumber(p.maxShield, 3),
-        aimX: roundWireNumber(p.aimX, 3),
-        aimY: roundWireNumber(p.aimY, 3)
-      };
-      for (const key of [
-        'respawnMs','invulnerableMs','diaFormMs','diaCooldownMs','sprintMs','sprintCooldownMs',
-        'windTailwindMs','windTailwindCooldownMs','angelBlessCooldownMs','shieldRechargeMs','shieldMs','jetBoostMs',
-        'jetBoostCooldownMs','jetShieldMs'
-      ]) if (row[key] != null) row[key] = Math.max(0, Math.round(Number(row[key]) || 0));
-      if (row.reactorOutput != null) row.reactorOutput = roundWireNumber(row.reactorOutput, 2);
-      if (row.jetBoostStartX != null) row.jetBoostStartX = roundWireNumber(row.jetBoostStartX, 3);
-      if (row.jetBoostStartY != null) row.jetBoostStartY = roundWireNumber(row.jetBoostStartY, 3);
-      if (row.jetBoostEndX != null) row.jetBoostEndX = roundWireNumber(row.jetBoostEndX, 3);
-      if (row.jetBoostEndY != null) row.jetBoostEndY = roundWireNumber(row.jetBoostEndY, 3);
-      if (row.jetBoostDistance != null) row.jetBoostDistance = roundWireNumber(row.jetBoostDistance, 3);
-      return row;
-    }),
-    // c2: ordinary projectiles stay in the 10 Hz snapshot. Spray shares identity/team
+    players: (state.players || []).map(compactPlayerWireRow),
+    // c3: player rows are fixed-position arrays; ordinary projectiles stay in the live snapshot. Spray shares identity/team
     // metadata per volley instead of repeating it three times. Cannon uses lifecycle
     // spawn/remove events and a sparse authoritative resync.
     projectiles: regularProjectiles,
@@ -3268,17 +3429,30 @@ function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), for
 function sendPlayingSnapshotToConnection(room, conn, now = Date.now()) {
   if (!room || !conn || room.state !== 'playing') return false;
   const text = JSON.stringify(compactPlayingSnapshotForWire(snapshot(room, null, true), room, now, true));
-  conn.sendSerialized(text);
+  conn.sendSerialized(text, 'live_state_sync');
   return true;
 }
 
 function broadcast(room, now = Date.now()) {
   if (room.state === 'playing') {
     // During live play there is no viewer-private draft information. Serialize once and
-    // fan out the exact same authoritative packet to players and spectators.
+    // fan out the exact same authoritative packet. BWOpt4 reserves the actual framed
+    // bytes against a hard per-room budget before sending; skipped snapshots do not
+    // affect the 50 Hz simulation and pending Cannon lifecycle events remain queued.
+    const previousCannonSyncAt = room.lastCannonNetSyncAt;
     const text = JSON.stringify(compactPlayingSnapshotForWire(snapshot(room, null, true), room, now, false));
-    for (const conn of room.clients.values()) conn.sendSerialized(text);
-    for (const conn of room.spectators.values()) conn.sendSerialized(text);
+    const recipientCount = room.clients.size + room.spectators.size;
+    const framedBytes = websocketFrameSize(Buffer.byteLength(text, 'utf8'));
+    if (!allowLiveRoomBroadcast(room, framedBytes, recipientCount, now)) {
+      // Serialization may have prepared a periodic Cannon full-sync; if the entire
+      // snapshot is throttled, restore the timestamp so the next delivered packet can
+      // still carry that authoritative resync.
+      room.lastCannonNetSyncAt = previousCannonSyncAt;
+      room.lastBroadcastAt = now;
+      return false;
+    }
+    for (const conn of room.clients.values()) conn.sendSerialized(text, 'live_state');
+    for (const conn of room.spectators.values()) conn.sendSerialized(text, 'live_state');
     room.cannonNetPendingSpawns?.clear();
     room.cannonNetPendingRemoves?.clear();
   } else {
@@ -3286,13 +3460,14 @@ function broadcast(room, now = Date.now()) {
     for (const conn of room.spectators.values()) conn.send(snapshot(room, null, true));
   }
   room.lastBroadcastAt = now;
+  return true;
 }
 
 function roomBroadcastIntervalMs(room) {
-  if (!room) return 1000 / SNAPSHOT_RATE_IDLE;
+  if (!room) return Infinity;
   if (room.state === 'playing') return 1000 / SNAPSHOT_RATE_PLAYING;
   if (room.state === 'draft' || room.state === 'ready') return 1000 / SNAPSHOT_RATE_DRAFT;
-  return 1000 / SNAPSHOT_RATE_IDLE;
+  return Infinity;
 }
 
 if (require.main === module) {
@@ -3304,9 +3479,30 @@ if (require.main === module) {
   setInterval(() => {
     const now = Date.now();
     for (const room of rooms.values()) {
-      if (!room.lastBroadcastAt || now - room.lastBroadcastAt >= roomBroadcastIntervalMs(room) - 1) broadcast(room, now);
+      const interval = roomBroadcastIntervalMs(room);
+      if (!Number.isFinite(interval)) continue;
+      if (!room.lastBroadcastAt || now - room.lastBroadcastAt >= interval - 1) broadcast(room, now);
     }
   }, 1000 / SNAPSHOT_SCHEDULER_HZ);
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const conn of [...activeConnections]) {
+      if (conn.closed || conn.socket.destroyed) continue;
+      if (now - Number(conn.lastPongAt || 0) > WS_STALE_TIMEOUT_MS) {
+        NETWORK_METRICS.staleConnectionsClosed += 1;
+        try { conn.close(); } catch (_) {}
+        continue;
+      }
+      if (now - Number(conn.lastPingAt || 0) >= WS_PING_INTERVAL_MS) {
+        conn.lastPingAt = now;
+        try {
+          const bytes = sendFrame(conn.socket, 0x9, Buffer.alloc(0));
+          recordWsOutbound(conn, bytes, 'ping', now);
+        } catch (_) {}
+      }
+    }
+  }, Math.min(WS_PING_INTERVAL_MS, 5000));
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`
@@ -3325,7 +3521,7 @@ module.exports = {
   applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing,
   reactorStageForOutput, reactorDamageForOutput,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
-  updateRoom, snapshot, speedWithTierDelta, hasLineOfSight,
+  updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,

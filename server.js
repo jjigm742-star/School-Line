@@ -42,7 +42,7 @@ const BALANCE_VERSION = '1.3';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-potg-1-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4';
+const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-potg-1-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r22-shield';
 
 // Competitive-only Play of the Game (POTG) 1.0.
@@ -154,7 +154,7 @@ const CHARACTERS = {
       { max: 66, damage: 22 },
       { max: 100, damage: 26 }
     ],
-    reactorDamagePerOutput: 5, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
+    reactorDamagePerOutput: 3, reactorKillOutputGain: 25, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
     reactorHighThreshold: 66, reactorHighSpeed: 7.0,
     radiationHealReduction: 0.25, radiationDuration: 1.5
   },
@@ -1980,7 +1980,7 @@ function publicCharacterDefs() {
     'sprintDuration', 'sprintCooldown', 'abilityCooldown', 'abilityHeal',
     'boostDistance', 'boostDuration', 'boostCooldown', 'boostShield', 'boostShieldDuration',
     'shieldAmount', 'shieldDuration', 'shieldCap', 'shieldMaxCharges', 'shieldRecharge',
-    'reactorDamagePerOutput', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
+    'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
     'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction'
   ];
@@ -2233,6 +2233,15 @@ function registerKill(room, attackerId, now, direct = true) {
   stats.kills += 1;
   recordPotgEvent(room, attacker.id, now, { kills: 1 });
   queuePotgTrigger(room, attacker.id);
+  if (attacker.alive && attacker.character === 'reactor') {
+    const reactorDef = CHARACTERS.reactor;
+    attacker.reactorOutput = clamp(
+      Number(attacker.reactorOutput || 0) + Number(reactorDef.reactorKillOutputGain || 25),
+      0,
+      100
+    );
+    attacker.reactorLastDamageAt = now;
+  }
   if (direct && attacker.alive && isDiaForm(attacker, now)) {
     stats.diaFormKills += 1;
     attacker.diaCooldownUntil = Math.max(now, attacker.diaCooldownUntil - CHARACTERS.dia.formKillCooldownReduction * 1000);

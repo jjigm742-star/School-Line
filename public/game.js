@@ -270,7 +270,7 @@ function buildCharacterMechanic(id, fallback='') {
     case 'cannon': return '높은 연사 화력 대신 이동속도가 매우 느립니다.';
     case 'fire': return '공격 적중 시 2초간 10 DPS의 화상을 남깁니다.';
     case 'poison': return '광선 적중 시 대상이 받는 외부 치유량을 50% 감소시킵니다.';
-    case 'reactor': return '실제 HP 피해로 출력 에너지가 상승하며 3단계에서 더 강하고 빨라집니다.';
+    case 'reactor': return '실제 HP 피해와 적 처치로 출력 에너지가 상승하며 3단계에서 더 강하고 빨라집니다.';
     case 'spray': return '한 번에 중앙탄과 좌우 보조탄을 함께 발사합니다.';
     case 'laser': return '대상 최대 체력이 높을수록 추가 피해가 커집니다.';
     case 'ice': return '광선 적중 시 1.5초간 이동속도를 1단계 낮춥니다.';
@@ -2699,8 +2699,8 @@ function renderGame() {
       const guideWorld = renderedPlayerWorldPosition(sniperGuidePlayer, beamFxNow);
       const guideScreen = worldToScreen(guideWorld.x, guideWorld.y);
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,72,72,.42)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,0,0,.92)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(guideScreen.x, guideScreen.y, guideRadiusWorld * SCALE, 0, Math.PI * 2);
       ctx.stroke();

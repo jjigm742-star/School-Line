@@ -11,13 +11,14 @@ const CHARACTER_META = {
   jet:     { role:'탱커', name:'제트', icon:'🚀', summary:'부스터로 전선을 가로지르고 보호막으로 착지하는 돌진 탱커' },
   dia:     { role:'탱커', name:'다이아', icon:'💎', summary:'타이밍을 잡아 강해지는 변신 탱커' },
   solar:   { role:'탱커', name:'솔라', icon:'☀️', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커' },
+  shield:  { role:'탱커', name:'쉴드', icon:'🛡️', summary:'멀리 있는 아군에게 순간 보호막을 씌우는 보호형 탱커' },
   runner:  { role:'딜러', name:'러너', icon:'🏃', summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러' },
   shooter: { role:'딜러', name:'슈터', icon:'🎯', summary:'가장 표준적인 원거리 딜러' },
   sniper:  { role:'딜러', name:'스나이퍼', icon:'🔭', summary:'멀수록 한 발이 강해지는 초장거리 딜러' },
   cannon:  { role:'딜러', name:'캐논', icon:'💥', summary:'기동성을 버리고 화력을 얻은 중화기 딜러' },
   fire:    { role:'딜러', name:'파이어', icon:'🔥', summary:'빠르게 움직이며 지속 피해를 남기는 딜러' },
   poison:  { role:'딜러', name:'포이즌', icon:'☠️', summary:'외부 치유를 약화시키는 안티힐 광선 딜러' },
-  reactor: { role:'딜러', name:'리액터', icon:'☢️', summary:'공격을 이어갈수록 출력이 상승하는 성장형 딜러' },
+  reactor: { role:'딜러', name:'리액터', icon:'☢️', summary:'공격을 이어갈수록 출력 에너지가 상승하는 성장형 딜러' },
   spray:   { role:'딜러', name:'스프레이', icon:'🔫', summary:'세 갈래 고정 화망을 뿌리는 포킹 딜러' },
   laser:   { role:'딜러', name:'레이저', icon:'🔴', summary:'체력이 높은 적일수록 더 아픈 광선 딜러' },
   ice:     { role:'딜러', name:'아이스', icon:'🧊', summary:'적의 움직임을 묶는 제어형 광선 딜러' },
@@ -49,6 +50,10 @@ const CHARACTER_STORIES = {
   solar: {
     title:'솔라', icon:'☀️',
     text:'광선 자매들의 아버지. 광선 자매들을 강하게 키우기 위해 혹독한 훈련을 시켰고, 자신 역시 수련을 게을리하지 않았다. 그 결과 광선과 투사체 공격을 동시에 다룰 줄 아는 엄청난 존재가 되었다.'
+  },
+  shield: {
+    title:'쉴드', icon:'🛡️',
+    text:'처음에는 자신을 지키려는 생각으로 보호막 기술을 만들었다. 지금은 다른 사람들을 지키기 위해 그 기술을 사용하고 있다.'
   },
   runner: {
     title:'러너', icon:'🏃',
@@ -258,13 +263,14 @@ function buildCharacterMechanic(id, fallback='') {
     case 'jet': return `능력을 사용하면 현재 조준 방향으로 최대 12m를 돌진한다. 돌진 중 벽이나 맵 경계에 닿으면 즉시 돌진이 끝난다. 돌진 후 50의 보호막을 얻는다.`;
     case 'dia': return `능력을 사용하면 6초간 다이아폼으로 변신해 50 더 높은 체력, 한 단계 더 높은 이동속도, 짧지만 더 강한 광선형 공격으로 변한다. 다이아폼에서 적을 직접 처치하면 남은 쿨다운이 6초 감소한다.`;
     case 'solar': return `공격하는 동안 사거리 ${fmtNumber(c.range)} m의 ${fmtNumber(c.beamDps)} DPS 광선을 유지하고, 동시에 초당 ${fmtNumber(c.solarFireRate)}발의 사거리 ${fmtNumber(c.solarProjectileRange)} m 태양탄(${fmtNumber(c.solarProjectileDamage)} 피해)을 발사한다. 태양탄이 적 본체에 실제 피해를 주면 HP를 ${fmtNumber(c.solarSelfHeal)} 회복한다.`;
+    case 'shield': return `자신 또는 살아 있는 아군을 지정해 거리와 상관없이 ${fmtNumber(c.shieldAmount)} 보호막을 ${fmtNumber(c.shieldDuration)}초 동안 부여한다. 최대 ${fmtNumber(c.shieldMaxCharges)}회 충전되며 ${fmtNumber(c.shieldRecharge)}초마다 1회씩 순차 충전된다. 같은 대상에게 연속 사용하면 보호막이 최대 ${fmtNumber(c.shieldCap)}까지 합쳐지고 지속시간이 다시 ${fmtNumber(c.shieldDuration)}초로 갱신된다.`;
     case 'runner': return `빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. Space 또는 능력 버튼을 누르면 ${fmtNumber(c.sprintDuration)}초 동안 이동속도가 한 단계 올라간다. 질주 재사용 대기시간은 ${fmtNumber(c.sprintCooldown)}초다.`;
     case 'shooter': return `빠르고 작은 탄을 초당 ${fmtNumber(c.fireRate)}발 발사한다. 특별한 조건 없이 꾸준한 화력을 내기 쉬워 입문용으로 좋다.`;
     case 'sniper': return bands.length >= 2 ? `매우 빠른 작은 투사체를 초당 ${fmtNumber(c.fireRate)}발 발사한다. 실제 비행거리 ${fmtNumber(bands[0].max)} m 이하는 발당 ${fmtNumber(bands[0].damage)} 피해(${fmtNumber(Number(bands[0].damage||0)*Number(c.fireRate||0))} DPS), 그보다 멀어 최대 ${fmtNumber(bands[1].max)} m까지는 발당 ${fmtNumber(bands[1].damage)} 피해(${fmtNumber(Number(bands[1].damage||0)*Number(c.fireRate||0))} DPS)를 준다.` : fallback;
     case 'cannon': return `초당 ${fmtNumber(c.fireRate)}발을 퍼붓는 높은 지속 화력을 가진다. 대신 이동속도가 ${speedLabel(c.speed)} ${fmtNumber(c.speed)} m/s라 위치를 잘못 잡으면 도망치기 어렵다.`;
     case 'fire': return `적중한 적에게 ${fmtNumber(c.burnDuration)}초 동안 ${fmtNumber(c.burnDps)} DPS의 화상을 남긴다. 체력은 낮지만 빠른 이동속도로 위치를 바꾸며 싸우기 좋다.`;
     case 'poison': return `광선이 적에게 닿으면 그 적이 다른 캐릭터에게 받는 치유량이 ${fmtNumber(c.poisonHealReduction*100)}% 감소한다. 중독은 마지막 적중 후 ${fmtNumber(c.poisonDuration)}초 유지되며 비전투 회복에는 영향을 주지 않는다.`;
-    case 'reactor': return `적에게 피해를 준 만큼 출력이 조금씩 상승한다. 출력이 높아질수록 공격력이 증가하며, 66% 이상의 출력에 도달하면 '각성 상태'가 시작되어 이동속도가 한 단계 상승하고 투사체가 적중한 적에게 1.5초간 외부 치유가 25% 감소하는 상태 이상을 건다. 적에게 피해를 주지 못하면 출력이 다시 떨어지고, 죽었다 부활하면 출력이 0%가 된다.`;
+    case 'reactor': return `적에게 피해를 준 만큼 출력 에너지가 상승한다. 출력 에너지는 1단계(0~33% 미만) / 2단계(33~66% 미만) / 3단계(66~100%)로 나뉘며 단계마다 공격력이 증가한다. 3단계에서는 이동속도가 한 단계 상승하고 투사체가 적중한 적에게 1.5초간 외부 치유가 25% 감소하는 방사능을 건다. 적에게 피해를 주지 못하면 출력 에너지가 다시 떨어지고, 죽었다 부활하면 출력 에너지가 0%가 된다.`;
     case 'spray': return `세 갈래로 나눠서 공격한다. 중앙탄은 가장 대미지가 높고, 좌우 보조탄은 대미지가 약하다. DPS는 중앙탄 75 / 좌측 보조탄 25 / 우측 보조탄 25다.`;
     case 'laser': return `기본 ${fmtNumber(c.beamDps)} DPS에 대상 최대 HP의 ${fmtNumber(c.maxHpDpsRatio*100)}%/s만큼 피해가 추가되어 체력이 높은 적을 상대할 때 특히 강하다.`;
     case 'ice': return `광선이 적에게 닿으면 이동속도를 1단계 낮춘다. 이 효과는 마지막 적중 후 1.5초 유지된다.`;
@@ -334,7 +340,8 @@ function renderPicker(kind) {
   const displayRole = publicDef?.role || m.role;
   const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
   const statHtml = buildCharacterStats(detailId).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
-  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div></div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
+  const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">빨간색 원 밖의 적에게 더 높은 피해를 줍니다.</div>' : '';
+  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
 }
 
 function selectLobbyCharacter(id) {
@@ -342,6 +349,103 @@ function selectLobbyCharacter(id) {
 }
 
 let ws = null, myId = null, config = null, state = null;
+
+// Live Cannon rendering is reconstructed locally from server-authoritative lifecycle events.
+// This registry is visual-only; hit/damage/collision remain entirely server-side.
+const cannonProjectileRegistry = new Map();
+
+function clearCannonProjectileRegistry() {
+  cannonProjectileRegistry.clear();
+}
+
+function applyCannonWireRow(row, nowPerf = performance.now()) {
+  if (!Array.isArray(row) || !row[0]) return;
+  cannonProjectileRegistry.set(row[0], {
+    id: row[0],
+    x: Number(row[1] || 0),
+    y: Number(row[2] || 0),
+    vx: Number(row[3] || 0),
+    vy: Number(row[4] || 0),
+    radius: Number(config?.characters?.cannon?.projectileRadius || 0.32),
+    team: row[5] ? 'B' : 'A',
+    type: 'attack',
+    character: 'cannon',
+    basePerf: nowPerf
+  });
+}
+
+function applyCannonNetworkUpdate(msg) {
+  const nowPerf = performance.now();
+  if (Array.isArray(msg?.cannonSync)) {
+    cannonProjectileRegistry.clear();
+    for (const row of msg.cannonSync) applyCannonWireRow(row, nowPerf);
+  }
+  const events = Array.isArray(msg?.cannonEvents) ? msg.cannonEvents : [];
+  const spawns = Array.isArray(events[0]) ? events[0] : [];
+  const removes = Array.isArray(events[1]) ? events[1] : [];
+  for (const row of spawns) applyCannonWireRow(row, nowPerf);
+  for (const id of removes) cannonProjectileRegistry.delete(id);
+}
+
+function liveCannonProjectiles(nowPerf = performance.now()) {
+  const out = [];
+  for (const p of cannonProjectileRegistry.values()) {
+    const dt = Math.max(0, Math.min(2.5, (nowPerf - p.basePerf) / 1000));
+    out.push({
+      id: p.id,
+      x: p.x + p.vx * dt,
+      y: p.y + p.vy * dt,
+      radius: p.radius,
+      type: p.type,
+      team: p.team,
+      character: p.character
+    });
+  }
+  return out;
+}
+
+// Dormant perk-selection client shell. Alpha 1.3 receives no perk_offer while the
+// server PERK_SYSTEM flag is disabled, so these controls never become visible.
+let activePerkOffer = null;
+
+function hidePerkChoicePanel() {
+  activePerkOffer = null;
+  const panel = $('perkChoicePanel');
+  if (panel) panel.classList.add('hidden');
+}
+
+function perkButtonText(option, index) {
+  const name = String(option?.name || `특전 ${index + 1}`);
+  const description = String(option?.description || '');
+  return description ? `${name}\n${description}` : name;
+}
+
+function showPerkChoicePanel(msg) {
+  if (spectatorMode || !msg || !Array.isArray(msg.options) || msg.options.length !== 2) return;
+  activePerkOffer = msg;
+  const panel = $('perkChoicePanel');
+  const buttons = [$('perkChoiceA'), $('perkChoiceB')];
+  if (!panel || buttons.some(b => !b)) return;
+  buttons.forEach((button, index) => {
+    const option = msg.options[index];
+    button.textContent = perkButtonText(option, index);
+    button.disabled = !option?.id;
+    button.dataset.perkId = option?.id || '';
+  });
+  panel.classList.remove('hidden');
+}
+
+function submitPerkChoice(button) {
+  const perkId = String(button?.dataset?.perkId || '');
+  if (!perkId || !activePerkOffer || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type:'perk_choose', perkId }));
+  const a = $('perkChoiceA'), b = $('perkChoiceB');
+  if (a) a.disabled = true;
+  if (b) b.disabled = true;
+}
+
+if ($('perkChoiceA')) $('perkChoiceA').addEventListener('click', event => submitPerkChoice(event.currentTarget));
+if ($('perkChoiceB')) $('perkChoiceB').addEventListener('click', event => submitPerkChoice(event.currentTarget));
 let spectatorMode = false;
 let schoolLineAccessOpen = false;
 let accessLockActive = true;
@@ -379,7 +483,7 @@ function updatePlayerMotionTracks(previousState, nextState) {
 
   const continuing = previousState && previousState.state === 'playing';
   const rawInterval = continuing && lastPlayingSnapshotAt ? now - lastPlayingSnapshotAt : 50;
-  const snapshotInterval = Math.max(35, Math.min(85, rawInterval));
+  const snapshotInterval = Math.max(35, Math.min(110, rawInterval));
   lastPlayingSnapshotAt = now;
   const beforeById = new Map(((previousState && previousState.players) || []).map(p => [p.id, p]));
   const liveIds = new Set();
@@ -396,10 +500,11 @@ function updatePlayerMotionTracks(previousState, nextState) {
     }
 
     const sampled = samplePlayerMotionTrack(oldTrack, now) || {x:before.x, y:before.y};
-    // Local movement catches up faster to reduce perceived input latency; remote players favor smoothness.
+    // Local movement still catches up slightly faster, while 10 Hz network snapshots are
+    // interpolated across most of their interval so bandwidth savings do not look choppy.
     const duration = p.id === myId
-      ? Math.max(24, Math.min(36, snapshotInterval * 0.60))
-      : Math.max(35, Math.min(55, snapshotInterval * 0.90));
+      ? Math.max(30, Math.min(75, snapshotInterval * 0.80))
+      : Math.max(40, Math.min(90, snapshotInterval * 0.95));
     playerMotionTracks.set(p.id, {
       fromX: sampled.x, fromY: sampled.y, toX: p.x, toY: p.y, start: now, duration
     });
@@ -1061,6 +1166,12 @@ function processCombatFeedback(previousState, nextState) {
         const localPlayer=afterById.get(myId);
         if (spectatorMode || after.id===myId || (localPlayer && localPlayer.team===after.team)) playWindTailwindCue(after.id===myId);
         if (after.id===myId) pulseAbilityButton();
+      } else if (after.character==='shield') {
+        const target=afterById.get(after.lastAbilityTargetId);
+        addWorldFx('ability', after, {character:'shield'});
+        if (target) addWorldFx('ability', target, {character:'shield'});
+        if (after.id===myId || after.lastAbilityTargetId===myId) playAbilityUseFeedback();
+        if (after.id===myId) pulseAbilityButton();
       } else if (after.character==='angel') {
         const target=afterById.get(after.lastAbilityTargetId);
         addWorldFx('angelCast', after);
@@ -1088,7 +1199,7 @@ function updateAccessUi(open, message='') {
   $('accessLockScreen')?.classList.toggle('hidden', schoolLineAccessOpen);
   if ($('accessLockMessage')) $('accessLockMessage').textContent = schoolLineAccessOpen
     ? ''
-    : (message || '지금은 스쿨라인 이용 시간이 아닙니다. 선생님이 이용을 허용한 시간에 다시 접속해주세요.');
+    : (message || '관리자가 입장을 제한했습니다.');
   const status = $('accessAdminStatus');
   if (status) {
     status.textContent = schoolLineAccessOpen ? '🟢 현재 상태: 이용 가능' : '🔴 현재 상태: 이용 불가';
@@ -1111,6 +1222,7 @@ function resetClientForAccessLock(message='') {
   clearResumeCredentials();
   myId = null;
   spectatorMode = false;
+  clearCannonProjectileRegistry();
   state = null;
   config = null;
   selectedTargetId = null;
@@ -1127,7 +1239,7 @@ async function refreshAccessStatus() {
     const res = await fetch('/access-status.json', { cache:'no-store' });
     if (!res.ok) throw new Error('status');
     const data = await res.json();
-    if (!data.open && schoolLineAccessOpen) resetClientForAccessLock('지금은 스쿨라인 이용 시간이 아닙니다.');
+    if (!data.open && schoolLineAccessOpen) resetClientForAccessLock('관리자가 입장을 제한했습니다.');
     else updateAccessUi(!!data.open);
   } catch (_) {
     if (document.body.classList.contains('access-checking')) {
@@ -1171,7 +1283,7 @@ async function submitAccessControl(action) {
       updateAccessUi(!!data.open);
       return;
     }
-    if (action === 'lock') resetClientForAccessLock(data.message || '지금은 스쿨라인 이용 시간이 아닙니다.');
+    if (action === 'lock') resetClientForAccessLock(data.message || '관리자가 입장을 제한했습니다.');
     else updateAccessUi(true);
     $('accessAdminMessage').textContent = data.message || (action === 'open' ? '스쿨라인을 열었습니다.' : '스쿨라인을 잠갔습니다.');
     if ($('accessAdminPin')) $('accessAdminPin').value = '';
@@ -1248,14 +1360,121 @@ function show(which) {
 function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`; }
 
 function openConnection(onOpen) {
-  if (accessLockActive) { $('joinError').textContent = '지금은 스쿨라인 이용 시간이 아닙니다.'; return; }
+  if (accessLockActive) { $('joinError').textContent = '관리자가 입장을 제한했습니다.'; return; }
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   adminStatsAuthorized = false;
   lastAdminStatsData = null;
   selectedCompetitiveStatsVersion = null;
   ws = new WebSocket(wsUrl());
   ws.onopen = onOpen;
-  ws.onmessage = ev => handleMessage(JSON.parse(ev.data));
+  
+function expandPotgReplayPayload(potg) {
+  if (!potg || potg.replayFormat !== 'p2') return potg;
+  const meta = Array.isArray(potg.replayPlayers) ? potg.replayPlayers : [];
+  const characters = Array.isArray(potg.replayCharacters) ? potg.replayCharacters : [];
+  const projectileMeta = Array.isArray(potg.replayProjectiles) ? potg.replayProjectiles : [];
+  potg.frames = (potg.frames || []).map(f => {
+    const playerRows = Array.isArray(f[4]) ? f[4] : [];
+    const players = meta.map((m, i) => {
+      const d = playerRows[i] || [];
+      const flags = Number(d[8] || 0);
+      const character = m[3];
+      let reactorOutput;
+      let jetBoostStartX, jetBoostStartY, jetBoostEndX, jetBoostEndY;
+      let bufferTargetId = null;
+      if (character === 'reactor') reactorOutput = d[9];
+      else if (character === 'jet') [jetBoostStartX, jetBoostStartY, jetBoostEndX, jetBoostEndY] = [d[9], d[10], d[11], d[12]];
+      else if (character === 'buffer') {
+        const targetIndex = Math.max(0, Number(d[9] || 0)) - 1;
+        bufferTargetId = targetIndex >= 0 ? (meta[targetIndex]?.[0] || null) : null;
+      }
+      return {
+        id:m[0], name:m[1], team:m[2], character,
+        x:d[0], y:d[1], hp:d[2], maxHp:d[3], shield:d[4], maxShield:d[5],
+        alive:!!(flags & (1<<0)), invulnerable:!!(flags & (1<<1)), aimX:d[6], aimY:d[7],
+        burning:!!(flags & (1<<2)), poisoned:!!(flags & (1<<3)), radiated:!!(flags & (1<<4)),
+        tailwind:!!(flags & (1<<5)), frozen:!!(flags & (1<<6)), stunned:!!(flags & (1<<7)), diaForm:!!(flags & (1<<8)),
+        reactorOutput,
+        jetBoost:!!(flags & (1<<9)), jetBoostStartX, jetBoostStartY, jetBoostEndX, jetBoostEndY,
+        bufferTargetId, bufferLinkActive:!!(flags & (1<<10))
+      };
+    });
+    const projectiles = (Array.isArray(f[5]) ? f[5] : []).map(q => {
+      const pm = projectileMeta[q[0]] || [];
+      return {
+        id:pm[0], x:q[1], y:q[2], radius:pm[1], type:pm[2] ? 'heal' : 'attack', team:pm[3] ? 'B' : 'A',
+        character:characters[pm[4]] || null, reactorFxBand:pm[5] == null ? null : pm[5]
+      };
+    });
+    const beams = (Array.isArray(f[6]) ? f[6] : []).map(b => {
+      const owner = meta[b[0]] || [];
+      return {
+        ownerId:owner[0] || null, team:owner[2] || null, character:owner[3] || null,
+        x1:b[1], y1:b[2], x2:b[3], y2:b[4],
+        impact:Array.isArray(b[5]) ? {x:b[5][0], y:b[5][1]} : null,
+        didDamage:!!b[6]
+      };
+    });
+    return { t:Number(f[0]||0), state:'playing', scoreA:Number(f[1]||0), scoreB:Number(f[2]||0), timeLeft:Number(f[3]||0), players, projectiles, beams };
+  });
+  delete potg.replayFormat;
+  delete potg.replayPlayers;
+  delete potg.replayCharacters;
+  delete potg.replayProjectiles;
+  return potg;
+}
+
+function expandWireMessage(msg) {
+  if (!msg) return msg;
+  if (msg.type === 'post_game_sequence' && msg.potg) {
+    msg.potg = expandPotgReplayPayload(msg.potg);
+    return msg;
+  }
+  if (msg.type !== 'state') return msg;
+  if (msg.wireFormat === 'd1') {
+    msg.players = (msg.players || []).map(p => ({ id:p[0], name:p[1], team:p[2], character:p[3], connected:!!p[4] }));
+    delete msg.wireFormat;
+    return msg;
+  }
+  if (msg.wireFormat !== 'c1' && msg.wireFormat !== 'c2') return msg;
+  const wireFormat = msg.wireFormat;
+  msg.projectiles = (msg.projectiles || []).map(p => ({
+    id:p[0], x:p[1], y:p[2], radius:p[3], type:p[4], team:p[5], character:p[6],
+    reactorFxBand:p[7] == null ? null : p[7]
+  }));
+  if (wireFormat === 'c2') {
+    for (const volley of (msg.sprayVolleys || [])) {
+      const volleyId = volley[0];
+      const team = volley[1] ? 'B' : 'A';
+      for (const lane of (Array.isArray(volley[2]) ? volley[2] : [])) {
+        const laneCode = Number(lane[0] || 0);
+        const sprayDef = config?.characters?.spray || {};
+        const radius = laneCode === 0
+          ? Number(sprayDef.projectileRadius || 0.32)
+          : Number(sprayDef.spraySideProjectileRadius || 0.20);
+        msg.projectiles.push({
+          id:`${volleyId}:${laneCode}`,
+          x:Number(lane[1] || 0), y:Number(lane[2] || 0), radius,
+          type:'attack', team, character:'spray'
+        });
+      }
+    }
+    applyCannonNetworkUpdate(msg);
+    delete msg.sprayVolleys;
+    delete msg.cannonEvents;
+    delete msg.cannonSync;
+  }
+  msg.beams = (msg.beams || []).map(b => ({
+    ownerId:b[0], team:b[1], character:b[2], x1:b[3], y1:b[4], x2:b[5], y2:b[6],
+    healedId:b[7] || null, hitEnemyId:b[8] || null,
+    impact:Array.isArray(b[9]) ? {x:b[9][0], y:b[9][1]} : null,
+    didDamage:!!b[10]
+  }));
+  delete msg.wireFormat;
+  return msg;
+}
+
+ws.onmessage = ev => handleMessage(expandWireMessage(JSON.parse(ev.data)));
   ws.onerror = () => $('joinError').textContent = '서버에 연결하지 못했습니다.';
   ws.onclose = () => {
     if (accessLockActive) return;
@@ -1303,7 +1522,7 @@ $('spectatorJoinButton').onclick = () => {
 
 function handleMessage(msg) {
   if (msg.type === 'access_locked') {
-    resetClientForAccessLock(msg.message || '지금은 스쿨라인 이용 시간이 아닙니다.');
+    resetClientForAccessLock(msg.message || '관리자가 입장을 제한했습니다.');
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
     return;
   }
@@ -1314,6 +1533,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'joined') {
+    clearCannonProjectileRegistry();
     myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room;
     saveResumeCredentials(msg.room, msg.resumeToken);
     pickerState.lobby.selected = null;
@@ -1323,6 +1543,7 @@ function handleMessage(msg) {
     show('lobby'); return;
   }
   if (msg.type === 'resumed') {
+    clearCannonProjectileRegistry();
     spectatorMode = false;
     document.body.classList.remove('spectator-mode');
     myId = msg.id;
@@ -1335,6 +1556,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'spectator_joined') {
+    clearCannonProjectileRegistry();
     spectatorMode = true;
     myId = null;
     config = msg.config;
@@ -1379,6 +1601,23 @@ function handleMessage(msg) {
     if (notice) notice.textContent = `⚠️ ${msg.message}`;
     return;
   }
+  if (msg.type === 'ban_vote_update') {
+    if (state && state.competitive && (state.state === 'draft' || state.state === 'ready')) {
+      state.competitive.banVoteCounts = msg.banVoteCounts || {};
+      state.competitive.myBanVote = msg.myBanVote || null;
+      if (msg.activeBanTeam) state.competitive.activeBanTeam = msg.activeBanTeam;
+      renderCompetitiveDraft();
+    }
+    return;
+  }
+  if (msg.type === 'perk_offer') {
+    showPerkChoicePanel(msg);
+    return;
+  }
+  if (msg.type === 'perk_selected') {
+    hidePerkChoicePanel();
+    return;
+  }
   if (msg.type === 'post_game_sequence') {
     startCompetitivePostGameSequence(msg);
     return;
@@ -1403,10 +1642,14 @@ function handleMessage(msg) {
         lastAimDir = me.team === 'A' ? {x:0,y:1} : {x:0,y:-1};
       }
     } else if (state.state === 'draft' || state.state === 'ready') {
+      clearCannonProjectileRegistry();
+      hidePerkChoicePanel();
       stopBgm();
       show('draft');
       renderCompetitiveDraft();
     } else {
+      clearCannonProjectileRegistry();
+      hidePerkChoicePanel();
       stopBgm();
       lastCompetitiveRenderKey = null;
       show('lobby'); renderLobby();
@@ -1476,6 +1719,7 @@ function useAbility() {
   if (me.character === 'wind' && me.windTailwindCooldownMs > 0) return;
   if (me.character === 'jet' && (me.jetBoost || me.jetBoostCooldownMs > 0)) return;
   if (me.character === 'angel' && (me.angelBlessCooldownMs > 0 || !selectedTargetId)) return;
+  if (me.character === 'shield' && ((Number(me.shieldAbilityCharges)||0) <= 0 || !selectedTargetId)) return;
   const payload = { type:'ability', ability:abilityId };
   if (selectedTargetId) payload.targetId = selectedTargetId;
   ws.send(JSON.stringify(payload));
@@ -1495,9 +1739,15 @@ function formatContributionNumber(value) {
 }
 
 function contributionSpecialLine(character, stats) {
-  if (character === 'wind') return `순풍 적용 ${formatContributionNumber(stats.tailwindApplications)}회`;
+  if (character === 'shield') return `보호막으로 막은 피해량 ${formatContributionNumber(stats.shieldDamageBlocked)}`;
+  if (character === 'buffer') return `연결 시간 ${formatContributionNumber(stats.bufferLinkSeconds)}초`;
+  if (character === 'fire') return `화상 피해량 ${formatContributionNumber(stats.burnDamage)}`;
+  if (character === 'wind') return `순풍으로 가속된 팀원 ${formatContributionNumber(stats.tailwindApplications)}명`;
   if (character === 'poison') return `감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
-  if (character === 'reactor') return `방사능으로 감소시킨 치유량 ${formatContributionNumber(stats.radiationHealingPrevented)}`;
+  if (character === 'reactor') return `출력 에너지 3단계 유지 시간 ${formatContributionNumber(stats.reactorStage3Seconds)}초`;
+  if (character === 'sniper') return `장거리 피해량 ${formatContributionNumber(stats.sniperLongRangeDamage)}`;
+  if (character === 'solar') return `태양탄으로 회복한 체력 ${formatContributionNumber(stats.solarProjectileHealing)}`;
+  if (character === 'angel') return `축복으로 회복한 체력 ${formatContributionNumber(stats.angelBlessingHealing)}`;
   if (character === 'dia') return `다이아폼 킬 ${formatContributionNumber(stats.diaFormKills)}회`;
   return '';
 }
@@ -2152,7 +2402,7 @@ function drawBeamFx(beam, nowMs) {
 }
 
 function fxCharacterColor(character) {
-  return ({iron:'#aab3bf',mecha:'#9af0bd',solar:'#ffd45c',runner:'#ffd27a',shooter:'#8bbcff',sniper:'#eadcff',cannon:'#ffd66b',fire:'#ff9a45',poison:'#c58cff',spray:'#9ae7ff',water:'#65d7ff',wind:'#9ef7d5',star:'#fff3a8',angel:'#fff0c8',buffer:'#e5d8ff',light:'#fff0a6',laser:'#ff699a',ice:'#92efff',dia:'#d9fbff'})[character] || '#ffffff';
+  return ({iron:'#aab3bf',mecha:'#9af0bd',solar:'#ffd45c',shield:'#79c7ff',runner:'#ffd27a',shooter:'#8bbcff',sniper:'#eadcff',cannon:'#ffd66b',fire:'#ff9a45',poison:'#c58cff',spray:'#9ae7ff',water:'#65d7ff',wind:'#9ef7d5',star:'#fff3a8',angel:'#fff0c8',buffer:'#e5d8ff',light:'#fff0a6',laser:'#ff699a',ice:'#92efff',dia:'#d9fbff'})[character] || '#ffffff';
 }
 
 function drawWorldFx(nowMs) {
@@ -2314,11 +2564,85 @@ function drawBufferThread(buffer, target, nowMs) {
   ctx.restore();
 }
 
+let scoringStatusUiKey = '';
+
+function scoringStateFromPlayers(viewState) {
+  if (!viewState || !config?.world) return { a:false, b:false };
+  let aAttackers=0, bDefenders=0, bAttackers=0, aDefenders=0;
+  for (const p of (viewState.players || [])) {
+    if (!p.alive || p.connected === false) continue;
+    if (Number(p.y) >= Number(config.world.bZoneStart)) {
+      if (p.team === 'A') aAttackers++;
+      else if (p.team === 'B') bDefenders++;
+    }
+    if (Number(p.y) <= Number(config.world.aZoneEnd)) {
+      if (p.team === 'B') bAttackers++;
+      else if (p.team === 'A') aDefenders++;
+    }
+  }
+  return { a:aAttackers>0 && bDefenders===0, b:bAttackers>0 && aDefenders===0 };
+}
+
+function clearScoringStatusUi() {
+  const el=$('scoringStatus');
+  if (el) { el.classList.add('hidden'); el.classList.remove('score-a','score-b','score-both'); }
+  $('scoreA')?.parentElement?.classList.remove('scoring');
+  $('scoreB')?.parentElement?.classList.remove('scoring');
+  scoringStatusUiKey = '';
+}
+
+function updateScoringStatusUi(viewState, isReplay) {
+  if (isReplay || !viewState || viewState.state !== 'playing') { clearScoringStatusUi(); return; }
+  const scoring=scoringStateFromPlayers(viewState);
+  const me = spectatorMode ? null : (viewState.players || []).find(p => p.id === myId);
+  const perspective = spectatorMode || !me ? 'spectator' : me.team;
+  const key=`${scoring.a?'A':''}${scoring.b?'B':''}:${perspective}`;
+  if (key === scoringStatusUiKey) return;
+  scoringStatusUiKey=key;
+  const el=$('scoringStatus');
+  const pillA=$('scoreA')?.parentElement, pillB=$('scoreB')?.parentElement;
+  pillA?.classList.toggle('scoring', scoring.a);
+  pillB?.classList.toggle('scoring', scoring.b);
+  if (!el) return;
+  el.classList.remove('score-a','score-b','score-both');
+  if (!scoring.a && !scoring.b) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  if (scoring.a && scoring.b) {
+    el.textContent='⚔️ 양 팀 득점 중 · A +1/초 · B +1/초';
+    el.classList.add('score-both');
+    return;
+  }
+  const team=scoring.a?'A':'B';
+  if (perspective === 'spectator') el.textContent=`${team}팀 득점 중 · +1/초`;
+  else if (perspective === team) el.textContent=`✅ 우리 팀 득점 중 · ${team}팀 +1/초`;
+  else el.textContent=`⚠️ 상대 팀 득점 중! · ${team}팀 +1/초`;
+  el.classList.add(team === 'A' ? 'score-a' : 'score-b');
+}
+
+function drawHomeZoneLabels(viewState, isReplay) {
+  if (!config?.world) return;
+  const me = (!isReplay && !spectatorMode) ? (viewState.players || []).find(p => p.id === myId) : null;
+  let left='A 구역', right='B 구역';
+  if (me?.team === 'A') { left='우리 집'; right='적 집'; }
+  else if (me?.team === 'B') { left='적 집'; right='우리 집'; }
+  const leftX=(Number(config.world.aZoneEnd)/2)*SCALE;
+  const rightX=((Number(config.world.bZoneStart)+Number(config.world.height))/2)*SCALE;
+  const y=canvas.height*0.50;
+  ctx.save();
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 22px system-ui';
+  ctx.lineWidth=3; ctx.globalAlpha=.18; ctx.strokeStyle='rgba(0,0,0,.9)';
+  ctx.strokeText(left,leftX,y); ctx.strokeText(right,rightX,y);
+  ctx.fillStyle='#dce9ff'; ctx.fillText(left,leftX,y);
+  ctx.fillStyle='#ffe1e1'; ctx.fillText(right,rightX,y);
+  ctx.restore();
+}
+
 function renderGame() {
   requestAnimationFrame(renderGame);
   const isReplay = !!potgReplayPlayback.active;
   const viewState = isReplay ? currentPotgReplayState() : state;
-  if (!viewState || (!isReplay && viewState.state !== 'playing') || !config) return;
+  if (!viewState || (!isReplay && viewState.state !== 'playing') || !config) { clearScoringStatusUi(); return; }
+  updateScoringStatusUi(viewState, isReplay);
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle = '#121821'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
@@ -2328,6 +2652,10 @@ function renderGame() {
   ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([7,7]);
   for (const y of [config.world.aZoneEnd, config.world.bZoneStart]) { ctx.beginPath(); ctx.moveTo(y*SCALE,0); ctx.lineTo(y*SCALE,canvas.height); ctx.stroke(); }
   ctx.setLineDash([]);
+
+  // Player-perspective home labels are local-only orientation aids. Spectators/POTG
+  // keep neutral A/B labels. They are deliberately drawn as faint floor text.
+  drawHomeZoneLabels(viewState, isReplay);
 
   // Walls rotated into landscape view.
   ctx.fillStyle = '#4b5565';
@@ -2342,7 +2670,8 @@ function renderGame() {
     if (target) { drawBufferThread(buffer, target, beamFxNow); drawBufferTargetAura(target, beamFxNow); }
   }
 
-  for (const p of viewState.projectiles) {
+  const renderProjectiles = isReplay ? (viewState.projectiles || []) : [...(viewState.projectiles || []), ...liveCannonProjectiles(beamFxNow)];
+  for (const p of renderProjectiles) {
     const s=worldToScreen(p.x,p.y), r=Math.max(2,p.radius*SCALE);
     ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2);
     if (p.type === 'heal') ctx.fillStyle = p.character === 'wind' ? '#9ef7d5' : (p.character === 'star' ? '#fff3a8' : (p.character === 'angel' ? '#fff0c8' : '#65d7ff'));
@@ -2359,13 +2688,33 @@ function renderGame() {
 
   drawWorldFx(beamFxNow);
 
+  // Sniper-only local distance guide. This is a purely client-side aid: the
+  // first damage-band boundary (currently 16 m) is drawn only for the player
+  // controlling Sniper, never for opponents or spectators.
+  if (!isReplay && !spectatorMode) {
+    const sniperGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && p.character === 'sniper');
+    if (sniperGuidePlayer) {
+      const sniperDef = characterPublicDef('sniper');
+      const guideRadiusWorld = Number(sniperDef?.distanceDamageBands?.[0]?.max || 16);
+      const guideWorld = renderedPlayerWorldPosition(sniperGuidePlayer, beamFxNow);
+      const guideScreen = worldToScreen(guideWorld.x, guideWorld.y);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,72,72,.42)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(guideScreen.x, guideScreen.y, guideRadiusWorld * SCALE, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   for (const p of viewState.players) {
     if (!p.alive) continue;
     const radius = characterRadiusWorld(p.character) * SCALE;
     const renderWorld = renderedPlayerWorldPosition(p, beamFxNow);
     const s=worldToScreen(renderWorld.x,renderWorld.y), x=s.x,y=s.y;
     ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
+    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',shield:'#4f9ed6',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
     ctx.fill();
     if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
       ctx.save(); ctx.globalAlpha=.48; ctx.fillStyle='#ffffff';
@@ -2459,6 +2808,15 @@ function renderGame() {
     }
 
     const bw=42,bh=5,bx=x-bw/2,by=y-radius-15;
+    if (!isReplay && !spectatorMode && p.id === myId) {
+      // Local-only "this is me" marker. No network data is needed.
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x-6,by-34); ctx.lineTo(x+6,by-34); ctx.lineTo(x,by-24); ctx.closePath();
+      ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,.88)'; ctx.fillStyle='#ffffff';
+      ctx.stroke(); ctx.fill();
+      ctx.restore();
+    }
     ctx.fillStyle='#241e24'; ctx.fillRect(bx,by,bw,bh);
     ctx.fillStyle='#7ee18b'; ctx.fillRect(bx,by,bw*Math.max(0,p.hp/p.maxHp),bh);
     if (p.character === 'reactor') {
@@ -2470,7 +2828,7 @@ function renderGame() {
       ctx.fillStyle='#1a2734'; ctx.fillRect(bx,by-5,bw,3);
       ctx.fillStyle='#65c7ff'; ctx.fillRect(bx,by-5,bw*Math.max(0,Math.min(1,p.shield/p.maxShield)),3);
     }
-    drawText(p.name,x,by-7,11,'center','#f6f8fb');
+    drawText(`${p.team} ${p.name}`,x,by-7,11,'center','#f6f8fb');
   }
 
   const me = (isReplay || spectatorMode) ? null : viewState.players.find(p => p.id === myId);
@@ -2517,18 +2875,26 @@ function renderGame() {
       if (!target) extra = '<br>🎛️ 연결 대상 선택 필요';
       else extra = `<br>🎛️ ${me.bufferLinkActive ? '연결 중' : '범위 밖 · 지정 유지'} · ${escapeHtml(target.name)}`;
     }
-    else if (me.character === 'reactor') {
-      extra = `<br>☢️ 출력 ${Math.round(Number(me.reactorOutput)||0)}%`;
-      const reactorDef = characterPublicDef('reactor');
-      if (reactorDef && Number(me.reactorOutput||0) >= Number(reactorDef.reactorHighThreshold||66)) extra += ' · 방사능 활성';
+    else if (me.character === 'shield') {
+      const target = selectedTargetId ? viewState.players.find(p => p.id === selectedTargetId && p.alive) : null;
+      const charges = Math.max(0, Number(me.shieldAbilityCharges) || 0);
+      extra = `<br>🛡️ 충전 ${charges}/${fmtNumber(characterPublicDef('shield')?.shieldMaxCharges || 2)}`;
+      if (me.shieldRechargeMs > 0) extra += ` · 다음 ${(me.shieldRechargeMs/1000).toFixed(1)}초`;
+      if (target) extra += ` · 대상 ${escapeHtml(target.name)}`;
     }
-    const shieldLine = me.shield > 0 ? `<br>🛡️ 보호막 ${Math.ceil(me.shield)}/${Math.ceil(me.maxShield || me.shield)}` : '';
+    else if (me.character === 'reactor') {
+      const reactorOutput = Math.max(0, Math.min(100, Number(me.reactorOutput) || 0));
+      const reactorStage = reactorOutput >= 66 ? 3 : (reactorOutput >= 33 ? 2 : 1);
+      extra = `<br>☢️ 출력 에너지 ${Math.round(reactorOutput)}% · ${reactorStage}단계`;
+      if (reactorStage === 3) extra += ' · 방사능 활성';
+    }
+    const shieldLine = me.shield > 0 ? `<br>🛡️ 보호막 ${Math.ceil(me.shield)}/${Math.ceil(me.maxShield || me.shield)}${me.shieldMs > 0 ? ` · ${(me.shieldMs/1000).toFixed(1)}초` : ''}` : '';
     const stunLine = me.stunned ? '<br>💫 기절' : '';
     $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${extra}`;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 
     const ability = $('abilityButton');
-    const hasAbility = me.character === 'dia' || me.character === 'runner' || me.character === 'wind' || me.character === 'angel' || me.character === 'jet';
+    const hasAbility = me.character === 'dia' || me.character === 'runner' || me.character === 'wind' || me.character === 'angel' || me.character === 'shield' || me.character === 'jet';
     ability.classList.toggle('hidden', !hasAbility);
     if (me.character === 'dia') {
       if (!me.alive) { ability.textContent = '💎 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
@@ -2550,6 +2916,15 @@ function renderGame() {
       else if (me.jetBoost) { ability.textContent = `🚀 부스터 ${(me.jetBoostMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.add('active'); }
       else if (me.jetBoostCooldownMs > 0) { ability.textContent = `🚀 쿨 ${(me.jetBoostCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
       else { ability.textContent = '🚀 부스터'; ability.disabled = false; ability.classList.remove('active'); }
+    } else if (me.character === 'shield') {
+      const target = viewState.players.find(p => p.id === selectedTargetId && p.alive);
+      const def = characterPublicDef('shield');
+      const charges = Math.max(0, Number(me.shieldAbilityCharges) || 0);
+      const maxCharges = Number(def?.shieldMaxCharges || 2);
+      if (!me.alive) { ability.textContent = '🛡️ 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
+      else if (charges <= 0) { ability.textContent = `🛡️ 충전 0/${maxCharges}${me.shieldRechargeMs > 0 ? ` · ${(me.shieldRechargeMs/1000).toFixed(1)}초` : ''}`; ability.disabled = true; ability.classList.remove('active'); }
+      else if (!target) { ability.textContent = `🛡️ 대상 선택 · ${charges}/${maxCharges}`; ability.disabled = true; ability.classList.remove('active'); }
+      else { ability.textContent = `🛡️ 보호막 · ${target.name} · ${charges}/${maxCharges}`; ability.disabled = false; ability.classList.remove('active'); }
     } else if (me.character === 'angel') {
       const target = viewState.players.find(p => p.id === selectedTargetId && p.alive);
       if (!me.alive) { ability.textContent = '😇 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }

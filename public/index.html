@@ -127,6 +127,16 @@
           <div id="timer" class="timer">03:00</div>
           <div class="score-pill team-b">B <b id="scoreB">0</b></div>
         </div>
+        <div id="scoringStatus" class="scoring-status hidden" role="status" aria-live="polite"></div>
+
+        <!-- Dormant perk selector shell. Alpha 1.3 never receives a perk_offer, so this stays invisible. -->
+        <div id="perkChoicePanel" class="perk-choice-panel hidden" role="group" aria-label="특전 선택">
+          <div class="perk-choice-title">특전 선택</div>
+          <div class="perk-choice-buttons">
+            <button id="perkChoiceA" type="button" class="perk-choice-button"></button>
+            <button id="perkChoiceB" type="button" class="perk-choice-button"></button>
+          </div>
+        </div>
 
         <div id="matchAlert" class="match-alert hidden" role="status" aria-live="polite"></div>
 

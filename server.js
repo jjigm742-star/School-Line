@@ -10,7 +10,14 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
 const TICK_RATE = 50;
-const SNAPSHOT_RATE = 20;
+// Outbound state sync is intentionally slower than the 50 Hz authoritative simulation.
+// The client already interpolates between snapshots, so 10 Hz during live play preserves
+// smooth movement while cutting the dominant Render outbound traffic substantially.
+// Draft/ready/idle states are event-driven and only need light heartbeat updates.
+const SNAPSHOT_RATE_PLAYING = 10;
+const SNAPSHOT_RATE_DRAFT = 1;
+const SNAPSHOT_RATE_IDLE = 1;
+const SNAPSHOT_SCHEDULER_HZ = 20;
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
 const COMPETITIVE_BAN_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_BAN_MS || 10000));
@@ -35,8 +42,8 @@ const BALANCE_VERSION = '1.3';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.3-r21-potg-1-access-lock';
-const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r21-spray';
+const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-potg-1-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy';
+const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r22-shield';
 
 // Competitive-only Play of the Game (POTG) 1.0.
 const POTG_WINDOW_MS = 8000;
@@ -50,6 +57,8 @@ const POTG_OBJECTIVE_STOP_SCORE = 150;
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [4.0, 5.0, 6.0, 7.0, 8.0, 9.2];
+const GLOBAL_SHIELD_CAP = 150;
+const MAX_EXTERNAL_HEAL_REDUCTION = 0.80;
 
 // Alpha 1.1 foundation: common target relations + generic status effects.
 const TARGET_RELATION = Object.freeze({ SELF: 'SELF', ALLY: 'ALLY', ENEMY: 'ENEMY' });
@@ -94,6 +103,14 @@ const CHARACTERS = {
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
     solarProjectileRadius: 0.32, solarProjectileDamage: 25, solarSelfHeal: 25
   },
+  shield: {
+    name: '쉴드', role: '탱커', hp: 450, speed: 5.0, radius: 1.00,
+    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
+    projectileType: 'attack', damage: 10,
+    abilityId: 'shield', shieldAmount: 75, shieldDuration: 3, shieldCap: GLOBAL_SHIELD_CAP,
+    shieldMaxCharges: 2, shieldRecharge: 9,
+    abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
+  },
   runner: {
     name: '러너', role: '딜러', hp: 175, speed: 8.0, radius: 0.65,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
@@ -130,9 +147,11 @@ const CHARACTERS = {
     name: '리액터', role: '딜러', hp: 225, speed: 6.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
     projectileType: 'attack', damage: 18,
+    // Official output stages use exclusive upper bounds for stages 1 and 2:
+    // stage 1 = [0,33), stage 2 = [33,66), stage 3 = [66,100].
     reactorOutputBands: [
-      { max: 32, damage: 18 },
-      { max: 65, damage: 22 },
+      { max: 33, damage: 18 },
+      { max: 66, damage: 22 },
       { max: 100, damage: 26 }
     ],
     reactorDamagePerOutput: 5, reactorDecayDelay: 2, reactorDecayPerSecond: 20,
@@ -196,6 +215,84 @@ const CHARACTERS = {
     formRange: 16, formBeamDps: 80, formKillCooldownReduction: 6, abilityId: 'form'
   }
 };
+
+// Dormant perk framework for a future balance version.
+// Alpha 1.3 intentionally keeps this feature OFF: no offers, no UI activation,
+// no gameplay effects and no live-snapshot fields are emitted while disabled.
+const PERK_SYSTEM = Object.freeze({
+  enabled: false,
+  unlockAfterMs: 90_000,
+  choicesPerCharacter: 2
+});
+
+// Future patches can populate each character with exactly two entries:
+// [{ id: '...', name: '...', description: '...' }, { ... }].
+// Gameplay effects remain server-authoritative and should key off player.perkChoiceId.
+const CHARACTER_PERKS = Object.freeze({});
+
+function resetPerkState(player) {
+  if (!player) return;
+  player.perkChoiceId = null;
+  player.perkChosenAt = 0;
+  player.perkOfferSent = false;
+}
+
+function perkOptionsForCharacter(character) {
+  const raw = CHARACTER_PERKS[character];
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, PERK_SYSTEM.choicesPerCharacter);
+}
+
+function publicPerkOption(option) {
+  if (!option || typeof option !== 'object') return null;
+  return {
+    id: String(option.id || ''),
+    name: String(option.name || ''),
+    description: String(option.description || '')
+  };
+}
+
+function perkSelectionUnlocked(room, now = Date.now()) {
+  return !!(
+    PERK_SYSTEM.enabled &&
+    room && room.state === 'playing' && room.matchStartedAt > 0 &&
+    now - room.matchStartedAt >= PERK_SYSTEM.unlockAfterMs
+  );
+}
+
+function maybeSendPerkOffer(room, player, conn, now = Date.now()) {
+  if (!PERK_SYSTEM.enabled || !room || !player || !conn) return false;
+  if (!perkSelectionUnlocked(room, now) || player.perkChoiceId || player.perkOfferSent) return false;
+  const options = perkOptionsForCharacter(player.character).map(publicPerkOption).filter(Boolean);
+  if (options.length !== PERK_SYSTEM.choicesPerCharacter || options.some(o => !o.id || !o.name)) return false;
+  conn.send({
+    type: 'perk_offer',
+    character: player.character,
+    unlockAtSeconds: PERK_SYSTEM.unlockAfterMs / 1000,
+    options
+  });
+  player.perkOfferSent = true;
+  return true;
+}
+
+function choosePerk(room, player, perkId, now = Date.now()) {
+  if (!perkSelectionUnlocked(room, now) || !player || player.perkChoiceId) return null;
+  const requested = String(perkId || '');
+  const choice = perkOptionsForCharacter(player.character).find(option => String(option.id || '') === requested);
+  if (!choice) return null;
+  player.perkChoiceId = requested;
+  player.perkChosenAt = now;
+  player.perkOfferSent = true;
+  return publicPerkOption(choice);
+}
+
+function updatePerkSystem(room, now = Date.now()) {
+  if (!PERK_SYSTEM.enabled || !room || room.state !== 'playing') return;
+  for (const [playerId, conn] of room.clients.entries()) {
+    const player = room.players.get(playerId);
+    if (player && player.connected !== false) maybeSendPerkOffer(room, player, conn, now);
+  }
+}
 
 const rooms = new Map();
 const spectatorAuthFailures = new Map();
@@ -474,14 +571,24 @@ function isDiaForm(player, now) {
   return player.character === 'dia' && player.diaFormUntil > now;
 }
 
+function reactorStageForOutput(def, output) {
+  const bands = Array.isArray(def && def.reactorOutputBands) ? def.reactorOutputBands : null;
+  if (!bands || bands.length < 3) {
+    const value = clamp(Number(output) || 0, 0, 100);
+    return value >= 66 ? 3 : (value >= 33 ? 2 : 1);
+  }
+  const value = clamp(Number(output) || 0, 0, 100);
+  if (value < Number(bands[0].max)) return 1;
+  if (value < Number(bands[1].max)) return 2;
+  return 3;
+}
+
 function reactorDamageForOutput(def, output) {
   const bands = Array.isArray(def && def.reactorOutputBands) ? def.reactorOutputBands : null;
   if (!bands || bands.length === 0) return Number(def && def.damage) || 0;
-  const value = clamp(Number(output) || 0, 0, 100);
-  for (const band of bands) {
-    if (value <= Number(band.max) + 1e-9) return Number(band.damage) || 0;
-  }
-  return Number(bands[bands.length - 1].damage) || 0;
+  const stage = reactorStageForOutput(def, output);
+  const band = bands[Math.max(0, Math.min(bands.length - 1, stage - 1))];
+  return Number(band && band.damage) || Number(def && def.damage) || 0;
 }
 
 function currentAttackDef(player, now) {
@@ -498,7 +605,7 @@ function currentAttackDef(player, now) {
 function currentBaseSpeed(player, now) {
   const def = CHARACTERS[player.character];
   if (isDiaForm(player, now)) return def.formSpeed;
-  if (player.character === 'reactor' && Number(player.reactorOutput || 0) >= Number(def.reactorHighThreshold || 66)) return def.reactorHighSpeed;
+  if (player.character === 'reactor' && reactorStageForOutput(def, player.reactorOutput) === 3) return def.reactorHighSpeed;
   return def.speed;
 }
 
@@ -619,18 +726,97 @@ function resolveTargetedAbilityTarget(room, source, targetId, rule, now = Date.n
   if (rule.requireLos && !hasLineOfSight(source.x, source.y, target.x, target.y)) return null;
   return target;
 }
-function clearShield(player) { player.shield = 0; player.maxShield = 0; }
+function resetShieldAttribution(player) {
+  player.shieldCreditBySource = Object.create(null);
+  player.shieldUncredited = 0;
+}
+function ensureShieldAttribution(player, shieldAmount = null) {
+  if (!player.shieldCreditBySource || typeof player.shieldCreditBySource !== 'object') player.shieldCreditBySource = Object.create(null);
+  if (!Number.isFinite(player.shieldUncredited)) player.shieldUncredited = 0;
+  const current = shieldAmount == null ? Math.max(0, Number(player.shield) || 0) : Math.max(0, Number(shieldAmount) || 0);
+  let tracked = Math.max(0, Number(player.shieldUncredited) || 0);
+  for (const value of Object.values(player.shieldCreditBySource)) tracked += Math.max(0, Number(value) || 0);
+  if (tracked < current - 1e-9) player.shieldUncredited += current - tracked;
+  else if (tracked > current + 1e-9 && tracked > 0) {
+    const scale = current / tracked;
+    player.shieldUncredited *= scale;
+    for (const key of Object.keys(player.shieldCreditBySource)) player.shieldCreditBySource[key] *= scale;
+  }
+}
+function clearShield(player) {
+  player.shield = 0; player.maxShield = 0; player.shieldUntil = 0;
+  resetShieldAttribution(player);
+  if (player.character === 'jet') player.jetShieldUntil = 0;
+}
 function applyShield(room, source, target, amount, options = {}) {
   if (!target || !target.alive) return 0;
   const raw = Math.max(0, Number(amount) || 0);
   if (raw <= 0) return 0;
-  const mode = options.mode === 'replace' ? 'replace' : 'add';
-  const capValue = Number(options.cap);
-  const cap = Number.isFinite(capValue) && capValue > 0 ? capValue : (mode === 'replace' ? raw : Math.max(raw, Number(target.maxShield) || 0));
+
+  // Alpha 1.3 unified shield rule:
+  // every temporary shield source shares one additive pool and the pool can never exceed 150.
+  // The options argument is intentionally retained for backward-compatible callers/tests,
+  // but per-source replace/cap behavior is no longer used.
   const before = Math.max(0, Number(target.shield) || 0);
-  target.maxShield = Math.max(0, cap);
-  target.shield = mode === 'replace' ? Math.min(target.maxShield, raw) : Math.min(target.maxShield, before + raw);
-  return Math.max(0, target.shield - before);
+  ensureShieldAttribution(target, before);
+  target.maxShield = GLOBAL_SHIELD_CAP;
+  target.shield = Math.min(GLOBAL_SHIELD_CAP, before + raw);
+  const added = Math.max(0, target.shield - before);
+  if (added > 0) {
+    if (source && source.character === 'shield') {
+      const key = String(source.id);
+      target.shieldCreditBySource[key] = Math.max(0, Number(target.shieldCreditBySource[key]) || 0) + added;
+    } else {
+      target.shieldUncredited = Math.max(0, Number(target.shieldUncredited) || 0) + added;
+    }
+  }
+  ensureShieldAttribution(target, target.shield);
+  return added;
+}
+function consumeShieldAttribution(room, target, shieldDamage, shieldBefore) {
+  const damage = Math.max(0, Number(shieldDamage) || 0);
+  const before = Math.max(0, Number(shieldBefore) || 0);
+  if (damage <= 0 || before <= 0) return;
+  ensureShieldAttribution(target, before);
+  const ratio = Math.min(1, damage / before);
+  for (const key of Object.keys(target.shieldCreditBySource || {})) {
+    const amount = Math.max(0, Number(target.shieldCreditBySource[key]) || 0);
+    if (amount <= 0) continue;
+    const absorbed = amount * ratio;
+    target.shieldCreditBySource[key] = Math.max(0, amount - absorbed);
+    const source = room && room.players ? room.players.get(key) : null;
+    if (source && source.character === 'shield') ensureMatchStats(source).shieldDamageBlocked += absorbed;
+  }
+  target.shieldUncredited = Math.max(0, Number(target.shieldUncredited) || 0) * (1 - ratio);
+}
+
+function updateShieldAbilityCharges(player, now = Date.now()) {
+  if (!player || player.character !== 'shield') return;
+  const def = CHARACTERS.shield;
+  const maxCharges = Math.max(1, Math.floor(Number(def.shieldMaxCharges) || 2));
+  const rechargeMs = Math.max(1, Number(def.shieldRecharge) || 9) * 1000;
+  if (!Number.isFinite(player.shieldAbilityCharges)) player.shieldAbilityCharges = maxCharges;
+  player.shieldAbilityCharges = clamp(Math.floor(player.shieldAbilityCharges), 0, maxCharges);
+  if (player.shieldAbilityCharges >= maxCharges) { player.shieldRechargeAt = 0; return; }
+  if (!Number.isFinite(player.shieldRechargeAt) || player.shieldRechargeAt <= 0) player.shieldRechargeAt = now + rechargeMs;
+  while (player.shieldAbilityCharges < maxCharges && now >= player.shieldRechargeAt) {
+    player.shieldAbilityCharges += 1;
+    if (player.shieldAbilityCharges < maxCharges) player.shieldRechargeAt += rechargeMs;
+    else player.shieldRechargeAt = 0;
+  }
+}
+
+function activateShieldAbility(room, player, target, now = Date.now()) {
+  if (!room || !player || player.character !== 'shield' || !player.alive || !target || !target.alive) return false;
+  const def = CHARACTERS.shield;
+  updateShieldAbilityCharges(player, now);
+  if ((player.shieldAbilityCharges || 0) <= 0) return false;
+  player.shieldAbilityCharges -= 1;
+  if (!player.shieldRechargeAt) player.shieldRechargeAt = now + Number(def.shieldRecharge) * 1000;
+  applyShield(room, player, target, def.shieldAmount);
+  target.shieldUntil = now + Number(def.shieldDuration) * 1000;
+  if (target.character === 'jet') target.jetShieldUntil = target.shieldUntil;
+  return true;
 }
 
 function schoolLineAccessPayload() {
@@ -678,7 +864,7 @@ function setSchoolLineAccess(open) {
   // browsers to the locked screen. No match or resume reservation survives the lock.
   const conns = [...activeConnections];
   for (const conn of conns) {
-    try { conn.send({ type: 'access_locked', message: '지금은 스쿨라인 이용 시간이 아닙니다.' }); } catch (_) {}
+    try { conn.send({ type: 'access_locked', message: '관리자가 입장을 제한했습니다.' }); } catch (_) {}
   }
   for (const room of rooms.values()) {
     for (const player of room.players.values()) neutralizePlayerInput(player);
@@ -754,10 +940,24 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(PUBLIC_DIR + path.sep) && file !== path.join(PUBLIC_DIR, 'index.html')) {
     res.writeHead(403); res.end('Forbidden'); return;
   }
-  fs.readFile(file, (err, data) => {
-    if (err) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': mimeType(file), 'Cache-Control': 'no-store' });
-    res.end(data);
+  fs.stat(file, (statErr, st) => {
+    if (statErr || !st.isFile()) { res.writeHead(404); res.end('Not found'); return; }
+    const etag = `W/"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'public, max-age=0, must-revalidate' });
+      res.end();
+      return;
+    }
+    fs.readFile(file, (err, data) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, {
+        'Content-Type': mimeType(file),
+        'Cache-Control': 'public, max-age=0, must-revalidate',
+        'ETag': etag,
+        'Content-Length': data.length
+      });
+      res.end(data);
+    });
   });
 });
 
@@ -794,6 +994,10 @@ function makeWsConnection(socket, remoteAddress = '') {
     send(obj) {
       if (this.closed || socket.destroyed) return;
       try { sendFrame(socket, 0x1, JSON.stringify(obj)); } catch (_) {}
+    },
+    sendSerialized(text) {
+      if (this.closed || socket.destroyed) return;
+      try { sendFrame(socket, 0x1, text); } catch (_) {}
     },
     close() {
       if (this.closed) return;
@@ -880,7 +1084,12 @@ function newRoom(code) {
     winner: null,
     winnerReason: null,
     projectileCounter: 1,
-    potg: createPotgState(false)
+    sprayVolleyCounter: 1,
+    cannonNetPendingSpawns: new Set(),
+    cannonNetPendingRemoves: new Set(),
+    lastCannonNetSyncAt: 0,
+    potg: createPotgState(false),
+    lastBroadcastAt: 0
   };
 }
 
@@ -915,6 +1124,7 @@ function createPotgState(enabled = false) {
     events: new Map(),
     pendingTriggers: new Set(),
     replayBuffer: [],
+    replayMeta: null,
     lastReplayCaptureAt: 0,
     topScore: -Infinity,
     topCandidates: [],
@@ -983,38 +1193,84 @@ function calculatePotgWindow(room, playerId, endAt) {
   return { startAt, endAt, score, metrics };
 }
 
+function replayPlayerFlags(p) {
+  let bits = 0;
+  if (p.alive) bits |= 1 << 0;
+  if (p.invulnerable) bits |= 1 << 1;
+  if (p.burning) bits |= 1 << 2;
+  if (p.poisoned) bits |= 1 << 3;
+  if (p.radiated) bits |= 1 << 4;
+  if (p.tailwind) bits |= 1 << 5;
+  if (p.frozen) bits |= 1 << 6;
+  if (p.stunned) bits |= 1 << 7;
+  if (p.diaForm) bits |= 1 << 8;
+  if (p.jetBoost) bits |= 1 << 9;
+  if (p.bufferLinkActive) bits |= 1 << 10;
+  return bits;
+}
+
 function capturePotgReplayFrame(room, now, force = false) {
   if (!potgEnabled(room)) return null;
   if (!force && room.potg.lastReplayCaptureAt && now - room.potg.lastReplayCaptureAt < POTG_REPLAY_FRAME_MS) return null;
   const live = snapshot(room, null, true);
-  const frame = {
-    t: now,
-    state: 'playing',
-    scoreA: live.scoreA,
-    scoreB: live.scoreB,
-    timeLeft: live.timeLeft,
-    players: live.players.map(p => ({
-      id: p.id, name: p.name, team: p.team, character: p.character,
-      x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, shield: p.shield, maxShield: p.maxShield,
-      alive: p.alive, invulnerable: p.invulnerable, aimX: p.aimX, aimY: p.aimY,
-      burning: p.burning, poisoned: p.poisoned, radiated: p.radiated, tailwind: p.tailwind, frozen: p.frozen, stunned: p.stunned,
-      diaForm: p.diaForm, reactorOutput: p.reactorOutput,
-      jetBoost: p.jetBoost, jetBoostStartX: p.jetBoostStartX, jetBoostStartY: p.jetBoostStartY, jetBoostEndX: p.jetBoostEndX, jetBoostEndY: p.jetBoostEndY,
-      bufferTargetId: p.bufferTargetId, bufferLinkActive: p.bufferLinkActive
-    })),
-    projectiles: live.projectiles.map(p => ({ id:p.id, x:p.x, y:p.y, radius:p.radius, type:p.type, team:p.team, character:p.character, reactorFxBand:p.reactorFxBand })),
-    beams: live.beams.map(b => ({ ownerId:b.ownerId, team:b.team, character:b.character, x1:b.x1, y1:b.y1, x2:b.x2, y2:b.y2, impact:b.impact, didDamage:b.didDamage }))
-  };
+  if (!room.potg.replayMeta) {
+    const characterIds = Object.keys(CHARACTERS);
+    const playerRows = live.players.map(p => [p.id, p.name, p.team, p.character]);
+    room.potg.replayMeta = {
+      players: playerRows,
+      playerIndex: new Map(playerRows.map((p, i) => [p[0], i])),
+      characters: characterIds,
+      characterIndex: new Map(characterIds.map((id, i) => [id, i]))
+    };
+  }
+  const meta = room.potg.replayMeta;
+  // Compact RAM/wire frame. Static identity/dictionaries live once in replayMeta; each 10 Hz
+  // frame stores only changing values. Numeric codes avoid repeating team/type/character strings.
+  const frame = [
+    now,
+    roundWireNumber(live.scoreA, 3),
+    roundWireNumber(live.scoreB, 3),
+    roundWireNumber(live.timeLeft, 2),
+    live.players.map(p => {
+      const row = [
+        roundWireNumber(p.x, 3), roundWireNumber(p.y, 3),
+        roundWireNumber(p.hp, 2), roundWireNumber(p.maxHp, 2),
+        roundWireNumber(p.shield, 2), roundWireNumber(p.maxShield, 2),
+        roundWireNumber(p.aimX, 3), roundWireNumber(p.aimY, 3), replayPlayerFlags(p)
+      ];
+      if (p.character === 'reactor') row.push(p.reactorOutput == null ? 0 : roundWireNumber(p.reactorOutput, 2));
+      else if (p.character === 'jet') row.push(
+        p.jetBoostStartX == null ? 0 : roundWireNumber(p.jetBoostStartX, 3),
+        p.jetBoostStartY == null ? 0 : roundWireNumber(p.jetBoostStartY, 3),
+        p.jetBoostEndX == null ? 0 : roundWireNumber(p.jetBoostEndX, 3),
+        p.jetBoostEndY == null ? 0 : roundWireNumber(p.jetBoostEndY, 3)
+      );
+      else if (p.character === 'buffer') row.push(p.bufferTargetId ? ((meta.playerIndex.get(p.bufferTargetId) ?? -1) + 1) : 0);
+      return row;
+    }),
+    live.projectiles.map(p => [
+      p.id, roundWireNumber(p.x, 3), roundWireNumber(p.y, 3), roundWireNumber(p.radius, 3),
+      p.type === 'heal' ? 1 : 0, p.team === 'B' ? 1 : 0,
+      meta.characterIndex.get(p.character) ?? -1,
+      p.reactorFxBand == null ? null : p.reactorFxBand
+    ]),
+    live.beams.map(b => [
+      meta.playerIndex.get(b.ownerId) ?? -1,
+      roundWireNumber(b.x1, 3), roundWireNumber(b.y1, 3), roundWireNumber(b.x2, 3), roundWireNumber(b.y2, 3),
+      b.impact ? [roundWireNumber(b.impact.x, 3), roundWireNumber(b.impact.y, 3)] : null,
+      b.didDamage ? 1 : 0
+    ])
+  ];
   room.potg.replayBuffer.push(frame);
   room.potg.lastReplayCaptureAt = now;
   const cutoff = now - POTG_REPLAY_BUFFER_MS;
-  while (room.potg.replayBuffer.length && room.potg.replayBuffer[0].t < cutoff) room.potg.replayBuffer.shift();
+  while (room.potg.replayBuffer.length && room.potg.replayBuffer[0][0] < cutoff) room.potg.replayBuffer.shift();
   return frame;
 }
 
 function replayFramesForPotgCandidate(room, endAt) {
   const startAt = endAt - POTG_WINDOW_MS - POTG_REPLAY_PREROLL_MS;
-  return room.potg.replayBuffer.filter(frame => frame.t >= startAt && frame.t <= endAt + 100).slice();
+  return room.potg.replayBuffer.filter(frame => frame[0] >= startAt && frame[0] <= endAt + 100).slice();
 }
 
 function considerPotgCandidate(room, playerId, now) {
@@ -1036,6 +1292,7 @@ function considerPotgCandidate(room, playerId, now) {
     startAt: window.startAt,
     endAt: window.endAt,
     metrics: { ...m },
+    replayMeta: room.potg.replayMeta,
     frames: replayFramesForPotgCandidate(room, now)
   };
 
@@ -1044,12 +1301,13 @@ function considerPotgCandidate(room, playerId, now) {
     room.potg.topScore = candidate.score;
     room.potg.topCandidates = [candidate];
   } else if (Math.abs(candidate.score - room.potg.topScore) <= eps) {
-    const duplicateIndex = room.potg.topCandidates.findIndex(c => c.playerId === candidate.playerId && Math.abs(c.endAt - candidate.endAt) < 150);
-    if (duplicateIndex >= 0) room.potg.topCandidates[duplicateIndex] = candidate;
-    else {
-      room.potg.topCandidates.push(candidate);
-      if (room.potg.topCandidates.length > 16) room.potg.topCandidates.shift();
-    }
+    // One tied top-score scene per player is enough: final tie-breaks compare player/team,
+    // kills and damage. This caps replay RAM naturally at the eight competitors.
+    const samePlayerIndex = room.potg.topCandidates.findIndex(c => c.playerId === candidate.playerId);
+    if (samePlayerIndex >= 0) {
+      const existing = room.potg.topCandidates[samePlayerIndex];
+      if (comparePotgCandidateLocal(candidate, existing) < 0) room.potg.topCandidates[samePlayerIndex] = candidate;
+    } else room.potg.topCandidates.push(candidate);
   }
   return candidate;
 }
@@ -1091,6 +1349,25 @@ function finalizePotg(room) {
 
 function potgSequencePayload(candidate) {
   if (!candidate) return null;
+  const rawFrames = candidate.frames || [];
+  const baseT = rawFrames.length ? Number(rawFrames[0][0]) || 0 : 0;
+  const projectileMeta = [];
+  const projectileMetaIndex = new Map();
+  const frames = rawFrames.map(frame => {
+    const copy = frame.slice();
+    copy[0] = Math.max(0, Math.round((Number(frame[0]) || 0) - baseT));
+    copy[5] = (frame[5] || []).map(q => {
+      const id = q[0];
+      let index = projectileMetaIndex.get(id);
+      if (index == null) {
+        index = projectileMeta.length;
+        projectileMetaIndex.set(id, index);
+        projectileMeta.push([id, q[3], q[4], q[5], q[6], q[7]]);
+      }
+      return [index, q[1], q[2]];
+    });
+    return copy;
+  });
   return {
     playerId: candidate.playerId,
     playerName: candidate.playerName,
@@ -1100,19 +1377,24 @@ function potgSequencePayload(candidate) {
     score: candidate.score,
     metrics: candidate.metrics,
     windowMs: POTG_WINDOW_MS,
-    frames: candidate.frames || []
+    replayFormat: 'p2',
+    replayPlayers: candidate.replayMeta?.players || [],
+    replayCharacters: candidate.replayMeta?.characters || [],
+    replayProjectiles: projectileMeta,
+    frames
   };
 }
 
 function sendCompetitivePostGameSequence(room, candidate) {
   if (!room || room.mode !== 'competitive') return;
-  const potg = potgSequencePayload(candidate);
-  for (const [playerId, conn] of room.clients.entries()) {
-    conn.send({ type: 'post_game_sequence', finalState: snapshot(room, playerId, false), potg });
-  }
-  for (const conn of room.spectators.values()) {
-    conn.send({ type: 'post_game_sequence', finalState: snapshot(room, null, true), potg });
-  }
+  const payload = {
+    type: 'post_game_sequence',
+    finalState: snapshot(room, null, true),
+    potg: potgSequencePayload(candidate)
+  };
+  const text = JSON.stringify(payload);
+  for (const conn of room.clients.values()) conn.sendSerialized(text);
+  for (const conn of room.spectators.values()) conn.sendSerialized(text);
 }
 
 function isCharacterTakenOnTeam(room, team, character, excludePlayerId = null) {
@@ -1180,7 +1462,7 @@ function startCompetitiveDraft(room, now = Date.now()) {
   room.endedAt = 0;
   room.scoreA = 0;
   room.scoreB = 0;
-  room.projectiles.clear();
+  clearProjectiles(room);
   room.beams = [];
   const firstTeam = Math.random() < 0.5 ? 'A' : 'B';
   const secondTeam = firstTeam === 'A' ? 'B' : 'A';
@@ -1291,11 +1573,16 @@ function finalizeCompetitiveReady(room, now = Date.now()) {
 }
 function updateCompetitiveFlow(room, now = Date.now()) {
   const comp = room && room.competitive;
-  if (!comp) return;
+  if (!comp) return false;
   if (room.state === 'draft' && now >= comp.phaseEndAt) {
-    if (comp.phase === 'ban') resolveCompetitiveBan(room, now);
-    else if (comp.phase === 'pick') autoCompetitivePick(room, now);
-  } else if (room.state === 'ready' && now >= comp.readyEndAt) finalizeCompetitiveReady(room, now);
+    if (comp.phase === 'ban') return !!resolveCompetitiveBan(room, now);
+    if (comp.phase === 'pick') return !!autoCompetitivePick(room, now);
+  } else if (room.state === 'ready' && now >= comp.readyEndAt) {
+    // startMatch() already performs the immediate playing-state broadcast.
+    finalizeCompetitiveReady(room, now);
+    return false;
+  }
+  return false;
 }
 function recordCompetitiveResult(room, now = Date.now()) {
   const comp = room && room.competitive;
@@ -1372,6 +1659,24 @@ function competitiveSnapshot(room, viewer, spectator, now) {
   };
 }
 
+function sendCompetitiveBanVoteUpdate(room, team) {
+  const comp = room && room.competitive;
+  if (!comp || room.state !== 'draft' || comp.phase !== 'ban' || comp.activeBanTeam !== team) return;
+  const counts = {};
+  const votes = comp.banVotes[team] || {};
+  for (const charId of Object.values(votes)) counts[charId] = (counts[charId] || 0) + 1;
+  for (const [playerId, conn] of room.clients.entries()) {
+    const player = room.players.get(playerId);
+    if (!player || player.team !== team) continue;
+    conn.send({
+      type: 'ban_vote_update',
+      activeBanTeam: team,
+      banVoteCounts: counts,
+      myBanVote: votes[playerId] || null
+    });
+  }
+}
+
 function spawnPoint(room, player) {
   const teammates = [...room.players.values()].filter(p => p.team === player.team).sort((a, b) => a.id.localeCompare(b.id));
   const idx = Math.max(0, teammates.findIndex(p => p.id === player.id));
@@ -1383,7 +1688,7 @@ function spawnPoint(room, player) {
 function onMessage(conn, msg) {
   if (!msg || typeof msg !== 'object') return;
   if (!schoolLineAccessOpen) {
-    conn.send({ type: 'access_locked', message: '지금은 스쿨라인 이용 시간이 아닙니다.' });
+    conn.send({ type: 'access_locked', message: '관리자가 입장을 제한했습니다.' });
     return;
   }
   if (msg.type === 'admin_stats_request') return sendAdminCompetitiveStats(conn, msg);
@@ -1405,7 +1710,8 @@ function onMessage(conn, msg) {
     player.character = requested;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0;
+    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
+    resetPerkState(player);
     broadcast(room);
     return;
   }
@@ -1437,7 +1743,7 @@ function onMessage(conn, msg) {
     const requested = validCharacter(msg.character);
     if (!competitiveAvailableCharacters(room).includes(requested)) return;
     comp.banVotes[player.team][player.id] = requested;
-    broadcast(room);
+    sendCompetitiveBanVoteUpdate(room, player.team);
     return;
   }
   if (msg.type === 'draft_pick' && room.state === 'draft' && room.competitive?.phase === 'pick') {
@@ -1447,6 +1753,12 @@ function onMessage(conn, msg) {
   }
   if (msg.type === 'ready_swap' && room.state === 'ready') {
     if (swapCompetitiveReadyAssignments(room, player, msg.sourcePlayerId, msg.targetPlayerId)) broadcast(room);
+    return;
+  }
+  if (msg.type === 'perk_choose' && room.state === 'playing') {
+    if (!PERK_SYSTEM.enabled) return;
+    const chosen = choosePerk(room, player, msg.perkId, Date.now());
+    if (chosen) conn.send({ type: 'perk_selected', character: player.character, perk: chosen });
     return;
   }
   if (msg.type === 'ability' && room.state === 'playing') {
@@ -1464,6 +1776,7 @@ function onMessage(conn, msg) {
     if (msg.ability === 'sprint') activated = activateRunnerSprint(player, now);
     if (msg.ability === 'tailwind') activated = activateWindTailwind(room, player, now);
     if (msg.ability === 'blessing') activated = activateAngelBlessing(room, player, abilityTarget, now);
+    if (msg.ability === 'shield') activated = activateShieldAbility(room, player, abilityTarget, now);
     if (msg.ability === 'boost') activated = activateJetBoost(room, player, now);
     if (activated) {
       player.abilityUseSeq = (player.abilityUseSeq || 0) + 1;
@@ -1540,7 +1853,7 @@ function joinSpectator(conn, msg) {
     type: 'spectator_joined', id: spectatorId, room: code,
     config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
   });
-  conn.send(snapshot(room, null, true));
+  if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.send(snapshot(room, null, true));
 }
 
 function joinRoom(conn, msg) {
@@ -1566,13 +1879,15 @@ function joinRoom(conn, msg) {
     nextFireAt: 0, lastPeriodicActionAt: 0,
     bufferTargetId: null,
     statuses: Object.create(null),
-    shield: 0, maxShield: 0,
+    shield: 0, maxShield: 0, shieldUntil: 0, shieldCreditBySource: Object.create(null), shieldUncredited: 0,
+    shieldAbilityCharges: 0, shieldRechargeAt: 0,
     lastCombatAt: 0,
     diaFormUntil: 0, diaCooldownUntil: 0,
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
     jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
     reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0,
+    perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
     shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, abilityUseSeq: 0, lastAbilityTargetId: null,
     stats: makeMatchStats(null)
   };
@@ -1640,7 +1955,16 @@ function resumeRoom(conn, msg) {
     resumeToken: player.resumeToken,
     config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
   });
-  conn.send(snapshot(room, player.id));
+  if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.send(snapshot(room, player.id));
+  if (PERK_SYSTEM.enabled && room.state === 'playing') {
+    if (player.perkChoiceId) {
+      const chosen = perkOptionsForCharacter(player.character).find(option => String(option.id || '') === player.perkChoiceId);
+      if (chosen) conn.send({ type: 'perk_selected', character: player.character, perk: publicPerkOption(chosen) });
+    } else {
+      player.perkOfferSent = false;
+      maybeSendPerkOffer(room, player, conn, Date.now());
+    }
+  }
   broadcast(room);
 }
 
@@ -1655,8 +1979,9 @@ function publicCharacterDefs() {
     'solarProjectileRadius', 'solarProjectileDamage', 'solarSelfHeal',
     'sprintDuration', 'sprintCooldown', 'abilityCooldown', 'abilityHeal',
     'boostDistance', 'boostDuration', 'boostCooldown', 'boostShield', 'boostShieldDuration',
+    'shieldAmount', 'shieldDuration', 'shieldCap', 'shieldMaxCharges', 'shieldRecharge',
     'reactorDamagePerOutput', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
-    'linkHealHps', 'actionSpeedBoost', 'noBasicAttack',
+    'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction'
   ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
@@ -1717,7 +2042,7 @@ function disconnect(conn) {
     broadcast(room);
   } else {
     room.players.delete(playerId);
-    for (const [pid, proj] of room.projectiles) if (proj.ownerId === playerId) room.projectiles.delete(pid);
+    for (const [pid, proj] of [...room.projectiles]) if (proj.ownerId === playerId) removeProjectile(room, pid);
     if (room.hostId === playerId) room.hostId = [...room.players.values()].find(p => p.connected !== false)?.id || null;
     if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code); else broadcast(room);
   }
@@ -1731,7 +2056,7 @@ function startMatch(room, now = Date.now()) {
   room.scoreA = 0; room.scoreB = 0; room.winner = null; room.winnerReason = null; room.endedAt = 0;
   room.matchStartedAt = now;
   room.matchEndAt = now + MATCH_SECONDS * 1000;
-  room.projectiles.clear();
+  clearProjectiles(room);
   room.beams = [];
   room.potg = createPotgState(room.mode === 'competitive');
   for (const p of room.players.values()) {
@@ -1740,10 +2065,12 @@ function startMatch(room, now = Date.now()) {
     Object.assign(p, {
       x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0, invulnerableUntil: 0,
       connected: p.connected !== false, disconnectedAt: p.connected === false ? (p.disconnectedAt || now) : 0,
-      nextFireAt: 0, lastPeriodicActionAt: 0, bufferTargetId: null, statuses: Object.create(null), shield: 0, maxShield: 0,
+      nextFireAt: 0, lastPeriodicActionAt: 0, bufferTargetId: null, statuses: Object.create(null), shield: 0, maxShield: 0, shieldUntil: 0, shieldCreditBySource: Object.create(null), shieldUncredited: 0,
+      shieldAbilityCharges: p.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0, shieldRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
       jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
       reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, lastCombatAt: now,
+      perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, abilityUseSeq: 0, lastAbilityTargetId: null,
       stats: makeMatchStats(p.character)
     });
@@ -1836,8 +2163,9 @@ function finishJetBoost(room, player, now) {
   player.jetBoostUntil = 0;
   player.jetBoostStartAt = 0;
   const def = CHARACTERS.jet;
-  applyShield(room, player, player, def.boostShield, { mode: 'replace', cap: def.boostShield });
-  player.jetShieldUntil = now + def.boostShieldDuration * 1000;
+  applyShield(room, player, player, def.boostShield);
+  player.shieldUntil = now + def.boostShieldDuration * 1000;
+  player.jetShieldUntil = player.shieldUntil;
   return true;
 }
 
@@ -1883,6 +2211,7 @@ function activateAngelBlessing(room, player, target, now) {
   player.angelBlessCooldownUntil = now + def.abilityCooldown * 1000;
   const actualHeal = applyHealing(room, player, target, def.abilityHeal, now);
   if (actualHeal > 0) {
+    ensureMatchStats(player).angelBlessingHealing += actualHeal;
     player.healHitSeq = (player.healHitSeq || 0) + 1;
     player.lastHealTargetId = target.id;
   }
@@ -2013,7 +2342,13 @@ function makeMatchStats(character = null) {
     tailwindApplications: 0,
     diaFormKills: 0,
     healingPrevented: 0,
-    radiationHealingPrevented: 0
+    reactorStage3Seconds: 0,
+    shieldDamageBlocked: 0,
+    bufferLinkSeconds: 0,
+    burnDamage: 0,
+    sniperLongRangeDamage: 0,
+    solarProjectileHealing: 0,
+    angelBlessingHealing: 0
   };
 }
 
@@ -2029,6 +2364,7 @@ function dealDamageDetailed(room, attackerId, target, amount, now) {
   const shieldBefore = Math.max(0, Number(target.shield) || 0);
   const shieldDamage = Math.min(shieldBefore, remaining);
   if (shieldDamage > 0) {
+    consumeShieldAttribution(room, target, shieldDamage, shieldBefore);
     target.shield = shieldBefore - shieldDamage;
     remaining -= shieldDamage;
     if (target.shield <= 1e-9) clearShield(target);
@@ -2063,22 +2399,20 @@ function applyHealing(room, healer, target, amount, now) {
   if (healer && healer.id !== target.id && (poison || radiation)) {
     const poisonReduction = poison ? clamp(Number(poison.data && poison.data.healReduction) || CHARACTERS.poison.poisonHealReduction, 0, 1) : 0;
     const radiationReduction = radiation ? clamp(Number(radiation.data && radiation.data.healReduction) || CHARACTERS.reactor.radiationHealReduction, 0, 1) : 0;
-    const totalReduction = clamp(poisonReduction + radiationReduction, 0, 1);
+    const nominalReduction = Math.max(0, poisonReduction + radiationReduction);
+    const totalReduction = Math.min(MAX_EXTERNAL_HEAL_REDUCTION, nominalReduction);
     effectiveRaw = raw * (1 - totalReduction);
 
-    // Credit prevented healing proportionally to each additive source. With Poison 50%
-    // + Radiation 25%, Poison receives 2/3 and Reactor 1/3 of the actually prevented heal.
+    // Credit prevented healing proportionally to each additive source. The actual
+    // anti-heal is globally capped at 80%, while attribution still follows each
+    // source's share of the uncapped additive reduction.
     const withoutReduction = Math.min(missing, raw);
     const withReduction = Math.min(missing, effectiveRaw);
     const prevented = Math.max(0, withoutReduction - withReduction);
-    if (prevented > 0 && totalReduction > 0) {
+    if (prevented > 0 && nominalReduction > 0) {
       if (poison && poisonReduction > 0) {
         const source = room.players.get(poison.sourceId);
-        if (source && source.character === 'poison') ensureMatchStats(source).healingPrevented += prevented * (poisonReduction / totalReduction);
-      }
-      if (radiation && radiationReduction > 0) {
-        const source = room.players.get(radiation.sourceId);
-        if (source && source.character === 'reactor') ensureMatchStats(source).radiationHealingPrevented += prevented * (radiationReduction / totalReduction);
+        if (source && source.character === 'poison') ensureMatchStats(source).healingPrevented += prevented * (poisonReduction / nominalReduction);
       }
     }
   }
@@ -2213,6 +2547,59 @@ function traceLightBeam(room, player, def, dt, now) {
   });
 }
 
+
+function resetHeavyProjectileNetState(room) {
+  if (!room) return;
+  if (!(room.cannonNetPendingSpawns instanceof Set)) room.cannonNetPendingSpawns = new Set();
+  else room.cannonNetPendingSpawns.clear();
+  if (!(room.cannonNetPendingRemoves instanceof Set)) room.cannonNetPendingRemoves = new Set();
+  else room.cannonNetPendingRemoves.clear();
+  room.lastCannonNetSyncAt = 0;
+}
+
+function noteCannonProjectileSpawn(room, projectile) {
+  if (!room || !projectile || projectile.character !== 'cannon') return;
+  if (!(room.cannonNetPendingSpawns instanceof Set)) room.cannonNetPendingSpawns = new Set();
+  if (!(room.cannonNetPendingRemoves instanceof Set)) room.cannonNetPendingRemoves = new Set();
+  room.cannonNetPendingRemoves.delete(projectile.id);
+  room.cannonNetPendingSpawns.add(projectile.id);
+}
+
+function removeProjectile(room, id) {
+  if (!room || !room.projectiles) return false;
+  const projectile = room.projectiles.get(id);
+  if (!projectile) return false;
+  room.projectiles.delete(id);
+  if (projectile.character === 'cannon') {
+    if (!(room.cannonNetPendingSpawns instanceof Set)) room.cannonNetPendingSpawns = new Set();
+    if (!(room.cannonNetPendingRemoves instanceof Set)) room.cannonNetPendingRemoves = new Set();
+    if (room.cannonNetPendingSpawns.has(id)) {
+      // Spawned and removed before the next 10 Hz network frame: the browser never needs to see it.
+      room.cannonNetPendingSpawns.delete(id);
+    } else {
+      room.cannonNetPendingRemoves.add(id);
+    }
+  }
+  return true;
+}
+
+function clearProjectiles(room) {
+  if (!room || !room.projectiles) return;
+  room.projectiles.clear();
+  resetHeavyProjectileNetState(room);
+}
+
+function cannonProjectileWireRow(p) {
+  return [
+    p.id,
+    roundWireNumber(p.x, 3),
+    roundWireNumber(p.y, 3),
+    roundWireNumber(p.vx, 3),
+    roundWireNumber(p.vy, 3),
+    p.team === 'B' ? 1 : 0
+  ];
+}
+
 function spawnProjectileFromDirection(room, player, def, now, dx, dy, options = {}) {
   if (Math.hypot(dx, dy) < 0.001) return null;
   const projectileRadius = Number(options.projectileRadius ?? def.projectileRadius) || 0;
@@ -2235,10 +2622,12 @@ function spawnProjectileFromDirection(room, player, def, now, dx, dy, options = 
     traveled: 0,
     burnDps: def.burnDps || 0,
     burnDuration: def.burnDuration || 0,
-    reactorFxBand: player.character === 'reactor' ? (Number(player.reactorOutput || 0) >= 66 ? 2 : (Number(player.reactorOutput || 0) >= 33 ? 1 : 0)) : null,
+    reactorFxBand: player.character === 'reactor' ? reactorStageForOutput(CHARACTERS.reactor, player.reactorOutput) - 1 : null,
     bornAt: now
   });
   if (options.sprayLane) room.projectiles.get(id).sprayLane = options.sprayLane;
+  if (options.sprayVolleyId) room.projectiles.get(id).sprayVolleyId = options.sprayVolleyId;
+  noteCannonProjectileSpawn(room, room.projectiles.get(id));
   return id;
 }
 
@@ -2278,16 +2667,17 @@ function spawnSprayVolley(room, player, def, now) {
   const rightDx = dx * cos + dy * sin, rightDy = -dx * sin + dy * cos;
 
   player.shotSeq = (player.shotSeq || 0) + 1;
+  const volleyId = `V${room.sprayVolleyCounter++}`;
   let spawned = 0;
-  if (spawnProjectileFromDirection(room, player, def, now, dx, dy, { sprayLane: 'center' })) spawned += 1;
+  if (spawnProjectileFromDirection(room, player, def, now, dx, dy, { sprayLane: 'center', sprayVolleyId: volleyId })) spawned += 1;
 
   const lx = player.x + leftX * offset, ly = player.y + leftY * offset;
   if (spraySideOriginClear(player, lx, ly, sideRadius)) {
-    if (spawnProjectileFromDirection(room, player, def, now, leftDx, leftDy, { startX: lx, startY: ly, projectileRadius: sideRadius, damage: sideDamage, sprayLane: 'left' })) spawned += 1;
+    if (spawnProjectileFromDirection(room, player, def, now, leftDx, leftDy, { startX: lx, startY: ly, projectileRadius: sideRadius, damage: sideDamage, sprayLane: 'left', sprayVolleyId: volleyId })) spawned += 1;
   }
   const rx = player.x - leftX * offset, ry = player.y - leftY * offset;
   if (spraySideOriginClear(player, rx, ry, sideRadius)) {
-    if (spawnProjectileFromDirection(room, player, def, now, rightDx, rightDy, { startX: rx, startY: ry, projectileRadius: sideRadius, damage: sideDamage, sprayLane: 'right' })) spawned += 1;
+    if (spawnProjectileFromDirection(room, player, def, now, rightDx, rightDy, { startX: rx, startY: ry, projectileRadius: sideRadius, damage: sideDamage, sprayLane: 'right', sprayVolleyId: volleyId })) spawned += 1;
   }
   return spawned;
 }
@@ -2324,7 +2714,7 @@ function spawnSolarProjectile(room, player, def, now) {
 function updateProjectiles(room, dt, now) {
   for (const [id, p] of [...room.projectiles.entries()]) {
     const step = p.range - p.traveled;
-    if (step <= 0) { room.projectiles.delete(id); continue; }
+    if (step <= 0) { removeProjectile(room, id); continue; }
     let dx = p.vx * dt, dy = p.vy * dt;
     let moveLen = Math.hypot(dx, dy);
     if (moveLen > step) { const s = step / moveLen; dx *= s; dy *= s; moveLen = step; }
@@ -2361,7 +2751,12 @@ function updateProjectiles(room, dt, now) {
             const damageResult = dealDamageDetailed(room, p.ownerId, t, hitDamage, now);
             if (damageResult.total > 0) {
               const owner = room.players.get(p.ownerId);
-              if (owner) owner.projectileHitSeq = (owner.projectileHitSeq || 0) + 1;
+              if (owner) {
+                owner.projectileHitSeq = (owner.projectileHitSeq || 0) + 1;
+                if (owner.character === 'sniper' && impactDistance > 16) {
+                  ensureMatchStats(owner).sniperLongRangeDamage += damageResult.total;
+                }
+              }
             }
             const reactorOwner = room.players.get(p.ownerId);
             if (damageResult.hp > 0 && reactorOwner && reactorOwner.alive && reactorOwner.character === 'reactor') {
@@ -2371,14 +2766,19 @@ function updateProjectiles(room, dt, now) {
                 0, 100
               );
               reactorOwner.reactorLastDamageAt = now;
-              if (reactorOwner.reactorOutput >= reactorDef.reactorHighThreshold) {
+              if (reactorStageForOutput(reactorDef, reactorOwner.reactorOutput) === 3) {
                 applyStatus(room, reactorOwner, t, 'radiation', reactorDef.radiationDuration * 1000, now, { healReduction: reactorDef.radiationHealReduction });
               }
             }
             // Solar self-heal requires actual HP damage; shield-only hits do not count.
             if (damageResult.hp > 0 && p.selfHealOnHit > 0) {
               const owner = room.players.get(p.ownerId);
-              if (owner && owner.alive) applyHealing(room, owner, owner, p.selfHealOnHit, now);
+              if (owner && owner.alive) {
+                const actualSelfHeal = applyHealing(room, owner, owner, p.selfHealOnHit, now);
+                if (actualSelfHeal > 0 && owner.character === 'solar') {
+                  ensureMatchStats(owner).solarProjectileHealing += actualSelfHeal;
+                }
+              }
             }
             if (p.burnDps > 0) {
               const owner = room.players.get(p.ownerId);
@@ -2398,16 +2798,17 @@ function updateProjectiles(room, dt, now) {
           }
         }
       }
-      room.projectiles.delete(id);
+      removeProjectile(room, id);
       continue;
     }
     p.x = x2; p.y = y2; p.traveled += moveLen;
-    if (p.traveled >= p.range - 1e-6) room.projectiles.delete(id);
+    if (p.traveled >= p.range - 1e-6) removeProjectile(room, id);
   }
 }
 
 function updateRoom(room, dt, now) {
-  updateCompetitiveFlow(room, now);
+  const competitiveFlowChanged = updateCompetitiveFlow(room, now);
+  if (competitiveFlowChanged) broadcast(room, now);
   if (room.state === 'ended') {
     if (room.endedAt && now - room.endedAt >= 60000) {
       for (const [pid, p] of [...room.players.entries()]) {
@@ -2425,7 +2826,7 @@ function updateRoom(room, dt, now) {
     const resolved = resolveMatchWinner(room);
     room.winner = resolved.winner;
     room.winnerReason = resolved.reason;
-    room.projectiles.clear();
+    clearProjectiles(room);
     room.beams = [];
     for (const p of room.players.values()) p.input.fire = false;
     if (room.mode === 'competitive') {
@@ -2436,28 +2837,34 @@ function updateRoom(room, dt, now) {
     return;
   }
 
+  updatePerkSystem(room, now);
   room.beams = [];
   for (const player of room.players.values()) {
     const def = CHARACTERS[player.character];
+    if (player.character === 'shield') updateShieldAbilityCharges(player, now);
     if (!player.alive) {
       if (now >= player.respawnAt) respawn(room, player, now);
       continue;
     }
     if (player.character === 'dia' && player.diaFormUntil > 0 && now >= player.diaFormUntil) endDiaForm(player);
-    if (player.character === 'reactor' && player.reactorOutput > 0) {
+    if (player.character === 'reactor') {
       const reactorDef = CHARACTERS.reactor;
-      if (player.reactorLastDamageAt > 0 && now - player.reactorLastDamageAt >= reactorDef.reactorDecayDelay * 1000) {
+      if (reactorStageForOutput(reactorDef, player.reactorOutput) === 3) {
+        ensureMatchStats(player).reactorStage3Seconds += dt;
+      }
+      if (player.reactorOutput > 0 && player.reactorLastDamageAt > 0 && now - player.reactorLastDamageAt >= reactorDef.reactorDecayDelay * 1000) {
         player.reactorOutput = Math.max(0, player.reactorOutput - reactorDef.reactorDecayPerSecond * dt);
       }
     }
-    if (player.character === 'jet' && player.jetShieldUntil > 0 && now >= player.jetShieldUntil) {
-      player.jetShieldUntil = 0;
-      clearShield(player);
-    }
+    if (player.shieldUntil > 0 && now >= player.shieldUntil) clearShield(player);
     const burn = getStatus(player, 'burn', now);
     if (burn && player.invulnerableUntil <= now) {
       const burnDps = Math.max(0, Number(burn.data && burn.data.dps) || 0);
-      dealDamage(room, burn.sourceId, player, burnDps * dt, now);
+      const burnResult = dealDamageDetailed(room, burn.sourceId, player, burnDps * dt, now);
+      if (burnResult.total > 0) {
+        const burnSource = room.players.get(burn.sourceId);
+        if (burnSource && burnSource.character === 'fire') ensureMatchStats(burnSource).burnDamage += burnResult.total;
+      }
       if (player.hp <= 0) {
         registerKill(room, burn.sourceId, now, false);
         die(room, player, now);
@@ -2489,7 +2896,10 @@ function updateRoom(room, dt, now) {
     if (player.character === 'buffer') {
       const link = bufferLinkState(room, player, now);
       if (!link.target && player.bufferTargetId) player.bufferTargetId = null;
-      if (link.active) applyHealing(room, player, link.target, def.linkHealHps * dt, now);
+      if (link.active) {
+        ensureMatchStats(player).bufferLinkSeconds += dt;
+        applyHealing(room, player, link.target, def.linkHealHps * dt, now);
+      }
     }
 
     if (!stunned && player.input.fire && !def.noBasicAttack) {
@@ -2567,65 +2977,313 @@ function updateRoom(room, dt, now) {
   }
 }
 
-function snapshot(room, viewerId = null, spectator = false) {
-  const now = Date.now();
+function competitivePhaseWireSnapshot(room, viewerId = null, spectator = false, now = Date.now()) {
   const viewer = viewerId ? room.players.get(viewerId) : null;
-  const hideEnemyPicks = room.state === 'lobby' && room.mode !== 'competitive' && !!viewer;
-  const hideAllPicks = room.state === 'lobby' && room.mode !== 'competitive' && spectator;
   return {
-    type: 'state', state: room.state, mode: room.mode || 'normal', room: room.code, hostId: room.hostId,
-    scoreA: room.scoreA, scoreB: room.scoreB,
+    type: 'state', wireFormat: 'd1', state: room.state, mode: room.mode || 'competitive', room: room.code,
+    scoreA: roundWireNumber(room.scoreA, 3), scoreB: roundWireNumber(room.scoreB, 3), timeLeft: 0,
+    players: [...room.players.values()].map(p => [p.id, p.name, p.team, p.character || null, p.connected === false ? 0 : 1]),
+    projectiles: [], beams: [],
     competitive: competitiveSnapshot(room, viewer, spectator, now),
-    timeLeft: room.state === 'playing' ? Math.max(0, (room.matchEndAt - now) / 1000) : 0,
-    winner: room.winner,
-    winnerReason: room.winnerReason || null,
-    teamKills: teamKillTotals(room),
-    players: [...room.players.values()].map(p => {
-      const hideCharacter = hideAllPicks || (hideEnemyPicks && p.team !== viewer.team);
-      const burnStatus = getStatus(p, 'burn', now);
-      const radiationStatus = getStatus(p, 'radiation', now);
-      return {
-        id: p.id, name: p.name, team: p.team, character: hideCharacter ? null : p.character,
-        x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, shield: Math.max(0, p.shield || 0), maxShield: Math.max(0, p.maxShield || 0), alive: p.alive, connected: p.connected !== false,
-        respawnMs: p.alive ? 0 : Math.max(0, p.respawnAt - now),
-        invulnerable: p.alive && p.invulnerableUntil > now,
-        invulnerableMs: p.alive ? Math.max(0, p.invulnerableUntil - now) : 0,
-        aimX: p.aimX, aimY: p.aimY,
-        burning: !!burnStatus, burnSourceId: burnStatus ? burnStatus.sourceId : null, poisoned: hasStatus(p, 'poison', now), radiated: !!radiationStatus, radiationSourceId: radiationStatus ? radiationStatus.sourceId : null, tailwind: hasStatus(p, 'tailwind', now), frozen: hasStatus(p, 'slow', now), stunned: hasStatus(p, 'stun', now),
-        diaForm: !hideCharacter && isDiaForm(p, now),
-        diaFormMs: !hideCharacter && isDiaForm(p, now) ? Math.max(0, p.diaFormUntil - now) : 0,
-        diaCooldownMs: !hideCharacter && p.character === 'dia' ? Math.max(0, p.diaCooldownUntil - now) : 0,
-        sprint: !hideCharacter && p.character === 'runner' && p.sprintUntil > now,
-        sprintMs: !hideCharacter && p.character === 'runner' && p.sprintUntil > now ? Math.max(0, p.sprintUntil - now) : 0,
-        sprintCooldownMs: !hideCharacter && p.character === 'runner' ? Math.max(0, p.sprintCooldownUntil - now) : 0,
-        windTailwindMs: !hideCharacter && p.character === 'wind' ? Math.max(0, (getStatus(p, 'tailwind', now)?.until || 0) - now) : 0,
-        windTailwindCooldownMs: !hideCharacter && p.character === 'wind' ? Math.max(0, p.windTailwindCooldownUntil - now) : 0,
-        angelBlessCooldownMs: !hideCharacter && p.character === 'angel' ? Math.max(0, p.angelBlessCooldownUntil - now) : 0,
-        jetBoost: !hideCharacter && p.character === 'jet' && p.jetBoostUntil > now,
-        jetBoostMs: !hideCharacter && p.character === 'jet' && p.jetBoostUntil > now ? Math.max(0, p.jetBoostUntil - now) : 0,
-        jetBoostCooldownMs: !hideCharacter && p.character === 'jet' ? Math.max(0, p.jetBoostCooldownUntil - now) : 0,
-        jetBoostStartX: !hideCharacter && p.character === 'jet' ? Number(p.jetBoostStartX || 0) : 0,
-        jetBoostStartY: !hideCharacter && p.character === 'jet' ? Number(p.jetBoostStartY || 0) : 0,
-        jetBoostEndX: !hideCharacter && p.character === 'jet' ? Number(p.jetBoostEndX || 0) : 0,
-        jetBoostEndY: !hideCharacter && p.character === 'jet' ? Number(p.jetBoostEndY || 0) : 0,
-        jetBoostDistance: !hideCharacter && p.character === 'jet' ? Number(p.jetBoostDistance || 0) : 0,
-        jetShieldMs: !hideCharacter && p.character === 'jet' && p.jetShieldUntil > now ? Math.max(0, p.jetShieldUntil - now) : 0,
-        reactorOutput: !hideCharacter && p.character === 'reactor' ? clamp(Number(p.reactorOutput) || 0, 0, 100) : 0,
-        bufferTargetId: !hideCharacter && p.character === 'buffer' ? (resolveBufferTarget(room, p)?.id || null) : null,
-        bufferLinkActive: !hideCharacter && p.character === 'buffer' ? bufferLinkState(room, p, now).active : false,
-        shotSeq: p.shotSeq || 0, projectileHitSeq: p.projectileHitSeq || 0, healHitSeq: p.healHitSeq || 0,
-        lastHealTargetId: p.lastHealTargetId || null, abilityUseSeq: p.abilityUseSeq || 0, lastAbilityTargetId: p.lastAbilityTargetId || null,
-        stats: room.state === 'ended' ? { ...ensureMatchStats(p) } : null
-      };
-    }),
-    projectiles: [...room.projectiles.values()].map(p => ({ id: p.id, x: p.x, y: p.y, radius: p.radius, type: p.type, team: p.team, character: p.character, reactorFxBand: p.reactorFxBand == null ? null : p.reactorFxBand })),
-    beams: room.beams.map(b => ({ ownerId: b.ownerId, team: b.team, character: b.character, x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2, healedId: b.healedId || null, hitEnemyId: b.hitEnemyId || null, impact: b.impact || null, didDamage: !!b.didDamage }))
+    hostId: room.hostId
   };
 }
 
-function broadcast(room) {
-  for (const [playerId, conn] of room.clients.entries()) conn.send(snapshot(room, playerId));
-  for (const conn of room.spectators.values()) conn.send(snapshot(room, null, true));
+function snapshot(room, viewerId = null, spectator = false) {
+  const now = Date.now();
+  if (room.state === 'draft' || room.state === 'ready') return competitivePhaseWireSnapshot(room, viewerId, spectator, now);
+  const viewer = viewerId ? room.players.get(viewerId) : null;
+  const hideEnemyPicks = room.state === 'lobby' && room.mode !== 'competitive' && !!viewer;
+  const hideAllPicks = room.state === 'lobby' && room.mode !== 'competitive' && spectator;
+  const playing = room.state === 'playing';
+  const ended = room.state === 'ended';
+
+  const out = {
+    type: 'state', state: room.state, mode: room.mode || 'normal', room: room.code,
+    scoreA: room.scoreA, scoreB: room.scoreB,
+    timeLeft: playing ? Math.max(0, (room.matchEndAt - now) / 1000) : 0,
+    players: [...room.players.values()].map(p => {
+      const hideCharacter = hideAllPicks || (hideEnemyPicks && p.team !== viewer?.team);
+      const burnStatus = getStatus(p, 'burn', now);
+      const radiationStatus = getStatus(p, 'radiation', now);
+      const row = {
+        id: p.id, name: p.name, team: p.team, character: hideCharacter ? null : p.character,
+        x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp,
+        shield: Math.max(0, p.shield || 0), maxShield: Math.max(0, p.maxShield || 0),
+        alive: p.alive,
+        aimX: p.aimX, aimY: p.aimY,
+        shotSeq: p.shotSeq || 0, projectileHitSeq: p.projectileHitSeq || 0,
+        healHitSeq: p.healHitSeq || 0, abilityUseSeq: p.abilityUseSeq || 0
+      };
+
+      if (!playing || p.connected === false) row.connected = p.connected !== false;
+      if (!p.alive) row.respawnMs = Math.max(0, p.respawnAt - now);
+      if (p.shield > 0 && p.shieldUntil > now) row.shieldMs = Math.max(0, p.shieldUntil - now);
+      if (p.alive && p.invulnerableUntil > now) {
+        row.invulnerable = true;
+        row.invulnerableMs = Math.max(0, p.invulnerableUntil - now);
+      }
+
+      if (burnStatus) { row.burning = true; row.burnSourceId = burnStatus.sourceId || null; }
+      if (hasStatus(p, 'poison', now)) row.poisoned = true;
+      if (radiationStatus) { row.radiated = true; row.radiationSourceId = radiationStatus.sourceId || null; }
+      if (hasStatus(p, 'tailwind', now)) row.tailwind = true;
+      if (hasStatus(p, 'slow', now)) row.frozen = true;
+      if (hasStatus(p, 'stun', now)) row.stunned = true;
+
+      if (!hideCharacter && p.character === 'dia') {
+        const active = isDiaForm(p, now);
+        if (active) {
+          row.diaForm = true;
+          row.diaFormMs = Math.max(0, p.diaFormUntil - now);
+        }
+        const cd = Math.max(0, p.diaCooldownUntil - now);
+        if (cd > 0) row.diaCooldownMs = cd;
+      }
+      if (!hideCharacter && p.character === 'runner') {
+        if (p.sprintUntil > now) {
+          row.sprint = true;
+          row.sprintMs = Math.max(0, p.sprintUntil - now);
+        }
+        const cd = Math.max(0, p.sprintCooldownUntil - now);
+        if (cd > 0) row.sprintCooldownMs = cd;
+      }
+      if (!hideCharacter && p.character === 'wind') {
+        const activeMs = Math.max(0, (getStatus(p, 'tailwind', now)?.until || 0) - now);
+        const cd = Math.max(0, p.windTailwindCooldownUntil - now);
+        if (activeMs > 0) row.windTailwindMs = activeMs;
+        if (cd > 0) row.windTailwindCooldownMs = cd;
+      }
+      if (!hideCharacter && p.character === 'angel') {
+        const cd = Math.max(0, p.angelBlessCooldownUntil - now);
+        if (cd > 0) row.angelBlessCooldownMs = cd;
+      }
+      if (!hideCharacter && p.character === 'shield') {
+        updateShieldAbilityCharges(p, now);
+        row.shieldAbilityCharges = Math.max(0, Math.floor(Number(p.shieldAbilityCharges) || 0));
+        const rechargeMs = p.shieldRechargeAt > now ? Math.max(0, p.shieldRechargeAt - now) : 0;
+        if (rechargeMs > 0) row.shieldRechargeMs = rechargeMs;
+      }
+      if (!hideCharacter && p.character === 'jet') {
+        if (p.jetBoostUntil > now) {
+          row.jetBoost = true;
+          row.jetBoostMs = Math.max(0, p.jetBoostUntil - now);
+          row.jetBoostStartX = Number(p.jetBoostStartX || 0);
+          row.jetBoostStartY = Number(p.jetBoostStartY || 0);
+          row.jetBoostEndX = Number(p.jetBoostEndX || 0);
+          row.jetBoostEndY = Number(p.jetBoostEndY || 0);
+          row.jetBoostDistance = Number(p.jetBoostDistance || 0);
+        } else if (Number(p.jetBoostDistance || 0) > 0) {
+          row.jetBoostStartX = Number(p.jetBoostStartX || 0);
+          row.jetBoostStartY = Number(p.jetBoostStartY || 0);
+          row.jetBoostEndX = Number(p.jetBoostEndX || 0);
+          row.jetBoostEndY = Number(p.jetBoostEndY || 0);
+          row.jetBoostDistance = Number(p.jetBoostDistance || 0);
+        }
+        const cd = Math.max(0, p.jetBoostCooldownUntil - now);
+        if (cd > 0) row.jetBoostCooldownMs = cd;
+        const shieldMs = p.shieldUntil > now ? Math.max(0, p.shieldUntil - now) : 0;
+        if (shieldMs > 0) row.jetShieldMs = shieldMs;
+      }
+      if (!hideCharacter && p.character === 'reactor') {
+        const output = clamp(Number(p.reactorOutput) || 0, 0, 100);
+        if (output > 0) row.reactorOutput = output;
+      }
+      if (!hideCharacter && p.character === 'buffer') {
+        const target = resolveBufferTarget(room, p);
+        if (target) {
+          row.bufferTargetId = target.id;
+          if (bufferLinkState(room, p, now).active) row.bufferLinkActive = true;
+        }
+      }
+
+      if (p.lastHealTargetId) row.lastHealTargetId = p.lastHealTargetId;
+      if (p.lastAbilityTargetId) row.lastAbilityTargetId = p.lastAbilityTargetId;
+      if (ended) row.stats = { ...ensureMatchStats(p) };
+      return row;
+    }),
+    projectiles: [...room.projectiles.values()].map(p => {
+      const row = { id: p.id, x: p.x, y: p.y, radius: p.radius, type: p.type, team: p.team, character: p.character };
+      if (p.reactorFxBand != null) row.reactorFxBand = p.reactorFxBand;
+      if (p.character === 'spray') {
+        if (p.sprayLane) row.sprayLane = p.sprayLane;
+        if (p.sprayVolleyId) row.sprayVolleyId = p.sprayVolleyId;
+      }
+      return row;
+    }),
+    beams: room.beams.map(b => {
+      const row = { ownerId: b.ownerId, team: b.team, character: b.character, x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2 };
+      if (b.healedId) row.healedId = b.healedId;
+      if (b.hitEnemyId) row.hitEnemyId = b.hitEnemyId;
+      if (b.impact) row.impact = b.impact;
+      if (b.didDamage) row.didDamage = true;
+      return row;
+    })
+  };
+
+  if (room.state === 'draft' || room.state === 'ready') out.competitive = competitiveSnapshot(room, viewer, spectator, now);
+  if (!playing) out.hostId = room.hostId;
+  if (ended) {
+    out.winner = room.winner;
+    out.winnerReason = room.winnerReason || null;
+    out.teamKills = teamKillTotals(room);
+  }
+  return out;
+}
+
+function roundWireNumber(value, digits = 3) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  const factor = 10 ** digits;
+  return Math.round(n * factor) / factor;
+}
+
+function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), forceCannonSync = false) {
+  if (!state || state.state !== 'playing') return state;
+
+  const regularProjectiles = [];
+  const sprayGroups = new Map();
+  for (const p of (state.projectiles || [])) {
+    if (p.character === 'cannon') continue;
+    if (p.character === 'spray') {
+      const volleyId = p.sprayVolleyId || p.id;
+      let group = sprayGroups.get(volleyId);
+      if (!group) {
+        group = { id: volleyId, team: p.team, lanes: [] };
+        sprayGroups.set(volleyId, group);
+      }
+      const laneCode = p.sprayLane === 'left' ? 1 : (p.sprayLane === 'right' ? 2 : 0);
+      group.lanes.push([
+        laneCode,
+        roundWireNumber(p.x, 3),
+        roundWireNumber(p.y, 3)
+      ]);
+      continue;
+    }
+    regularProjectiles.push([
+      p.id,
+      roundWireNumber(p.x, 3),
+      roundWireNumber(p.y, 3),
+      roundWireNumber(p.radius, 3),
+      p.type,
+      p.team,
+      p.character,
+      p.reactorFxBand == null ? null : p.reactorFxBand
+    ]);
+  }
+
+  const sprayVolleys = [...sprayGroups.values()].map(group => [
+    group.id,
+    group.team === 'B' ? 1 : 0,
+    group.lanes.sort((a, b) => a[0] - b[0])
+  ]);
+
+  let cannonSpawns = [];
+  let cannonRemoves = [];
+  let cannonSync = null;
+  if (room) {
+    if (!(room.cannonNetPendingSpawns instanceof Set)) room.cannonNetPendingSpawns = new Set();
+    if (!(room.cannonNetPendingRemoves instanceof Set)) room.cannonNetPendingRemoves = new Set();
+
+    for (const id of room.cannonNetPendingSpawns) {
+      const p = room.projectiles.get(id);
+      if (p && p.character === 'cannon') cannonSpawns.push(cannonProjectileWireRow(p));
+    }
+    cannonRemoves = [...room.cannonNetPendingRemoves];
+
+    const periodicSyncDue = !room.lastCannonNetSyncAt || now - room.lastCannonNetSyncAt >= 2000;
+    if (forceCannonSync || periodicSyncDue) {
+      cannonSync = [...room.projectiles.values()]
+        .filter(p => p.character === 'cannon')
+        .map(cannonProjectileWireRow);
+      room.lastCannonNetSyncAt = now;
+    }
+  }
+
+  const out = {
+    ...state,
+    wireFormat: 'c2',
+    scoreA: roundWireNumber(state.scoreA, 3),
+    scoreB: roundWireNumber(state.scoreB, 3),
+    timeLeft: roundWireNumber(state.timeLeft, 2),
+    players: (state.players || []).map(p => {
+      const row = {
+        ...p,
+        x: roundWireNumber(p.x, 3),
+        y: roundWireNumber(p.y, 3),
+        hp: roundWireNumber(p.hp, 3),
+        maxHp: roundWireNumber(p.maxHp, 3),
+        shield: roundWireNumber(p.shield, 3),
+        maxShield: roundWireNumber(p.maxShield, 3),
+        aimX: roundWireNumber(p.aimX, 3),
+        aimY: roundWireNumber(p.aimY, 3)
+      };
+      for (const key of [
+        'respawnMs','invulnerableMs','diaFormMs','diaCooldownMs','sprintMs','sprintCooldownMs',
+        'windTailwindMs','windTailwindCooldownMs','angelBlessCooldownMs','shieldRechargeMs','shieldMs','jetBoostMs',
+        'jetBoostCooldownMs','jetShieldMs'
+      ]) if (row[key] != null) row[key] = Math.max(0, Math.round(Number(row[key]) || 0));
+      if (row.reactorOutput != null) row.reactorOutput = roundWireNumber(row.reactorOutput, 2);
+      if (row.jetBoostStartX != null) row.jetBoostStartX = roundWireNumber(row.jetBoostStartX, 3);
+      if (row.jetBoostStartY != null) row.jetBoostStartY = roundWireNumber(row.jetBoostStartY, 3);
+      if (row.jetBoostEndX != null) row.jetBoostEndX = roundWireNumber(row.jetBoostEndX, 3);
+      if (row.jetBoostEndY != null) row.jetBoostEndY = roundWireNumber(row.jetBoostEndY, 3);
+      if (row.jetBoostDistance != null) row.jetBoostDistance = roundWireNumber(row.jetBoostDistance, 3);
+      return row;
+    }),
+    // c2: ordinary projectiles stay in the 10 Hz snapshot. Spray shares identity/team
+    // metadata per volley instead of repeating it three times. Cannon uses lifecycle
+    // spawn/remove events and a sparse authoritative resync.
+    projectiles: regularProjectiles,
+    sprayVolleys,
+    cannonEvents: [cannonSpawns, cannonRemoves],
+    beams: (state.beams || []).map(b => [
+      b.ownerId,
+      b.team,
+      b.character,
+      roundWireNumber(b.x1, 3),
+      roundWireNumber(b.y1, 3),
+      roundWireNumber(b.x2, 3),
+      roundWireNumber(b.y2, 3),
+      b.healedId || null,
+      b.hitEnemyId || null,
+      b.impact ? [roundWireNumber(b.impact.x, 3), roundWireNumber(b.impact.y, 3)] : null,
+      b.didDamage ? 1 : 0
+    ])
+  };
+  if (cannonSync !== null) out.cannonSync = cannonSync;
+  return out;
+}
+
+
+function sendPlayingSnapshotToConnection(room, conn, now = Date.now()) {
+  if (!room || !conn || room.state !== 'playing') return false;
+  const text = JSON.stringify(compactPlayingSnapshotForWire(snapshot(room, null, true), room, now, true));
+  conn.sendSerialized(text);
+  return true;
+}
+
+function broadcast(room, now = Date.now()) {
+  if (room.state === 'playing') {
+    // During live play there is no viewer-private draft information. Serialize once and
+    // fan out the exact same authoritative packet to players and spectators.
+    const text = JSON.stringify(compactPlayingSnapshotForWire(snapshot(room, null, true), room, now, false));
+    for (const conn of room.clients.values()) conn.sendSerialized(text);
+    for (const conn of room.spectators.values()) conn.sendSerialized(text);
+    room.cannonNetPendingSpawns?.clear();
+    room.cannonNetPendingRemoves?.clear();
+  } else {
+    for (const [playerId, conn] of room.clients.entries()) conn.send(snapshot(room, playerId));
+    for (const conn of room.spectators.values()) conn.send(snapshot(room, null, true));
+  }
+  room.lastBroadcastAt = now;
+}
+
+function roomBroadcastIntervalMs(room) {
+  if (!room) return 1000 / SNAPSHOT_RATE_IDLE;
+  if (room.state === 'playing') return 1000 / SNAPSHOT_RATE_PLAYING;
+  if (room.state === 'draft' || room.state === 'ready') return 1000 / SNAPSHOT_RATE_DRAFT;
+  return 1000 / SNAPSHOT_RATE_IDLE;
 }
 
 if (require.main === module) {
@@ -2635,8 +3293,11 @@ if (require.main === module) {
   }, 1000 / TICK_RATE);
 
   setInterval(() => {
-    for (const room of rooms.values()) broadcast(room);
-  }, 1000 / SNAPSHOT_RATE);
+    const now = Date.now();
+    for (const room of rooms.values()) {
+      if (!room.lastBroadcastAt || now - room.lastBroadcastAt >= roomBroadcastIntervalMs(room) - 1) broadcast(room, now);
+    }
+  }, 1000 / SNAPSHOT_SCHEDULER_HZ);
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`
@@ -2648,17 +3309,19 @@ School Line Mobile ${GAME_VERSION} · Competitive Mode`);
 }
 
 module.exports = {
-  server, CHARACTERS, TARGET_RELATION, STATUS_DEFS,
+  server, CHARACTERS, TARGET_RELATION, STATUS_DEFS, GLOBAL_SHIELD_CAP, PERK_SYSTEM, CHARACTER_PERKS,
+  resetPerkState, perkOptionsForCharacter, publicPerkOption, perkSelectionUnlocked, maybeSendPerkOffer, choosePerk, updatePerkSystem,
   getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget,
   applyStatus, getStatus, hasStatus, clearStatus, clearAllStatuses, isStunned,
-  applyShield, clearShield, dealDamage, dealDamageDetailed, applyHealing,
+  applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing,
+  reactorStageForOutput, reactorDamageForOutput,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
   updateRoom, snapshot, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
-  traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
+  traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, statsVersionFromMatch,
-  teamKillTotals, resolveMatchWinner,
+  teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate,
   createPotgState, recordPotgEvent, queuePotgTrigger, calculatePotgWindow, considerPotgCandidate, finalizePotg, capturePotgReplayFrame, processPendingPotgTriggers, potgMultiKillBonus, potgSequencePayload, sendCompetitivePostGameSequence
 };

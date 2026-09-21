@@ -42,7 +42,7 @@ const BALANCE_VERSION = '1.3';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-potg-1-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy';
+const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-potg-1-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r22-shield';
 
 // Competitive-only Play of the Game (POTG) 1.0.
@@ -154,7 +154,7 @@ const CHARACTERS = {
       { max: 66, damage: 22 },
       { max: 100, damage: 26 }
     ],
-    reactorDamagePerOutput: 5, reactorDecayDelay: 2, reactorDecayPerSecond: 20,
+    reactorDamagePerOutput: 5, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
     reactorHighThreshold: 66, reactorHighSpeed: 7.0,
     radiationHealReduction: 0.25, radiationDuration: 1.5
   },

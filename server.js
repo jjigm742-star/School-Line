@@ -23,8 +23,8 @@ const SNAPSHOT_SCHEDULER_HZ = 20;
 // live snapshots are skipped when a room would exceed this byte budget.
 const LIVE_ROOM_BUDGET_BPS = Math.max(32768, Number(process.env.SCHOOL_LINE_LIVE_ROOM_BUDGET_BPS || 131072));
 const MAX_WS_PENDING_BYTES = Math.max(65536, Number(process.env.SCHOOL_LINE_MAX_WS_PENDING_BYTES || 262144));
-const WS_PING_INTERVAL_MS = Math.max(5000, Number(process.env.SCHOOL_LINE_WS_PING_INTERVAL_MS || 20000));
-const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS + 5000, Number(process.env.SCHOOL_LINE_WS_STALE_TIMEOUT_MS || 45000));
+const WS_PING_INTERVAL_MS = Math.max(5000, Number(process.env.SCHOOL_LINE_WS_PING_INTERVAL_MS || 10000));
+const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS + 5000, Number(process.env.SCHOOL_LINE_WS_STALE_TIMEOUT_MS || 15000));
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
 const COMPETITIVE_BAN_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_BAN_MS || 10000));

@@ -164,6 +164,7 @@ function attackDisplayName(c) {
   if (!c) return '—';
   if (c.attackType === 'lightBeam') return '광선 (치유 + 공격)';
   if (c.attackType === 'beam') return '광선';
+  if (c.projectileType === 'heal' && Number(c.damage || 0) > 0) return '치유 + 공격 투사체';
   if (c.projectileType === 'heal') return '치유 투사체';
   return '투사체';
 }
@@ -218,9 +219,17 @@ function buildCharacterStats(id) {
     }
     rate = '없음 (지속형)';
   } else if (c.projectileType === 'heal') {
-    throughputLabel = 'HPS';
-    throughput = fmtNumber(Number(c.heal || 0) * Number(c.fireRate || 0));
-    rateLabel = '치유 속도';
+    const healHps = Number(c.heal || 0) * Number(c.fireRate || 0);
+    const damageDps = Number(c.damage || 0) * Number(c.fireRate || 0);
+    if (damageDps > 0) {
+      throughputLabel = 'DPS / HPS';
+      throughput = `${fmtNumber(damageDps)} / ${fmtNumber(healHps)}`;
+      rateLabel = '공격·치유 속도';
+    } else {
+      throughputLabel = 'HPS';
+      throughput = fmtNumber(healHps);
+      rateLabel = '치유 속도';
+    }
     rate = `${fmtNumber(c.fireRate)}발/s`;
   } else {
     throughput = fmtNumber(Number(c.damage || 0) * Number(c.fireRate || 0));
@@ -244,7 +253,11 @@ function buildCharacterMini(id, meta) {
   const move = speedLabel(c.speed);
   if (c.role === '탱커') return `${fmtNumber(c.hp)} HP · ${move}`;
   if (id === 'buffer') return `${fmtNumber(c.linkHealHps)} HPS + 행동속도 ${fmtNumber(Number(c.actionSpeedBoost||0)*100)}% · ${move}`;
-  if (c.projectileType === 'heal') return `${fmtNumber(Number(c.heal||0)*Number(c.fireRate||0))} HPS · ${move}`;
+  if (c.projectileType === 'heal') {
+    const healHps = Number(c.heal||0)*Number(c.fireRate||0);
+    const damageDps = Number(c.damage||0)*Number(c.fireRate||0);
+    return damageDps > 0 ? `${fmtNumber(damageDps)} DPS / ${fmtNumber(healHps)} HPS · ${move}` : `${fmtNumber(healHps)} HPS · ${move}`;
+  }
   if (c.attackType === 'lightBeam') return `${fmtNumber(c.healHps)} HPS · ${move}`;
   if (id === 'reactor' && Array.isArray(c.reactorOutputBands)) return `${c.reactorOutputBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
   if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) return `${c.distanceDamageBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
@@ -274,11 +287,11 @@ function buildCharacterMechanic(id, fallback='') {
     case 'spray': return '한 번에 중앙탄과 좌우 보조탄을 함께 발사합니다.';
     case 'laser': return '대상 최대 체력이 높을수록 추가 피해가 커집니다.';
     case 'ice': return '광선 적중 시 1.5초간 이동속도를 1단계 낮춥니다.';
-    case 'water': return '큰 치유탄으로 아군을 안정적으로 회복합니다.';
-    case 'wind': return '순풍으로 살아 있는 모든 아군의 이동속도를 4초간 1단계 높입니다.';
-    case 'star': return '매우 빠른 장거리 치유탄으로 후방에서 아군을 회복합니다.';
-    case 'angel': return '축복으로 위치와 관계없이 자신 또는 아군을 즉시 100 회복합니다.';
-    case 'buffer': return '아군 한 명을 연결해 40 HPS와 공격속도 25% 증가를 제공합니다.';
+    case 'water': return '같은 투사체로 아군을 치유하고 적에게 50 DPS를 줄 수 있습니다.';
+    case 'wind': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 순풍으로 팀의 이동속도도 높입니다.';
+    case 'star': return '매우 빠른 장거리 투사체로 아군을 치유하고 적에게 50 DPS를 줄 수 있습니다.';
+    case 'angel': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 축복으로 어디서든 아군을 도울 수 있습니다.';
+    case 'buffer': return '아군 한 명을 연결해 50 HPS와 공격속도 25% 증가를 제공합니다.';
     case 'light': return '광선으로 아군을 치유하고 그 뒤의 적에게 동시에 피해를 줄 수 있습니다.';
     default: return fallback;
   }
@@ -431,7 +444,7 @@ function applyCannonNetworkUpdate(msg) {
   for (const id of removes) liveProjectileRegistry.delete(id);
 }
 
-// Dormant perk-selection client shell. Alpha 1.3 receives no perk_offer while the
+// Dormant perk-selection client shell. Alpha 1.4 receives no perk_offer while the
 // server PERK_SYSTEM flag is disabled, so these controls never become visible.
 let activePerkOffer = null;
 

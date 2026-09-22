@@ -45,12 +45,12 @@ const ADMIN_STATS_LOCK_MS = 30000;
 const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN hash; plaintext never leaves the browser request.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.3';
+const BALANCE_VERSION = '1.4';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1';
-const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r22-shield';
+const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50';
+const COMPETITIVE_ROSTER_VERSION = 'alpha-1.4-r22-shield';
 
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
@@ -166,30 +166,30 @@ const CHARACTERS = {
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
-    projectileType: 'heal', heal: 15
+    projectileType: 'heal', heal: 15, damage: 10
   },
   wind: {
     name: '윈드', role: '힐러', hp: 225, speed: 7.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
-    projectileType: 'heal', heal: 13,
+    projectileType: 'heal', heal: 13, damage: 10,
     tailwindDuration: 4, tailwindCooldown: 20, abilityId: 'tailwind'
   },
   star: {
     name: '스타', role: '힐러', hp: 175, speed: 5.0, radius: 0.80,
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
-    projectileType: 'heal', heal: 40
+    projectileType: 'heal', heal: 40, damage: 25
   },
   angel: {
     name: '엔젤', role: '힐러', hp: 200, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
-    projectileType: 'heal', heal: 8,
+    projectileType: 'heal', heal: 8, damage: 10,
     abilityId: 'blessing', abilityCooldown: 12, abilityHeal: 100,
     abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
   },
   buffer: {
     name: '버퍼', role: '힐러', hp: 225, speed: 5.0, radius: 0.65,
     range: 16, noBasicAttack: true,
-    linkHealHps: 40, actionSpeedBoost: 0.25,
+    linkHealHps: 50, actionSpeedBoost: 0.25,
     linkTargeting: { relations: [TARGET_RELATION.ALLY], range: 16, requireLos: false }
   },
   light: {
@@ -215,7 +215,7 @@ const CHARACTERS = {
 };
 
 // Dormant perk framework for a future balance version.
-// Alpha 1.3 intentionally keeps this feature OFF: no offers, no UI activation,
+// Alpha 1.4 intentionally keeps this feature OFF: no offers, no UI activation,
 // no gameplay effects and no live-snapshot fields are emitted while disabled.
 const PERK_SYSTEM = Object.freeze({
   enabled: false,
@@ -520,7 +520,7 @@ function normalizeCompetitiveStats(raw) {
     }
   } else if (base.totalMatches > 0) {
     // Aggregate-only legacy fallback. At the moment of this migration the live balance
-    // number is 1.3, so old counters without per-match metadata are assigned to 1.3.
+    // number is current at migration time; aggregate-only legacy counters are assigned to the current stats version.
     const bucket = emptyCompetitiveVersionStats();
     bucket.totalMatches = base.totalMatches;
     bucket.updatedAt = base.updatedAt;
@@ -2600,7 +2600,15 @@ function updateProjectiles(room, dt, now) {
       if (!target.alive || target.id === p.ownerId) continue;
       const owner = room.players.get(p.ownerId);
       const relation = owner ? getTargetRelation(owner, target) : (target.team === p.team ? TARGET_RELATION.ALLY : TARGET_RELATION.ENEMY);
-      const valid = p.type === 'attack' ? relation === TARGET_RELATION.ENEMY : relation === TARGET_RELATION.ALLY;
+      // Alpha 1.4: healing projectiles are dual-purpose without creating a second projectile.
+      // They still use the same lifecycle/network row; the server decides the effect on first contact:
+      // ally -> existing heal, enemy -> fixed projectile damage. Legacy heal-only projectiles remain ally-only.
+      const hybridHealProjectile = p.type === 'heal' && p.damage > 0;
+      const valid = p.type === 'attack'
+        ? relation === TARGET_RELATION.ENEMY
+        : (hybridHealProjectile
+          ? (relation === TARGET_RELATION.ALLY || relation === TARGET_RELATION.ENEMY)
+          : relation === TARGET_RELATION.ALLY);
       if (!valid) continue;
       const tr = CHARACTERS[target.character].radius;
       const t = segmentCircleT(p.x, p.y, x2, y2, target.x, target.y, tr + p.radius);
@@ -2658,10 +2666,26 @@ function updateProjectiles(room, dt, now) {
           }
         } else {
           const healer = room.players.get(p.ownerId);
-          const actualHeal = applyHealing(room, healer, t, p.heal, now);
-          if (actualHeal > 0 && healer) {
-            healer.healHitSeq = (healer.healHitSeq || 0) + 1;
-            healer.lastHealTargetId = t.id;
+          const relation = healer ? getTargetRelation(healer, t) : (t.team === p.team ? TARGET_RELATION.ALLY : TARGET_RELATION.ENEMY);
+          if (relation === TARGET_RELATION.ENEMY && p.damage > 0) {
+            // Alpha 1.4 healer attack participation: the existing healing projectile damages
+            // an enemy on first contact. No extra projectile or recurring wire field is created.
+            if (t.invulnerableUntil <= now) {
+              const damageResult = dealDamageDetailed(room, p.ownerId, t, p.damage, now);
+              if (damageResult.total > 0 && healer) {
+                healer.projectileHitSeq = (healer.projectileHitSeq || 0) + 1;
+              }
+              if (t.hp <= 0) {
+                registerDirectKill(room, p.ownerId, now);
+                die(room, t, now);
+              }
+            }
+          } else if (relation === TARGET_RELATION.ALLY) {
+            const actualHeal = applyHealing(room, healer, t, p.heal, now);
+            if (actualHeal > 0 && healer) {
+              healer.healHitSeq = (healer.healHitSeq || 0) + 1;
+              healer.lastHealTargetId = t.id;
+            }
           }
         }
       }

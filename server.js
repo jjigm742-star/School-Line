@@ -49,7 +49,7 @@ const BALANCE_VERSION = '1.4';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps';
+const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.4-r22-shield';
 
 
@@ -57,6 +57,9 @@ const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [4.0, 5.0, 6.0, 7.0, 8.0, 9.2];
 const GLOBAL_SHIELD_CAP = 150;
 const MAX_EXTERNAL_HEAL_REDUCTION = 0.80;
+// Dual-purpose healing projectiles are intentionally easier to land on allies only.
+// This is a server-side collision rule, so it adds no recurring WebSocket payload.
+const DUAL_PURPOSE_HEAL_ALLY_RADIUS_MULTIPLIER = 1.4;
 
 // Alpha 1.1 foundation: common target relations + generic status effects.
 const TARGET_RELATION = Object.freeze({ SELF: 'SELF', ALLY: 'ALLY', ENEMY: 'ENEMY' });
@@ -166,24 +169,24 @@ const CHARACTERS = {
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
-    projectileType: 'heal', heal: 15, damage: 10
+    projectileType: 'heal', heal: 16, damage: 10
   },
   wind: {
     name: '윈드', role: '힐러', hp: 225, speed: 7.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
     projectileType: 'heal', heal: 13, damage: 10,
-    tailwindDuration: 4, tailwindCooldown: 20, abilityId: 'tailwind'
+    tailwindDuration: 4, tailwindCooldown: 15, abilityId: 'tailwind'
   },
   star: {
     name: '스타', role: '힐러', hp: 175, speed: 5.0, radius: 0.80,
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
-    projectileType: 'heal', heal: 40, damage: 25
+    projectileType: 'heal', heal: 45, damage: 25
   },
   angel: {
     name: '엔젤', role: '힐러', hp: 200, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'heal', heal: 8, damage: 10,
-    abilityId: 'blessing', abilityCooldown: 12, abilityHeal: 100,
+    abilityId: 'blessing', abilityCooldown: 10, abilityHeal: 100,
     abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
   },
   buffer: {
@@ -611,6 +614,24 @@ function distance(ax, ay, bx, by) { return Math.hypot(bx - ax, by - ay); }
 function safeName(value) {
   const s = String(value || '').trim().replace(/[\r\n\t]/g, ' ');
   return s.slice(0, 12) || '학생';
+}
+
+// One nickname = one reserved player seat across the whole server.  This prevents
+// students from leaving an ownerless seat in one match and joining another match
+// with the same nickname. A disconnected seat can also be reclaimed by entering the
+// same normalized nickname in the same room; a still-connected seat remains locked.
+// Resume-token reconnection remains the preferred path and can replace a stale socket.
+function canonicalNickname(value) {
+  return safeName(value).normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('ko-KR');
+}
+function findNicknameReservation(value) {
+  const key = canonicalNickname(value);
+  for (const room of rooms.values()) {
+    for (const player of room.players.values()) {
+      if (canonicalNickname(player.name) === key) return { room, player };
+    }
+  }
+  return null;
 }
 function safeRoom(value) {
   const s = String(value || '').toUpperCase().replace(/[^A-Z0-9가-힣_-]/g, '').slice(0, 10);
@@ -1718,6 +1739,32 @@ function joinSpectator(conn, msg) {
 function joinRoom(conn, msg) {
   if (conn.playerId) return;
   const code = safeRoom(msg.room);
+  const requestedName = safeName(msg.name);
+  const existing = findNicknameReservation(requestedName);
+  if (existing) {
+    const sameRoom = existing.room.code === code;
+    const canRecoverByNickname = sameRoom
+      && existing.player.connected === false
+      && ['draft','ready','playing','ended'].includes(existing.room.state);
+    if (canRecoverByNickname) {
+      // Classroom-friendly fallback: if the browser lost its resume token, typing the
+      // same nickname into the same room reclaims the disconnected authoritative seat.
+      // Rotate the token so an older browser copy cannot later steal the recovered seat.
+      return attachExistingPlayerConnection(conn, existing.room, existing.player, {
+        rotateResumeToken: true,
+        recoveredByNickname: true
+      });
+    }
+    conn.send({
+      type: 'error',
+      code: 'nickname_in_use',
+      message: sameRoom
+        ? '이 닉네임은 이미 이 게임에 접속 중입니다. 기존 화면을 사용하세요.'
+        : '이 닉네임은 이미 다른 게임에 참가 중입니다. 기존 게임을 먼저 종료하거나 기존 화면으로 돌아가세요.'
+    });
+    return;
+  }
+
   let room = rooms.get(code);
   if (!room) { room = newRoom(code); rooms.set(code, room); }
   if (room.players.size >= 8) { conn.send({ type: 'error', message: '이 방은 이미 8명입니다.' }); return; }
@@ -1729,7 +1776,7 @@ function joinRoom(conn, msg) {
 
   const id = `P${idCounter++}`;
   const player = {
-    id, name: safeName(msg.name), team, character: null,
+    id, name: requestedName, team, character: null,
     resumeToken: newResumeToken(), connected: true, disconnectedAt: 0,
     x: 21, y: team === 'A' ? 5 : 63,
     hp: 0, maxHp: 0, alive: true, respawnAt: 0, invulnerableUntil: 0,
@@ -1768,6 +1815,46 @@ function neutralizePlayerInput(player) {
   player.input = { up: false, down: false, left: false, right: false, fire: false };
 }
 
+function attachExistingPlayerConnection(conn, room, player, options = {}) {
+  const rotateResumeToken = options.rotateResumeToken === true;
+  const recoveredByNickname = options.recoveredByNickname === true;
+  const previousConn = room.clients.get(player.id);
+  if (previousConn && previousConn !== conn) {
+    // A mobile network change can leave the old TCP socket half-open. A valid token
+    // may replace it. Nickname recovery only calls this helper for disconnected seats.
+    previousConn.playerId = null;
+    previousConn.roomCode = null;
+    try { previousConn.close(); } catch (_) {}
+  }
+
+  if (rotateResumeToken) player.resumeToken = newResumeToken();
+  room.clients.set(player.id, conn);
+  player.connected = true;
+  player.disconnectedAt = 0;
+  neutralizePlayerInput(player);
+  conn.playerId = player.id;
+  conn.roomCode = room.code;
+  if (!room.hostId || !room.players.get(room.hostId)?.connected) room.hostId = player.id;
+
+  conn.send({
+    type: 'resumed', id: player.id, room: room.code, team: player.team,
+    resumeToken: player.resumeToken, recoveredByNickname,
+    config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
+  });
+  if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.send(snapshot(room, player.id));
+  if (PERK_SYSTEM.enabled && room.state === 'playing') {
+    if (player.perkChoiceId) {
+      const chosen = perkOptionsForCharacter(player.character).find(option => String(option.id || '') === player.perkChoiceId);
+      if (chosen) conn.send({ type: 'perk_selected', character: player.character, perk: publicPerkOption(chosen) });
+    } else {
+      player.perkOfferSent = false;
+      maybeSendPerkOffer(room, player, conn, Date.now());
+    }
+  }
+  broadcast(room);
+  return player;
+}
+
 function resumeRoom(conn, msg) {
   if (conn.playerId || conn.spectatorId) return;
   const code = safeRoom(msg.room);
@@ -1790,41 +1877,7 @@ function resumeRoom(conn, msg) {
     conn.send({ type: 'error', code: 'resume_unavailable', message: '현재는 재접속할 진행 상태가 아닙니다. 일반 입장을 이용해주세요.' });
     return;
   }
-
-  const previousConn = room.clients.get(player.id);
-  if (previousConn && previousConn !== conn) {
-    // A mobile network change can leave the old TCP socket half-open. The token owner
-    // is authoritative; replace the transport without letting the stale close event
-    // mark the player offline again.
-    previousConn.playerId = null;
-    previousConn.roomCode = null;
-    try { previousConn.close(); } catch (_) {}
-  }
-
-  room.clients.set(player.id, conn);
-  player.connected = true;
-  player.disconnectedAt = 0;
-  neutralizePlayerInput(player);
-  conn.playerId = player.id;
-  conn.roomCode = code;
-  if (!room.hostId || !room.players.get(room.hostId)?.connected) room.hostId = player.id;
-
-  conn.send({
-    type: 'resumed', id: player.id, room: code, team: player.team,
-    resumeToken: player.resumeToken,
-    config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
-  });
-  if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.send(snapshot(room, player.id));
-  if (PERK_SYSTEM.enabled && room.state === 'playing') {
-    if (player.perkChoiceId) {
-      const chosen = perkOptionsForCharacter(player.character).find(option => String(option.id || '') === player.perkChoiceId);
-      if (chosen) conn.send({ type: 'perk_selected', character: player.character, perk: publicPerkOption(chosen) });
-    } else {
-      player.perkOfferSent = false;
-      maybeSendPerkOffer(room, player, conn, Date.now());
-    }
-  }
-  broadcast(room);
+  return attachExistingPlayerConnection(conn, room, player);
 }
 
 function publicCharacterDefs() {
@@ -2603,7 +2656,7 @@ function updateProjectiles(room, dt, now) {
       // Alpha 1.4: healing projectiles are dual-purpose without creating a second projectile.
       // They still use the same lifecycle/network row; the server decides the effect on first contact:
       // ally -> existing heal, enemy -> fixed projectile damage. Legacy heal-only projectiles remain ally-only.
-      const hybridHealProjectile = p.type === 'heal' && p.damage > 0;
+      const hybridHealProjectile = p.type === 'heal' && p.heal > 0 && p.damage > 0;
       const valid = p.type === 'attack'
         ? relation === TARGET_RELATION.ENEMY
         : (hybridHealProjectile
@@ -2611,7 +2664,13 @@ function updateProjectiles(room, dt, now) {
           : relation === TARGET_RELATION.ALLY);
       if (!valid) continue;
       const tr = CHARACTERS[target.character].radius;
-      const t = segmentCircleT(p.x, p.y, x2, y2, target.x, target.y, tr + p.radius);
+      // Generic School Line rule for every current/future dual-purpose healing projectile:
+      // ally collision uses 140% of the ally body radius, while enemy collision stays 100%.
+      // Projectile radius/visual size/lifecycle data are unchanged.
+      const targetRadiusMultiplier = hybridHealProjectile && relation === TARGET_RELATION.ALLY
+        ? DUAL_PURPOSE_HEAL_ALLY_RADIUS_MULTIPLIER
+        : 1;
+      const t = segmentCircleT(p.x, p.y, x2, y2, target.x, target.y, tr * targetRadiusMultiplier + p.radius);
       if (t !== null && t < bestT) { bestT = t; hit = { kind: 'player', target }; }
     }
 

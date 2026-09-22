@@ -1303,7 +1303,7 @@ function refreshResumeButton() {
   hint.classList.toggle('hidden', !saved);
   if (saved) {
     btn.textContent = `↩️ ${saved.room} 경기로 돌아가기`;
-    hint.textContent = '경기 중 새로고침하거나 연결이 끊겼다면 기존 캐릭터·HP·위치·쿨다운으로 복귀합니다.';
+    hint.textContent = '경기 중 연결이 끊겼다면 이 버튼으로 복귀할 수 있습니다. 버튼이 없어도 같은 방에 같은 이름으로 다시 입장하면 기존 자리로 돌아갑니다.';
   }
 }
 refreshResumeButton();
@@ -1479,7 +1479,7 @@ ws.onmessage = ev => handleMessage(expandWireMessage(JSON.parse(ev.data)));
   ws.onclose = () => {
     if (accessLockActive) return;
     if (myId || spectatorMode) {
-      alert(spectatorMode ? '서버 연결이 끊겼습니다.' : '서버 연결이 끊겼습니다. 다시 접속한 뒤 진행 중인 게임으로 돌아가기를 눌러주세요.');
+      alert(spectatorMode ? '서버 연결이 끊겼습니다.' : '서버 연결이 끊겼습니다. 돌아가기 버튼을 누르거나, 같은 방에 같은 이름으로 다시 입장하면 기존 자리로 복귀합니다.');
       location.reload();
     }
   };
@@ -1551,7 +1551,7 @@ function handleMessage(msg) {
     $('roomLabel').textContent = msg.room;
     saveResumeCredentials(msg.room, msg.resumeToken);
     const notice = $('pickNotice');
-    if (notice) notice.textContent = '↩️ 기존 경기 자리로 재접속했습니다.';
+    if (notice) notice.textContent = msg.recoveredByNickname ? '↩️ 같은 이름의 기존 경기 자리로 복귀했습니다.' : '↩️ 기존 경기 자리로 재접속했습니다.';
     show('lobby');
     return;
   }

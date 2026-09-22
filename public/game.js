@@ -350,46 +350,50 @@ function selectLobbyCharacter(id) {
 
 let ws = null, myId = null, config = null, state = null;
 
-// Live Cannon rendering is reconstructed locally from server-authoritative lifecycle events.
-// This registry is visual-only; hit/damage/collision remain entirely server-side.
-const cannonProjectileRegistry = new Map();
+// Live projectile rendering is reconstructed locally from server-authoritative lifecycle events.
+// This registry is visual-only; hit/damage/heal/collision/range decisions remain entirely server-side.
+const liveProjectileRegistry = new Map();
+// BWOpt6/c5 static live-player identity dictionary. Identity/team/character are sent
+// only when the roster changes or a connection force-syncs into an active match.
+let livePlayerMeta = [];
 
-function clearCannonProjectileRegistry() {
-  cannonProjectileRegistry.clear();
+function clearLiveProjectileRegistry() {
+  liveProjectileRegistry.clear();
 }
 
-function applyCannonWireRow(row, nowPerf = performance.now()) {
+function applyProjectileWireRow(row, nowPerf = performance.now()) {
   if (!Array.isArray(row) || !row[0]) return;
-  cannonProjectileRegistry.set(row[0], {
+  liveProjectileRegistry.set(row[0], {
     id: row[0],
     x: Number(row[1] || 0),
     y: Number(row[2] || 0),
     vx: Number(row[3] || 0),
     vy: Number(row[4] || 0),
-    radius: Number(config?.characters?.cannon?.projectileRadius || 0.32),
-    team: row[5] ? 'B' : 'A',
-    type: 'attack',
-    character: 'cannon',
+    radius: Number(row[5] || 0.20),
+    type: row[6] ? 'heal' : 'attack',
+    team: row[7] ? 'B' : 'A',
+    character: row[8] || null,
+    reactorFxBand: row[9] == null ? null : Number(row[9]),
     basePerf: nowPerf
   });
 }
 
-function applyCannonNetworkUpdate(msg) {
+function applyProjectileNetworkUpdate(msg) {
   const nowPerf = performance.now();
-  if (Array.isArray(msg?.cannonSync)) {
-    cannonProjectileRegistry.clear();
-    for (const row of msg.cannonSync) applyCannonWireRow(row, nowPerf);
+  if (Array.isArray(msg?.projectileSync)) {
+    liveProjectileRegistry.clear();
+    for (const row of msg.projectileSync) applyProjectileWireRow(row, nowPerf);
   }
-  const events = Array.isArray(msg?.cannonEvents) ? msg.cannonEvents : [];
+  const events = Array.isArray(msg?.projectileEvents) ? msg.projectileEvents : [];
   const spawns = Array.isArray(events[0]) ? events[0] : [];
   const removes = Array.isArray(events[1]) ? events[1] : [];
-  for (const row of spawns) applyCannonWireRow(row, nowPerf);
-  for (const id of removes) cannonProjectileRegistry.delete(id);
+  for (const row of spawns) applyProjectileWireRow(row, nowPerf);
+  for (const id of removes) liveProjectileRegistry.delete(id);
 }
 
-function liveCannonProjectiles(nowPerf = performance.now()) {
+function liveNetworkProjectiles(nowPerf = performance.now()) {
   const out = [];
-  for (const p of cannonProjectileRegistry.values()) {
+  for (const p of liveProjectileRegistry.values()) {
     const dt = Math.max(0, Math.min(2.5, (nowPerf - p.basePerf) / 1000));
     out.push({
       id: p.id,
@@ -398,10 +402,33 @@ function liveCannonProjectiles(nowPerf = performance.now()) {
       radius: p.radius,
       type: p.type,
       team: p.team,
-      character: p.character
+      character: p.character,
+      reactorFxBand: p.reactorFxBand
     });
   }
   return out;
+}
+
+// Compatibility helpers for c2/c3 servers. BWOpt5 c4 itself uses the generic registry above.
+function applyCannonWireRow(row, nowPerf = performance.now()) {
+  if (!Array.isArray(row) || !row[0]) return;
+  applyProjectileWireRow([
+    row[0], row[1], row[2], row[3], row[4],
+    Number(config?.characters?.cannon?.projectileRadius || 0.32), 0, row[5] ? 1 : 0, 'cannon', null
+  ], nowPerf);
+}
+
+function applyCannonNetworkUpdate(msg) {
+  const nowPerf = performance.now();
+  if (Array.isArray(msg?.cannonSync)) {
+    for (const [id, p] of [...liveProjectileRegistry.entries()]) if (p.character === 'cannon') liveProjectileRegistry.delete(id);
+    for (const row of msg.cannonSync) applyCannonWireRow(row, nowPerf);
+  }
+  const events = Array.isArray(msg?.cannonEvents) ? msg.cannonEvents : [];
+  const spawns = Array.isArray(events[0]) ? events[0] : [];
+  const removes = Array.isArray(events[1]) ? events[1] : [];
+  for (const row of spawns) applyCannonWireRow(row, nowPerf);
+  for (const id of removes) liveProjectileRegistry.delete(id);
 }
 
 // Dormant perk-selection client shell. Alpha 1.3 receives no perk_offer while the
@@ -450,12 +477,53 @@ let spectatorMode = false;
 let schoolLineAccessOpen = false;
 let accessLockActive = true;
 let accessStatusRequestInFlight = false;
-let postGameSequence = { active:false, timers:[], finalState:null, potg:null };
-let potgReplayPlayback = { active:false, frames:[], startPerf:0, durationMs:0, currentIndex:0, playerId:null, potg:null };
+let postGameSequence = { active:false, timers:[], finalState:null };
 let adminStatsAuthorized = false;
 let lastAdminStatsData = null;
 let selectedCompetitiveStatsVersion = null;
 let selectedTargetId = null; // Targeted ability selection (Angel Blessing and future targeted abilities).
+
+const CHARACTER_INTRO_TIPS = Object.freeze({
+  iron: { role:'tank', text:'혼자 깊게 들어가기보다 팀과 함께 뭉쳐서 움직이세요. 속도가 느리니 방어에 집중하세요.' },
+  mecha: { role:'tank', text:'빠른 속도로 적의 시선을 끌고 싸움을 흔드세요. 위험하면 도망쳐서 우리 팀 힐러에게 치유받거나, 4초 동안 구석에서 공격받지 않으면 체력이 차오릅니다.' },
+  jet: { role:'tank', text:'부스터로 빠르게 진입해 연약한 적을 공격하세요. 아군이 따라올 수 없는 곳까지 혼자 들어가면 위험해요.' },
+  solar: { role:'tank', text:'무리하게 돌진하기보다 태양탄을 명중시키며 계속 회복하세요. 속도가 느리니 방어에 집중하세요.' },
+  shield: { role:'tank', text:'보호막이 필요한 아군에게 빨리 스킬을 써주세요. 속도가 느리니 방어에 집중하세요.' },
+  dia: { role:'tank', text:'적의 체력이 깎였을 때 변신해서 적을 처치하세요. 변신하면 체력이 회복되니 생존용으로도 써보세요.' },
+  water: { role:'healer', text:'뒤에서 팀원을 조준해 꾸준히 치유하세요. 적이 공격하면 즉시 아군에게 도움을 요청하세요.' },
+  wind: { role:'healer', text:'뒤에서 팀원을 조준해 꾸준히 치유하세요. 스킬로 팀 전원의 이동속도를 올려 위기에서 도망칠 수 있습니다.' },
+  star: { role:'healer', text:'뒤에서 팀원을 조준해 꾸준히 치유하세요. 이동속도가 느리니 적이 접근하면 즉시 도움을 요청하세요.' },
+  angel: { role:'healer', text:'뒤에서 팀원을 조준해 꾸준히 치유하세요. 축복으로 어디에 있는 아군이든 도울 수 있습니다.' },
+  buffer: { role:'healer', text:'연결을 유지해서 강한 팀원을 살리고 강화하는 데 집중하세요.' },
+  light: { role:'healer', text:'공격에 욕심내 앞으로 나가지 말고 팀 힐링과 자기 생존을 우선하세요.' }
+});
+let characterIntroTimer = null;
+
+function hideCharacterIntroTip() {
+  if (characterIntroTimer) { clearTimeout(characterIntroTimer); characterIntroTimer = null; }
+  const card = $('characterIntroTip');
+  if (!card) return;
+  card.classList.add('hidden');
+  card.classList.remove('show','tank','healer');
+}
+
+function showCharacterIntroTip(characterId) {
+  const tip = CHARACTER_INTRO_TIPS[characterId];
+  if (!tip || spectatorMode) { hideCharacterIntroTip(); return; }
+  const card = $('characterIntroTip');
+  const nameEl = $('characterIntroName');
+  const textEl = $('characterIntroText');
+  if (!card || !nameEl || !textEl) return;
+  if (characterIntroTimer) clearTimeout(characterIntroTimer);
+  const meta = CHARACTER_META[characterId] || {};
+  nameEl.textContent = `${meta.icon || (tip.role === 'tank' ? '🛡️' : '💚')} ${meta.name || characterId}`;
+  textEl.textContent = tip.text;
+  card.classList.remove('hidden','show','tank','healer');
+  card.classList.add(tip.role);
+  void card.offsetWidth;
+  card.classList.add('show');
+  characterIntroTimer = setTimeout(hideCharacterIntroTip, 4850);
+}
 
 // Alpha 1.1.1: render-only snapshot interpolation. Server state remains authoritative.
 const playerMotionTracks = new Map();
@@ -538,16 +606,10 @@ function resetPostGameSequence() {
   clearPostGameTimers();
   postGameSequence.active = false;
   postGameSequence.finalState = null;
-  postGameSequence.potg = null;
-  potgReplayPlayback.active = false;
-  potgReplayPlayback.frames = [];
-  potgReplayPlayback.currentIndex = 0;
   document.body.classList.remove('post-game-sequence');
   $('postGameOverlay')?.classList.add('hidden');
   $('postGameOverlay')?.classList.remove('fade-black');
   $('postGameWinner')?.classList.add('hidden');
-  $('potgIntro')?.classList.add('hidden');
-  $('potgReplayBadge')?.classList.add('hidden');
 }
 
 function postGameWinnerText(finalState) {
@@ -558,77 +620,8 @@ function postGameWinnerText(finalState) {
   return `${finalState.winner}팀 승리!  ${score}`;
 }
 
-function potgReasonText(potg) {
-  if (!potg || !potg.metrics) return '';
-  const m = potg.metrics;
-  if (Number(m.kills || 0) >= 2) return `${Number(m.kills)}연속 처치`;
-  if (Number(m.kills || 0) === 1) return '결정적 처치';
-  if (Number(m.crisisHealing || 0) > 0) return `위기 치유 ${Math.round(Number(m.crisisHealing || 0))}`;
-  if (Number(m.objectiveStops || 0) > 0) return `득점 차단 ${Number(m.objectiveStops || 0)}회`;
-  return '';
-}
-
-function cloneReplayPlayerAt(a, b, alpha) {
-  if (!b) return { ...a };
-  const base = alpha < .5 ? a : b;
-  return {
-    ...base,
-    x: Number(a.x || 0) + (Number(b.x || 0) - Number(a.x || 0)) * alpha,
-    y: Number(a.y || 0) + (Number(b.y || 0) - Number(a.y || 0)) * alpha,
-    hp: Number(a.hp || 0) + (Number(b.hp || 0) - Number(a.hp || 0)) * alpha,
-    shield: Number(a.shield || 0) + (Number(b.shield || 0) - Number(a.shield || 0)) * alpha
-  };
-}
-
-function cloneReplayProjectileAt(a, b, alpha) {
-  if (!b) return { ...a };
-  return {
-    ...(alpha < .5 ? a : b),
-    x: Number(a.x || 0) + (Number(b.x || 0) - Number(a.x || 0)) * alpha,
-    y: Number(a.y || 0) + (Number(b.y || 0) - Number(a.y || 0)) * alpha
-  };
-}
-
-function currentPotgReplayState(nowPerf = performance.now()) {
-  if (!potgReplayPlayback.active || !potgReplayPlayback.frames.length) return null;
-  const frames = potgReplayPlayback.frames;
-  const elapsed = Math.max(0, Math.min(potgReplayPlayback.durationMs, nowPerf - potgReplayPlayback.startPerf));
-  const targetT = Number(frames[0].t || 0) + elapsed;
-  let i = Math.max(0, Math.min(potgReplayPlayback.currentIndex || 0, frames.length - 1));
-  while (i + 1 < frames.length && Number(frames[i + 1].t || 0) <= targetT) i++;
-  while (i > 0 && Number(frames[i].t || 0) > targetT) i--;
-  potgReplayPlayback.currentIndex = i;
-  const a = frames[i];
-  const b = frames[Math.min(frames.length - 1, i + 1)];
-  const span = Math.max(1, Number(b.t || 0) - Number(a.t || 0));
-  const alpha = a === b ? 0 : Math.max(0, Math.min(1, (targetT - Number(a.t || 0)) / span));
-  const bPlayers = new Map((b.players || []).map(p => [p.id, p]));
-  const bProjectiles = new Map((b.projectiles || []).map(p => [p.id, p]));
-  const players = (a.players || []).map(p => cloneReplayPlayerAt(p, bPlayers.get(p.id), alpha));
-  if (alpha >= .5) {
-    const seen = new Set(players.map(p => p.id));
-    for (const p of (b.players || [])) if (!seen.has(p.id)) players.push({ ...p });
-  }
-  const projectiles = (a.projectiles || []).map(p => cloneReplayProjectileAt(p, bProjectiles.get(p.id), alpha));
-  if (alpha >= .5) {
-    const seen = new Set(projectiles.map(p => p.id));
-    for (const p of (b.projectiles || [])) if (!seen.has(p.id)) projectiles.push({ ...p });
-  }
-  return {
-    state:'playing',
-    scoreA:Number(a.scoreA||0) + (Number(b.scoreA||0)-Number(a.scoreA||0))*alpha,
-    scoreB:Number(a.scoreB||0) + (Number(b.scoreB||0)-Number(a.scoreB||0))*alpha,
-    timeLeft:Number(a.timeLeft||0) + (Number(b.timeLeft||0)-Number(a.timeLeft||0))*alpha,
-    players,
-    projectiles,
-    beams: alpha < .5 ? (a.beams || []) : (b.beams || [])
-  };
-}
-
 function finishPostGameSequence() {
   const finalState = postGameSequence.finalState || state;
-  potgReplayPlayback.active = false;
-  $('potgReplayBadge')?.classList.add('hidden');
   $('postGameOverlay')?.classList.add('hidden');
   $('postGameOverlay')?.classList.remove('fade-black');
   document.body.classList.remove('post-game-sequence');
@@ -645,71 +638,30 @@ function fadeToPostGameResults() {
     overlay.classList.remove('hidden');
     overlay.classList.add('fade-black');
     $('postGameWinner')?.classList.add('hidden');
-    $('potgIntro')?.classList.add('hidden');
   }
-  schedulePostGame(finishPostGameSequence, 400);
+  schedulePostGame(finishPostGameSequence, 350);
 }
 
-function startPotgReplay(potg) {
-  const frames = Array.isArray(potg?.frames) ? potg.frames : [];
-  if (frames.length < 2) { fadeToPostGameResults(); return; }
-  $('postGameOverlay')?.classList.add('hidden');
-  $('postGameOverlay')?.classList.remove('fade-black');
-  const characterName = potg.characterName || CHARACTER_META[potg.character]?.name || potg.character || '';
-  $('potgReplayIdentity').textContent = `${characterName} · ${potg.playerName || ''}`;
-  $('potgReplayReason').textContent = potgReasonText(potg);
-  $('potgReplayBadge').classList.remove('hidden');
-  selectedTargetId = null;
-  worldFx.splice(0, worldFx.length);
-  playerMotionTracks.clear();
-  potgReplayPlayback = {
-    active:true,
-    frames,
-    startPerf:performance.now(),
-    durationMs:Math.max(100, Number(frames[frames.length - 1].t || 0) - Number(frames[0].t || 0)),
-    currentIndex:0,
-    playerId:potg.playerId,
-    potg
-  };
-  schedulePostGame(fadeToPostGameResults, potgReplayPlayback.durationMs + 120);
-}
-
-function showPotgIntro(potg) {
-  const overlay = $('postGameOverlay');
-  overlay?.classList.remove('hidden','fade-black');
-  $('postGameWinner')?.classList.add('hidden');
-  $('potgIntro')?.classList.remove('hidden');
-  const characterName = potg.characterName || CHARACTER_META[potg.character]?.name || potg.character || '';
-  $('potgCharacterName').textContent = characterName;
-  $('potgPlayerName').textContent = potg.playerName || '';
-  schedulePostGame(() => startPotgReplay(potg), 1000);
-}
-
-function startCompetitivePostGameSequence(msg) {
+function startPostGameSequence(finalState) {
   resetPostGameSequence();
-  const finalState = msg.finalState || state;
   if (!finalState) return;
   postGameSequence.active = true;
   postGameSequence.finalState = finalState;
-  postGameSequence.potg = msg.potg || null;
   state = finalState;
   stopBgm();
   stopBeamHum();
+  selectedTargetId = null;
+  clearLiveProjectileRegistry();
+  playerMotionTracks.clear();
   document.body.classList.add('post-game-sequence');
   show('game');
   const overlay = $('postGameOverlay');
   overlay?.classList.remove('hidden','fade-black');
-  $('potgIntro')?.classList.add('hidden');
-  $('potgReplayBadge')?.classList.add('hidden');
   const winner = $('postGameWinner');
   winner.textContent = postGameWinnerText(finalState);
   winner.style.whiteSpace = 'pre-line';
   winner.classList.remove('hidden');
-  if (msg.potg) console.info('[School Line POTG]', { player:msg.potg.playerName, character:msg.potg.characterName, score:msg.potg.score, metrics:msg.potg.metrics });
-  schedulePostGame(() => {
-    if (msg.potg) showPotgIntro(msg.potg);
-    else fadeToPostGameResults();
-  }, 1800);
+  schedulePostGame(fadeToPostGameResults, 1800);
 }
 
 renderPicker('lobby');
@@ -989,7 +941,8 @@ function stopBeamHum() {
 
 function updateBeamHum(nextState) {
   if (!audioEnabled || spectatorMode || !myId || !nextState || nextState.state !== 'playing') { stopBeamHum(); return; }
-  const active=(nextState.beams || []).some(b => b.ownerId===myId && b.didDamage);
+  const me=(nextState.players || []).find(p => p.id===myId);
+  const active=!!(me && me.beamActive && me.beamDidDamage);
   if (active) startBeamHum(); else stopBeamHum();
 }
 
@@ -1222,7 +1175,7 @@ function resetClientForAccessLock(message='') {
   clearResumeCredentials();
   myId = null;
   spectatorMode = false;
-  clearCannonProjectileRegistry();
+  clearLiveProjectileRegistry();
   state = null;
   config = null;
   selectedTargetId = null;
@@ -1368,63 +1321,6 @@ function openConnection(onOpen) {
   ws = new WebSocket(wsUrl());
   ws.onopen = onOpen;
   
-function expandPotgReplayPayload(potg) {
-  if (!potg || potg.replayFormat !== 'p2') return potg;
-  const meta = Array.isArray(potg.replayPlayers) ? potg.replayPlayers : [];
-  const characters = Array.isArray(potg.replayCharacters) ? potg.replayCharacters : [];
-  const projectileMeta = Array.isArray(potg.replayProjectiles) ? potg.replayProjectiles : [];
-  potg.frames = (potg.frames || []).map(f => {
-    const playerRows = Array.isArray(f[4]) ? f[4] : [];
-    const players = meta.map((m, i) => {
-      const d = playerRows[i] || [];
-      const flags = Number(d[8] || 0);
-      const character = m[3];
-      let reactorOutput;
-      let jetBoostStartX, jetBoostStartY, jetBoostEndX, jetBoostEndY;
-      let bufferTargetId = null;
-      if (character === 'reactor') reactorOutput = d[9];
-      else if (character === 'jet') [jetBoostStartX, jetBoostStartY, jetBoostEndX, jetBoostEndY] = [d[9], d[10], d[11], d[12]];
-      else if (character === 'buffer') {
-        const targetIndex = Math.max(0, Number(d[9] || 0)) - 1;
-        bufferTargetId = targetIndex >= 0 ? (meta[targetIndex]?.[0] || null) : null;
-      }
-      return {
-        id:m[0], name:m[1], team:m[2], character,
-        x:d[0], y:d[1], hp:d[2], maxHp:d[3], shield:d[4], maxShield:d[5],
-        alive:!!(flags & (1<<0)), invulnerable:!!(flags & (1<<1)), aimX:d[6], aimY:d[7],
-        burning:!!(flags & (1<<2)), poisoned:!!(flags & (1<<3)), radiated:!!(flags & (1<<4)),
-        tailwind:!!(flags & (1<<5)), frozen:!!(flags & (1<<6)), stunned:!!(flags & (1<<7)), diaForm:!!(flags & (1<<8)),
-        reactorOutput,
-        jetBoost:!!(flags & (1<<9)), jetBoostStartX, jetBoostStartY, jetBoostEndX, jetBoostEndY,
-        bufferTargetId, bufferLinkActive:!!(flags & (1<<10))
-      };
-    });
-    const projectiles = (Array.isArray(f[5]) ? f[5] : []).map(q => {
-      const pm = projectileMeta[q[0]] || [];
-      return {
-        id:pm[0], x:q[1], y:q[2], radius:pm[1], type:pm[2] ? 'heal' : 'attack', team:pm[3] ? 'B' : 'A',
-        character:characters[pm[4]] || null, reactorFxBand:pm[5] == null ? null : pm[5]
-      };
-    });
-    const beams = (Array.isArray(f[6]) ? f[6] : []).map(b => {
-      const owner = meta[b[0]] || [];
-      return {
-        ownerId:owner[0] || null, team:owner[2] || null, character:owner[3] || null,
-        x1:b[1], y1:b[2], x2:b[3], y2:b[4],
-        impact:Array.isArray(b[5]) ? {x:b[5][0], y:b[5][1]} : null,
-        didDamage:!!b[6]
-      };
-    });
-    return { t:Number(f[0]||0), state:'playing', scoreA:Number(f[1]||0), scoreB:Number(f[2]||0), timeLeft:Number(f[3]||0), players, projectiles, beams };
-  });
-  delete potg.replayFormat;
-  delete potg.replayPlayers;
-  delete potg.replayCharacters;
-  delete potg.replayProjectiles;
-  return potg;
-}
-
-
 function expandCompactPlayerRow(p) {
   if (!Array.isArray(p)) return p;
   const flags = Number(p[17] || 0);
@@ -1463,26 +1359,72 @@ function expandCompactPlayerRow(p) {
   return out;
 }
 
+
+function expandCompactPlayerRowC5(p, meta) {
+  if (!Array.isArray(p)) return p;
+  const m = Array.isArray(meta) ? meta : [];
+  const flags = Number(p[13] || 0);
+  const out = {
+    id:m[0] || null, name:m[1] || '', team:m[2] === 1 ? 'B' : 'A', character:m[3] || null,
+    x:Number(p[0] || 0), y:Number(p[1] || 0), hp:Number(p[2] || 0), maxHp:Number(p[3] || 0),
+    shield:Number(p[4] || 0), maxShield:Number(p[5] || 0), alive:!!p[6],
+    aimX:Number(p[7] || 0), aimY:Number(p[8] || 0),
+    shotSeq:Number(p[9] || 0), projectileHitSeq:Number(p[10] || 0), healHitSeq:Number(p[11] || 0), abilityUseSeq:Number(p[12] || 0),
+    connected:p[14] !== 0
+  };
+  const setNum = (key, index) => { if (p[index] != null) out[key] = Number(p[index] || 0); };
+  if (flags & (1 << 0)) out.burning = true;
+  if (flags & (1 << 1)) out.poisoned = true;
+  if (flags & (1 << 2)) out.radiated = true;
+  if (flags & (1 << 3)) out.tailwind = true;
+  if (flags & (1 << 4)) out.frozen = true;
+  if (flags & (1 << 5)) out.stunned = true;
+  if (flags & (1 << 6)) out.invulnerable = true;
+  if (flags & (1 << 7)) out.diaForm = true;
+  if (flags & (1 << 8)) out.sprint = true;
+  if (flags & (1 << 9)) out.jetBoost = true;
+  if (flags & (1 << 10)) out.bufferLinkActive = true;
+  if (flags & (1 << 11)) out.beamActive = true;
+  if (flags & (1 << 12)) out.beamDidDamage = true;
+  setNum('respawnMs', 15); setNum('shieldMs', 16); setNum('invulnerableMs', 17);
+  if (p[18]) out.burnSourceId = p[18];
+  if (p[19]) out.radiationSourceId = p[19];
+  setNum('diaFormMs', 20); setNum('diaCooldownMs', 21); setNum('sprintMs', 22); setNum('sprintCooldownMs', 23);
+  setNum('windTailwindMs', 24); setNum('windTailwindCooldownMs', 25); setNum('angelBlessCooldownMs', 26);
+  if (p[27] != null) out.shieldAbilityCharges = Number(p[27] || 0);
+  setNum('shieldRechargeMs', 28); setNum('jetBoostMs', 29); setNum('jetBoostStartX', 30); setNum('jetBoostStartY', 31);
+  setNum('jetBoostEndX', 32); setNum('jetBoostEndY', 33); setNum('jetBoostDistance', 34); setNum('jetBoostCooldownMs', 35);
+  setNum('jetShieldMs', 36); setNum('reactorOutput', 37);
+  if (p[38]) out.bufferTargetId = p[38];
+  if (p[39]) out.lastHealTargetId = p[39];
+  if (p[40]) out.lastAbilityTargetId = p[40];
+  return out;
+}
+
 function expandWireMessage(msg) {
   if (!msg) return msg;
-  if (msg.type === 'post_game_sequence' && msg.potg) {
-    msg.potg = expandPotgReplayPayload(msg.potg);
-    return msg;
-  }
   if (msg.type !== 'state') return msg;
   if (msg.wireFormat === 'd1') {
     msg.players = (msg.players || []).map(p => ({ id:p[0], name:p[1], team:p[2], character:p[3], connected:!!p[4] }));
     delete msg.wireFormat;
     return msg;
   }
-  if (msg.wireFormat !== 'c1' && msg.wireFormat !== 'c2' && msg.wireFormat !== 'c3') return msg;
+  if (msg.wireFormat !== 'c1' && msg.wireFormat !== 'c2' && msg.wireFormat !== 'c3' && msg.wireFormat !== 'c4' && msg.wireFormat !== 'c5') return msg;
   const wireFormat = msg.wireFormat;
-  if (wireFormat === 'c3') msg.players = (msg.players || []).map(expandCompactPlayerRow);
+  if (wireFormat === 'c5') {
+    if (Array.isArray(msg.playerMeta)) livePlayerMeta = msg.playerMeta.map(row => Array.isArray(row) ? row.slice() : row);
+    msg.players = (msg.players || []).map((row, i) => expandCompactPlayerRowC5(row, livePlayerMeta[i]));
+    delete msg.playerMeta;
+  } else if (wireFormat === 'c3' || wireFormat === 'c4') msg.players = (msg.players || []).map(expandCompactPlayerRow);
   msg.projectiles = (msg.projectiles || []).map(p => ({
     id:p[0], x:p[1], y:p[2], radius:p[3], type:p[4], team:p[5], character:p[6],
     reactorFxBand:p[7] == null ? null : p[7]
   }));
-  if (wireFormat === 'c2' || wireFormat === 'c3') {
+  if (wireFormat === 'c4' || wireFormat === 'c5') {
+    applyProjectileNetworkUpdate(msg);
+    delete msg.projectileEvents;
+    delete msg.projectileSync;
+  } else if (wireFormat === 'c2' || wireFormat === 'c3') {
     for (const volley of (msg.sprayVolleys || [])) {
       const volleyId = volley[0];
       const team = volley[1] ? 'B' : 'A';
@@ -1504,12 +1446,17 @@ function expandWireMessage(msg) {
     delete msg.cannonEvents;
     delete msg.cannonSync;
   }
-  msg.beams = (msg.beams || []).map(b => ({
-    ownerId:b[0], team:b[1], character:b[2], x1:b[3], y1:b[4], x2:b[5], y2:b[6],
-    healedId:b[7] || null, hitEnemyId:b[8] || null,
-    impact:Array.isArray(b[9]) ? {x:b[9][0], y:b[9][1]} : null,
-    didDamage:!!b[10]
-  }));
+  if (wireFormat === 'c5') {
+    // Beam geometry is reconstructed visually from player position/aim + static map.
+    msg.beams = [];
+  } else {
+    msg.beams = (msg.beams || []).map(b => ({
+      ownerId:b[0], team:b[1], character:b[2], x1:b[3], y1:b[4], x2:b[5], y2:b[6],
+      healedId:b[7] || null, hitEnemyId:b[8] || null,
+      impact:Array.isArray(b[9]) ? {x:b[9][0], y:b[9][1]} : null,
+      didDamage:!!b[10]
+    }));
+  }
   delete msg.wireFormat;
   return msg;
 }
@@ -1573,7 +1520,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'joined') {
-    clearCannonProjectileRegistry();
+    clearLiveProjectileRegistry();
     myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room;
     saveResumeCredentials(msg.room, msg.resumeToken);
     pickerState.lobby.selected = null;
@@ -1583,7 +1530,7 @@ function handleMessage(msg) {
     show('lobby'); return;
   }
   if (msg.type === 'resumed') {
-    clearCannonProjectileRegistry();
+    clearLiveProjectileRegistry();
     spectatorMode = false;
     document.body.classList.remove('spectator-mode');
     myId = msg.id;
@@ -1596,7 +1543,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'spectator_joined') {
-    clearCannonProjectileRegistry();
+    clearLiveProjectileRegistry();
     spectatorMode = true;
     myId = null;
     config = msg.config;
@@ -1658,17 +1605,15 @@ function handleMessage(msg) {
     hidePerkChoicePanel();
     return;
   }
-  if (msg.type === 'post_game_sequence') {
-    startCompetitivePostGameSequence(msg);
-    return;
-  }
   if (msg.type === 'state') {
-    if (postGameSequence.active && msg.state === 'ended') {
+    const previousState = state;
+    const startedPlaying = msg.state === 'playing' && (!previousState || previousState.state !== 'playing');
+    if (msg.state === 'ended' && previousState?.state === 'playing') {
+      hideCharacterIntroTip();
       state = msg;
-      postGameSequence.finalState = msg;
+      startPostGameSequence(msg);
       return;
     }
-    const previousState = state;
     processCombatFeedback(previousState, msg);
     updatePlayerMotionTracks(previousState, msg);
     state = msg;
@@ -1681,14 +1626,17 @@ function handleMessage(msg) {
       if (me && !rightStick.active) {
         lastAimDir = me.team === 'A' ? {x:0,y:1} : {x:0,y:-1};
       }
+      if (startedPlaying && me) showCharacterIntroTip(me.character);
     } else if (state.state === 'draft' || state.state === 'ready') {
-      clearCannonProjectileRegistry();
+      hideCharacterIntroTip();
+      clearLiveProjectileRegistry();
       hidePerkChoicePanel();
       stopBgm();
       show('draft');
       renderCompetitiveDraft();
     } else {
-      clearCannonProjectileRegistry();
+      hideCharacterIntroTip();
+      clearLiveProjectileRegistry();
       hidePerkChoicePanel();
       stopBgm();
       lastCompetitiveRenderKey = null;
@@ -1792,6 +1740,31 @@ function contributionSpecialLine(character, stats) {
   return '';
 }
 
+function resultAwardLeaders(players) {
+  const metrics = [
+    ['kills', '킬 최다', 'kill'],
+    ['damage', '딜 최다', 'damage'],
+    ['healing', '힐 최다', 'healing']
+  ];
+  const awards = new Map();
+  for (const [key, label, kind] of metrics) {
+    const values = players.map(p => Math.max(0, Number(p.stats?.[key]) || 0));
+    const maxValue = values.length ? Math.max(...values) : 0;
+    if (maxValue <= 0) continue;
+    players.forEach((p, i) => {
+      if (Math.abs(values[i] - maxValue) > 1e-6) return;
+      if (!awards.has(p.id)) awards.set(p.id, []);
+      awards.get(p.id).push({ label, kind });
+    });
+  }
+  return awards;
+}
+
+function resultAwardBadges(awards) {
+  if (!awards?.length) return '';
+  return `<span class="result-awards">${awards.map(a => `<span class="result-award result-award-${a.kind}">✦ ${a.label}</span>`).join('')}</span>`;
+}
+
 function renderResultStats() {
   const root = $('resultStats');
   if (!root || !state || state.state !== 'ended') {
@@ -1800,6 +1773,7 @@ function renderResultStats() {
   }
   root.classList.remove('hidden');
   root.innerHTML = '';
+  const awardMap = resultAwardLeaders(state.players || []);
 
   for (const team of ['A', 'B']) {
     const section = document.createElement('section');
@@ -1818,7 +1792,7 @@ function renderResultStats() {
       row.className = 'result-player-row' + (p.id === myId ? ' you' : '');
       const special = contributionSpecialLine(playedCharacter, stats);
       row.innerHTML = `
-        <div class="result-player-name">${meta.icon} ${escapeHtml(p.name)} <span>${meta.name}</span></div>
+        <div class="result-player-name">${meta.icon} ${escapeHtml(p.name)} <span>${meta.name}</span>${resultAwardBadges(awardMap.get(p.id))}</div>
         <div class="result-player-core">킬 <b>${formatContributionNumber(stats.kills)}</b> · 데스 <b>${formatContributionNumber(stats.deaths)}</b> · 딜 <b>${formatContributionNumber(stats.damage)}</b> · 힐 <b>${formatContributionNumber(stats.healing)}</b></div>
         ${special ? `<div class="result-player-special">${special}</div>` : ''}`;
       list.appendChild(row);
@@ -2404,6 +2378,69 @@ function drawText(text, x, y, size=12, align='center', color='#fff') {
   ctx.font = `600 ${size}px system-ui`; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.fillText(text, x, y);
 }
 
+
+function visualSegmentAabbT(x1,y1,x2,y2,minX,minY,maxX,maxY) {
+  const dx=x2-x1, dy=y2-y1;
+  let tmin=0, tmax=1;
+  for (const [p,q1,q2] of [[dx,minX-x1,maxX-x1],[dy,minY-y1,maxY-y1]]) {
+    if (Math.abs(p)<1e-9) { if (q1>0 || q2<0) return null; continue; }
+    let a=q1/p, b=q2/p; if (a>b) [a,b]=[b,a];
+    tmin=Math.max(tmin,a); tmax=Math.min(tmax,b); if (tmin>tmax) return null;
+  }
+  return tmin>=0 && tmin<=1 ? tmin : null;
+}
+
+function visualSegmentCircleT(x1,y1,x2,y2,cx,cy,r) {
+  const dx=x2-x1, dy=y2-y1, fx=x1-cx, fy=y1-cy;
+  const a=dx*dx+dy*dy; if (a<1e-9) return null;
+  const b=2*(fx*dx+fy*dy), c=fx*fx+fy*fy-r*r;
+  const disc=b*b-4*a*c; if (disc<0) return null;
+  const root=Math.sqrt(disc), t1=(-b-root)/(2*a), t2=(-b+root)/(2*a);
+  if (t1>1e-6 && t1<=1) return t1;
+  if (t2>1e-6 && t2<=1) return t2;
+  return null;
+}
+
+function liveVisualBeams(viewState, nowMs=performance.now()) {
+  if (!viewState || !Array.isArray(viewState.players) || !config?.world) return [];
+  const out=[];
+  for (const p of viewState.players) {
+    if (!p?.alive || !p.beamActive || !p.character) continue;
+    const def=config?.characters?.[p.character] || {};
+    const range=(p.character==='dia' && p.diaForm) ? Number(def.formRange||def.range||16) : Number(def.range||16);
+    const sourcePos=renderedPlayerWorldPosition(p, nowMs);
+    let dx=Number(p.aimX||0)-Number(sourcePos.x||0), dy=Number(p.aimY||0)-Number(sourcePos.y||0);
+    const len=Math.hypot(dx,dy); if (len<1e-6) continue; dx/=len; dy/=len;
+    const x1=Number(sourcePos.x||0), y1=Number(sourcePos.y||0), x2=x1+dx*range, y2=y1+dy*range;
+    let bestT=1, impact=null;
+    if (Math.abs(dx)>1e-12) {
+      const tx=dx>0 ? (Number(config.world.width)-x1)/(dx*range) : (0-x1)/(dx*range);
+      if (tx>=0 && tx<bestT) { bestT=tx; impact='wall'; }
+    }
+    if (Math.abs(dy)>1e-12) {
+      const ty=dy>0 ? (Number(config.world.height)-y1)/(dy*range) : (0-y1)/(dy*range);
+      if (ty>=0 && ty<bestT) { bestT=ty; impact='wall'; }
+    }
+    for (const w of (config.walls||[])) {
+      const t=visualSegmentAabbT(x1,y1,x2,y2,Number(w.x),Number(w.y),Number(w.x)+Number(w.w),Number(w.y)+Number(w.h));
+      if (t!==null && t>1e-6 && t<bestT) { bestT=t; impact='wall'; }
+    }
+    for (const target of viewState.players) {
+      if (!target?.alive || target.id===p.id || target.team===p.team) continue;
+      const tr=Number(config?.characters?.[target.character]?.radius || .8);
+      const targetPos=renderedPlayerWorldPosition(target, nowMs);
+      const t=visualSegmentCircleT(x1,y1,x2,y2,Number(targetPos.x||0),Number(targetPos.y||0),tr);
+      if (t!==null && t>1e-6 && t<bestT) { bestT=t; impact='player'; }
+    }
+    out.push({
+      ownerId:p.id, team:p.team, character:p.character,
+      x1, y1, x2:x1+(x2-x1)*bestT, y2:y1+(y2-y1)*bestT,
+      impact:impact ? true : null, didDamage:!!p.beamDidDamage
+    });
+  }
+  return out;
+}
+
 function beamFxPalette(character) {
   if (character === 'solar') return { core:'#fff3ae', mid:'#ffd45c', glow:'rgba(255,196,64,.22)', impact:'rgba(255,221,120,.72)' };
   if (character === 'ice') return { core:'#e8fcff', mid:'#78e9ff', glow:'rgba(120,235,255,.20)', impact:'rgba(160,244,255,.72)' };
@@ -2633,8 +2670,8 @@ function clearScoringStatusUi() {
   scoringStatusUiKey = '';
 }
 
-function updateScoringStatusUi(viewState, isReplay) {
-  if (isReplay || !viewState || viewState.state !== 'playing') { clearScoringStatusUi(); return; }
+function updateScoringStatusUi(viewState) {
+  if (!viewState || viewState.state !== 'playing') { clearScoringStatusUi(); return; }
   const scoring=scoringStateFromPlayers(viewState);
   const me = spectatorMode ? null : (viewState.players || []).find(p => p.id === myId);
   const perspective = spectatorMode || !me ? 'spectator' : me.team;
@@ -2661,9 +2698,9 @@ function updateScoringStatusUi(viewState, isReplay) {
   el.classList.add(team === 'A' ? 'score-a' : 'score-b');
 }
 
-function drawHomeZoneLabels(viewState, isReplay) {
+function drawHomeZoneLabels(viewState) {
   if (!config?.world) return;
-  const me = (!isReplay && !spectatorMode) ? (viewState.players || []).find(p => p.id === myId) : null;
+  const me = !spectatorMode ? (viewState.players || []).find(p => p.id === myId) : null;
   let left='A 구역', right='B 구역';
   if (me?.team === 'A') { left='우리 집'; right='적 집'; }
   else if (me?.team === 'B') { left='적 집'; right='우리 집'; }
@@ -2681,10 +2718,9 @@ function drawHomeZoneLabels(viewState, isReplay) {
 
 function renderGame() {
   requestAnimationFrame(renderGame);
-  const isReplay = !!potgReplayPlayback.active;
-  const viewState = isReplay ? currentPotgReplayState() : state;
-  if (!viewState || (!isReplay && viewState.state !== 'playing') || !config) { clearScoringStatusUi(); return; }
-  updateScoringStatusUi(viewState, isReplay);
+  const viewState = state;
+  if (!viewState || viewState.state !== 'playing' || !config) { clearScoringStatusUi(); return; }
+  updateScoringStatusUi(viewState);
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle = '#121821'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
@@ -2695,16 +2731,16 @@ function renderGame() {
   for (const y of [config.world.aZoneEnd, config.world.bZoneStart]) { ctx.beginPath(); ctx.moveTo(y*SCALE,0); ctx.lineTo(y*SCALE,canvas.height); ctx.stroke(); }
   ctx.setLineDash([]);
 
-  // Player-perspective home labels are local-only orientation aids. Spectators/POTG
-  // keep neutral A/B labels. They are deliberately drawn as faint floor text.
-  drawHomeZoneLabels(viewState, isReplay);
+  // Player-perspective home labels are local-only orientation aids. Spectators keep neutral A/B labels.
+  drawHomeZoneLabels(viewState);
 
   // Walls rotated into landscape view.
   ctx.fillStyle = '#4b5565';
   for (const w of config.walls) ctx.fillRect(w.y*SCALE,w.x*SCALE,w.h*SCALE,w.w*SCALE);
 
   const beamFxNow = performance.now();
-  for (const b of (viewState.beams || [])) drawBeamFx(b, beamFxNow);
+  const renderBeams = liveVisualBeams(viewState, beamFxNow);
+  for (const b of renderBeams) drawBeamFx(b, beamFxNow);
   for (const p of viewState.players) if (p.alive && p.character==='jet' && p.jetBoost) drawJetBoostTrail(p, beamFxNow);
   for (const buffer of viewState.players) {
     if (!buffer.alive || buffer.character !== 'buffer' || !buffer.bufferLinkActive || !buffer.bufferTargetId) continue;
@@ -2712,7 +2748,7 @@ function renderGame() {
     if (target) { drawBufferThread(buffer, target, beamFxNow); drawBufferTargetAura(target, beamFxNow); }
   }
 
-  const renderProjectiles = isReplay ? (viewState.projectiles || []) : [...(viewState.projectiles || []), ...liveCannonProjectiles(beamFxNow)];
+  const renderProjectiles = [...(viewState.projectiles || []), ...liveNetworkProjectiles(beamFxNow)];
   for (const p of renderProjectiles) {
     const s=worldToScreen(p.x,p.y), r=Math.max(2,p.radius*SCALE);
     ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2);
@@ -2733,7 +2769,7 @@ function renderGame() {
   // Sniper-only local distance guide. This is a purely client-side aid: the
   // first damage-band boundary (currently 16 m) is drawn only for the player
   // controlling Sniper, never for opponents or spectators.
-  if (!isReplay && !spectatorMode) {
+  if (!spectatorMode) {
     const sniperGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && p.character === 'sniper');
     if (sniperGuidePlayer) {
       const sniperDef = characterPublicDef('sniper');
@@ -2763,11 +2799,6 @@ function renderGame() {
       ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill(); ctx.restore();
     }
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
-    if (isReplay && p.id === potgReplayPlayback.playerId) {
-      const pulse = 0.72 + 0.20 * Math.sin(beamFxNow * 0.009);
-      ctx.save(); ctx.globalAlpha = pulse; ctx.lineWidth = 3.2; ctx.strokeStyle = '#ffd86a';
-      ctx.beginPath(); ctx.arc(x, y, radius + 10, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-    }
     if (p.shield > 0) {
       const spulse=.72 + .18*Math.sin(beamFxNow*.010 + x*.01);
       ctx.save(); ctx.globalAlpha=spulse; ctx.lineWidth=2.4; ctx.strokeStyle='#67d8ff';
@@ -2850,7 +2881,7 @@ function renderGame() {
     }
 
     const bw=42,bh=5,bx=x-bw/2,by=y-radius-15;
-    if (!isReplay && !spectatorMode && p.id === myId) {
+    if (!spectatorMode && p.id === myId) {
       // Local-only "this is me" marker. No network data is needed.
       ctx.save();
       ctx.beginPath();
@@ -2873,17 +2904,13 @@ function renderGame() {
     drawText(`${p.team} ${p.name}`,x,by-7,11,'center','#f6f8fb');
   }
 
-  const me = (isReplay || spectatorMode) ? null : viewState.players.find(p => p.id === myId);
+  const me = spectatorMode ? null : viewState.players.find(p => p.id === myId);
   if (me && me.character === 'buffer') {
     const serverTarget = me.bufferTargetId ? viewState.players.find(p => p.id === me.bufferTargetId && p.alive) : null;
     selectedTargetId = serverTarget ? serverTarget.id : null;
   } else if (!currentTargetingRule() || !viewState.players.some(p => p.id === selectedTargetId && p.alive)) selectedTargetId = null;
   const t = Math.ceil(viewState.timeLeft); $('timer').textContent = `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
-  if (isReplay) {
-    $('myInfo').innerHTML = '';
-    $('respawn').textContent = '';
-    $('abilityButton').classList.add('hidden');
-  } else if (spectatorMode) {
+  if (spectatorMode) {
     $('myInfo').innerHTML = '';
     $('respawn').textContent = '';
     $('abilityButton').classList.add('hidden');

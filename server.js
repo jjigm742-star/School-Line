@@ -49,18 +49,9 @@ const BALANCE_VERSION = '1.3';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-potg-1-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3';
+const COMPETITIVE_BUILD_ID = 'alpha-1.3-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.3-r22-shield';
 
-// Competitive-only Play of the Game (POTG) 1.0.
-const POTG_WINDOW_MS = 8000;
-const POTG_REPLAY_PREROLL_MS = 1500;
-const POTG_REPLAY_BUFFER_MS = POTG_WINDOW_MS + POTG_REPLAY_PREROLL_MS + 500;
-const POTG_REPLAY_FRAME_MS = 100; // 10 Hz capture; client interpolates for smooth playback.
-const POTG_MIN_SCORE = 1000;
-const POTG_KILL_SCORE = 300;
-const POTG_OBJECTIVE_POINT_SCORE = 25;
-const POTG_OBJECTIVE_STOP_SCORE = 150;
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [4.0, 5.0, 6.0, 7.0, 8.0, 9.2];
@@ -1232,10 +1223,9 @@ function newRoom(code) {
     winnerReason: null,
     projectileCounter: 1,
     sprayVolleyCounter: 1,
-    cannonNetPendingSpawns: new Set(),
-    cannonNetPendingRemoves: new Set(),
-    lastCannonNetSyncAt: 0,
-    potg: createPotgState(false),
+    projectileNetPendingSpawns: new Set(),
+    projectileNetPendingRemoves: new Set(),
+    lastProjectileNetSyncAt: 0,
     lastBroadcastAt: 0,
     network: null
   };
@@ -1265,285 +1255,6 @@ function resolveMatchWinner(room) {
   return { winner: 'DRAW', reason: 'draw', kills };
 }
 
-
-function createPotgState(enabled = false) {
-  return {
-    enabled: !!enabled,
-    events: new Map(),
-    pendingTriggers: new Set(),
-    replayBuffer: [],
-    replayMeta: null,
-    lastReplayCaptureAt: 0,
-    topScore: -Infinity,
-    topCandidates: [],
-    lastScoring: { A: false, B: false },
-    final: null
-  };
-}
-
-function potgEnabled(room) {
-  return !!(room && room.mode === 'competitive' && room.state === 'playing' && room.potg && room.potg.enabled);
-}
-
-function potgEventsFor(room, playerId) {
-  if (!room.potg.events.has(playerId)) room.potg.events.set(playerId, []);
-  return room.potg.events.get(playerId);
-}
-
-function recordPotgEvent(room, playerId, now, fields = {}) {
-  if (!potgEnabled(room) || !playerId) return;
-  const events = potgEventsFor(room, playerId);
-  events.push({
-    t: now,
-    damage: Math.max(0, Number(fields.damage) || 0),
-    healing: Math.max(0, Number(fields.healing) || 0),
-    crisisHealing: Math.max(0, Number(fields.crisisHealing) || 0),
-    kills: Math.max(0, Number(fields.kills) || 0),
-    objectivePoints: Math.max(0, Number(fields.objectivePoints) || 0),
-    objectiveStops: Math.max(0, Number(fields.objectiveStops) || 0)
-  });
-  const cutoff = now - POTG_WINDOW_MS - 250;
-  while (events.length && events[0].t < cutoff) events.shift();
-}
-
-function queuePotgTrigger(room, playerId) {
-  if (!potgEnabled(room) || !playerId) return;
-  room.potg.pendingTriggers.add(playerId);
-}
-
-function potgMultiKillBonus(kills) {
-  if (kills >= 4) return 1500;
-  if (kills === 3) return 800;
-  if (kills === 2) return 300;
-  return 0;
-}
-
-function calculatePotgWindow(room, playerId, endAt) {
-  const events = potgEventsFor(room, playerId);
-  const startAt = endAt - POTG_WINDOW_MS;
-  const metrics = { damage: 0, healing: 0, crisisHealing: 0, kills: 0, objectivePoints: 0, objectiveStops: 0 };
-  for (const ev of events) {
-    if (ev.t < startAt || ev.t > endAt) continue;
-    metrics.damage += ev.damage;
-    metrics.healing += ev.healing;
-    metrics.crisisHealing += ev.crisisHealing;
-    metrics.kills += ev.kills;
-    metrics.objectivePoints += ev.objectivePoints;
-    metrics.objectiveStops += ev.objectiveStops;
-  }
-  const score = metrics.damage
-    + metrics.healing
-    + metrics.crisisHealing // critical ally healing receives one extra copy => 2x total.
-    + metrics.kills * POTG_KILL_SCORE
-    + potgMultiKillBonus(metrics.kills)
-    + metrics.objectivePoints * POTG_OBJECTIVE_POINT_SCORE
-    + metrics.objectiveStops * POTG_OBJECTIVE_STOP_SCORE;
-  return { startAt, endAt, score, metrics };
-}
-
-function replayPlayerFlags(p) {
-  let bits = 0;
-  if (p.alive) bits |= 1 << 0;
-  if (p.invulnerable) bits |= 1 << 1;
-  if (p.burning) bits |= 1 << 2;
-  if (p.poisoned) bits |= 1 << 3;
-  if (p.radiated) bits |= 1 << 4;
-  if (p.tailwind) bits |= 1 << 5;
-  if (p.frozen) bits |= 1 << 6;
-  if (p.stunned) bits |= 1 << 7;
-  if (p.diaForm) bits |= 1 << 8;
-  if (p.jetBoost) bits |= 1 << 9;
-  if (p.bufferLinkActive) bits |= 1 << 10;
-  return bits;
-}
-
-function capturePotgReplayFrame(room, now, force = false) {
-  if (!potgEnabled(room)) return null;
-  if (!force && room.potg.lastReplayCaptureAt && now - room.potg.lastReplayCaptureAt < POTG_REPLAY_FRAME_MS) return null;
-  const live = snapshot(room, null, true);
-  if (!room.potg.replayMeta) {
-    const characterIds = Object.keys(CHARACTERS);
-    const playerRows = live.players.map(p => [p.id, p.name, p.team, p.character]);
-    room.potg.replayMeta = {
-      players: playerRows,
-      playerIndex: new Map(playerRows.map((p, i) => [p[0], i])),
-      characters: characterIds,
-      characterIndex: new Map(characterIds.map((id, i) => [id, i]))
-    };
-  }
-  const meta = room.potg.replayMeta;
-  // Compact RAM/wire frame. Static identity/dictionaries live once in replayMeta; each 10 Hz
-  // frame stores only changing values. Numeric codes avoid repeating team/type/character strings.
-  const frame = [
-    now,
-    roundWireNumber(live.scoreA, 3),
-    roundWireNumber(live.scoreB, 3),
-    roundWireNumber(live.timeLeft, 2),
-    live.players.map(p => {
-      const row = [
-        roundWireNumber(p.x, 3), roundWireNumber(p.y, 3),
-        roundWireNumber(p.hp, 2), roundWireNumber(p.maxHp, 2),
-        roundWireNumber(p.shield, 2), roundWireNumber(p.maxShield, 2),
-        roundWireNumber(p.aimX, 3), roundWireNumber(p.aimY, 3), replayPlayerFlags(p)
-      ];
-      if (p.character === 'reactor') row.push(p.reactorOutput == null ? 0 : roundWireNumber(p.reactorOutput, 2));
-      else if (p.character === 'jet') row.push(
-        p.jetBoostStartX == null ? 0 : roundWireNumber(p.jetBoostStartX, 3),
-        p.jetBoostStartY == null ? 0 : roundWireNumber(p.jetBoostStartY, 3),
-        p.jetBoostEndX == null ? 0 : roundWireNumber(p.jetBoostEndX, 3),
-        p.jetBoostEndY == null ? 0 : roundWireNumber(p.jetBoostEndY, 3)
-      );
-      else if (p.character === 'buffer') row.push(p.bufferTargetId ? ((meta.playerIndex.get(p.bufferTargetId) ?? -1) + 1) : 0);
-      return row;
-    }),
-    live.projectiles.map(p => [
-      p.id, roundWireNumber(p.x, 3), roundWireNumber(p.y, 3), roundWireNumber(p.radius, 3),
-      p.type === 'heal' ? 1 : 0, p.team === 'B' ? 1 : 0,
-      meta.characterIndex.get(p.character) ?? -1,
-      p.reactorFxBand == null ? null : p.reactorFxBand
-    ]),
-    live.beams.map(b => [
-      meta.playerIndex.get(b.ownerId) ?? -1,
-      roundWireNumber(b.x1, 3), roundWireNumber(b.y1, 3), roundWireNumber(b.x2, 3), roundWireNumber(b.y2, 3),
-      b.impact ? [roundWireNumber(b.impact.x, 3), roundWireNumber(b.impact.y, 3)] : null,
-      b.didDamage ? 1 : 0
-    ])
-  ];
-  room.potg.replayBuffer.push(frame);
-  room.potg.lastReplayCaptureAt = now;
-  const cutoff = now - POTG_REPLAY_BUFFER_MS;
-  while (room.potg.replayBuffer.length && room.potg.replayBuffer[0][0] < cutoff) room.potg.replayBuffer.shift();
-  return frame;
-}
-
-function replayFramesForPotgCandidate(room, endAt) {
-  const startAt = endAt - POTG_WINDOW_MS - POTG_REPLAY_PREROLL_MS;
-  return room.potg.replayBuffer.filter(frame => frame[0] >= startAt && frame[0] <= endAt + 100).slice();
-}
-
-function considerPotgCandidate(room, playerId, now) {
-  if (!potgEnabled(room)) return null;
-  const player = room.players.get(playerId);
-  if (!player) return null;
-  const window = calculatePotgWindow(room, playerId, now);
-  const m = window.metrics;
-  if (m.kills <= 0 && m.crisisHealing <= 0 && m.objectiveStops <= 0) return null;
-
-  // Replay capture runs at 10 Hz; the decisive event can be at most ~100 ms past the last frame.
-  const candidate = {
-    playerId: player.id,
-    playerName: player.name,
-    team: player.team,
-    character: player.character,
-    characterName: CHARACTERS[player.character]?.name || player.character,
-    score: window.score,
-    startAt: window.startAt,
-    endAt: window.endAt,
-    metrics: { ...m },
-    replayMeta: room.potg.replayMeta,
-    frames: replayFramesForPotgCandidate(room, now)
-  };
-
-  const eps = 1e-6;
-  if (candidate.score > room.potg.topScore + eps) {
-    room.potg.topScore = candidate.score;
-    room.potg.topCandidates = [candidate];
-  } else if (Math.abs(candidate.score - room.potg.topScore) <= eps) {
-    // One tied top-score scene per player is enough: final tie-breaks compare player/team,
-    // kills and damage. This caps replay RAM naturally at the eight competitors.
-    const samePlayerIndex = room.potg.topCandidates.findIndex(c => c.playerId === candidate.playerId);
-    if (samePlayerIndex >= 0) {
-      const existing = room.potg.topCandidates[samePlayerIndex];
-      if (comparePotgCandidateLocal(candidate, existing) < 0) room.potg.topCandidates[samePlayerIndex] = candidate;
-    } else room.potg.topCandidates.push(candidate);
-  }
-  return candidate;
-}
-
-function processPendingPotgTriggers(room, now) {
-  if (!potgEnabled(room) || !room.potg.pendingTriggers.size) return;
-  const ids = [...room.potg.pendingTriggers];
-  room.potg.pendingTriggers.clear();
-  for (const id of ids) considerPotgCandidate(room, id, now);
-}
-
-function comparePotgCandidateLocal(a, b) {
-  if ((b.metrics?.kills || 0) !== (a.metrics?.kills || 0)) return (b.metrics?.kills || 0) - (a.metrics?.kills || 0);
-  if ((b.metrics?.damage || 0) !== (a.metrics?.damage || 0)) return (b.metrics?.damage || 0) - (a.metrics?.damage || 0);
-  return 0;
-}
-
-function finalizePotg(room) {
-  if (!room || room.mode !== 'competitive' || !room.potg || !room.potg.enabled) return null;
-  if (!Number.isFinite(room.potg.topScore) || room.potg.topScore < POTG_MIN_SCORE) return null;
-  let pool = room.potg.topCandidates.filter(c => Math.abs(c.score - room.potg.topScore) <= 1e-6);
-  if (!pool.length) return null;
-
-  // Tie-break: winning team -> more kills in the 8 s window -> more damage -> random.
-  if (room.winner === 'A' || room.winner === 'B') {
-    const winnerPool = pool.filter(c => c.team === room.winner);
-    if (winnerPool.length) pool = winnerPool;
-  }
-  pool.sort(comparePotgCandidateLocal);
-  const bestKills = pool[0]?.metrics?.kills || 0;
-  pool = pool.filter(c => (c.metrics?.kills || 0) === bestKills);
-  const bestDamage = Math.max(...pool.map(c => Number(c.metrics?.damage) || 0));
-  pool = pool.filter(c => Math.abs((Number(c.metrics?.damage) || 0) - bestDamage) <= 1e-6);
-  const selected = pool[Math.floor(Math.random() * pool.length)] || null;
-  if (!selected) return null;
-  room.potg.final = selected;
-  return selected;
-}
-
-function potgSequencePayload(candidate) {
-  if (!candidate) return null;
-  const rawFrames = candidate.frames || [];
-  const baseT = rawFrames.length ? Number(rawFrames[0][0]) || 0 : 0;
-  const projectileMeta = [];
-  const projectileMetaIndex = new Map();
-  const frames = rawFrames.map(frame => {
-    const copy = frame.slice();
-    copy[0] = Math.max(0, Math.round((Number(frame[0]) || 0) - baseT));
-    copy[5] = (frame[5] || []).map(q => {
-      const id = q[0];
-      let index = projectileMetaIndex.get(id);
-      if (index == null) {
-        index = projectileMeta.length;
-        projectileMetaIndex.set(id, index);
-        projectileMeta.push([id, q[3], q[4], q[5], q[6], q[7]]);
-      }
-      return [index, q[1], q[2]];
-    });
-    return copy;
-  });
-  return {
-    playerId: candidate.playerId,
-    playerName: candidate.playerName,
-    team: candidate.team,
-    character: candidate.character,
-    characterName: candidate.characterName,
-    score: candidate.score,
-    metrics: candidate.metrics,
-    windowMs: POTG_WINDOW_MS,
-    replayFormat: 'p2',
-    replayPlayers: candidate.replayMeta?.players || [],
-    replayCharacters: candidate.replayMeta?.characters || [],
-    replayProjectiles: projectileMeta,
-    frames
-  };
-}
-
-function sendCompetitivePostGameSequence(room, candidate) {
-  if (!room || room.mode !== 'competitive') return;
-  const payload = {
-    type: 'post_game_sequence',
-    finalState: snapshot(room, null, true),
-    potg: potgSequencePayload(candidate)
-  };
-  const text = JSON.stringify(payload);
-  for (const conn of room.clients.values()) conn.sendSerialized(text, 'post_game_sequence');
-  for (const conn of room.spectators.values()) conn.sendSerialized(text, 'post_game_sequence');
-}
 
 function isCharacterTakenOnTeam(room, team, character, excludePlayerId = null) {
   for (const p of room.players.values()) {
@@ -2206,7 +1917,8 @@ function startMatch(room, now = Date.now()) {
   room.matchEndAt = now + MATCH_SECONDS * 1000;
   clearProjectiles(room);
   room.beams = [];
-  room.potg = createPotgState(room.mode === 'competitive');
+  // Force one fresh c5 static player dictionary at every match start.
+  room.lastPlayerNetMetaSignature = null;
   for (const p of room.players.values()) {
     const def = CHARACTERS[p.character];
     const sp = spawnPoint(room, p);
@@ -2379,8 +2091,6 @@ function registerKill(room, attackerId, now, direct = true) {
   if (!attacker) return;
   const stats = ensureMatchStats(attacker);
   stats.kills += 1;
-  recordPotgEvent(room, attacker.id, now, { kills: 1 });
-  queuePotgTrigger(room, attacker.id);
   if (attacker.alive && attacker.character === 'reactor') {
     const reactorDef = CHARACTERS.reactor;
     attacker.reactorOutput = clamp(
@@ -2534,7 +2244,6 @@ function dealDamageDetailed(room, attackerId, target, amount, now) {
   const attacker = room.players.get(attackerId);
   if (attacker) {
     ensureMatchStats(attacker).damage += total;
-    recordPotgEvent(room, attacker.id, now, { damage: total });
   }
   markCombat(room, attackerId, target, now);
   return { total, hp: hpDamage, shield: shieldDamage };
@@ -2545,7 +2254,6 @@ function applyHealing(room, healer, target, amount, now) {
   const raw = Math.max(0, Number(amount) || 0);
   const before = Math.max(0, target.hp);
   const missing = Math.max(0, target.maxHp - before);
-  const crisisAlly = !!(healer && healer.id !== target.id && healer.team === target.team && target.maxHp > 0 && before / target.maxHp <= 0.30);
   if (raw <= 0 || missing <= 0) return 0;
 
   let effectiveRaw = raw;
@@ -2579,8 +2287,6 @@ function applyHealing(room, healer, target, amount, now) {
   target.hp = before + actual;
   if (healer) {
     ensureMatchStats(healer).healing += actual;
-    recordPotgEvent(room, healer.id, now, { healing: actual, crisisHealing: crisisAlly ? actual : 0 });
-    if (crisisAlly) queuePotgTrigger(room, healer.id);
   }
   return actual;
 }
@@ -2705,21 +2411,21 @@ function traceLightBeam(room, player, def, dt, now) {
 }
 
 
-function resetHeavyProjectileNetState(room) {
+function resetProjectileNetState(room) {
   if (!room) return;
-  if (!(room.cannonNetPendingSpawns instanceof Set)) room.cannonNetPendingSpawns = new Set();
-  else room.cannonNetPendingSpawns.clear();
-  if (!(room.cannonNetPendingRemoves instanceof Set)) room.cannonNetPendingRemoves = new Set();
-  else room.cannonNetPendingRemoves.clear();
-  room.lastCannonNetSyncAt = 0;
+  if (!(room.projectileNetPendingSpawns instanceof Set)) room.projectileNetPendingSpawns = new Set();
+  else room.projectileNetPendingSpawns.clear();
+  if (!(room.projectileNetPendingRemoves instanceof Set)) room.projectileNetPendingRemoves = new Set();
+  else room.projectileNetPendingRemoves.clear();
+  room.lastProjectileNetSyncAt = 0;
 }
 
-function noteCannonProjectileSpawn(room, projectile) {
-  if (!room || !projectile || projectile.character !== 'cannon') return;
-  if (!(room.cannonNetPendingSpawns instanceof Set)) room.cannonNetPendingSpawns = new Set();
-  if (!(room.cannonNetPendingRemoves instanceof Set)) room.cannonNetPendingRemoves = new Set();
-  room.cannonNetPendingRemoves.delete(projectile.id);
-  room.cannonNetPendingSpawns.add(projectile.id);
+function noteProjectileSpawn(room, projectile) {
+  if (!room || !projectile) return;
+  if (!(room.projectileNetPendingSpawns instanceof Set)) room.projectileNetPendingSpawns = new Set();
+  if (!(room.projectileNetPendingRemoves instanceof Set)) room.projectileNetPendingRemoves = new Set();
+  room.projectileNetPendingRemoves.delete(projectile.id);
+  room.projectileNetPendingSpawns.add(projectile.id);
 }
 
 function removeProjectile(room, id) {
@@ -2727,15 +2433,14 @@ function removeProjectile(room, id) {
   const projectile = room.projectiles.get(id);
   if (!projectile) return false;
   room.projectiles.delete(id);
-  if (projectile.character === 'cannon') {
-    if (!(room.cannonNetPendingSpawns instanceof Set)) room.cannonNetPendingSpawns = new Set();
-    if (!(room.cannonNetPendingRemoves instanceof Set)) room.cannonNetPendingRemoves = new Set();
-    if (room.cannonNetPendingSpawns.has(id)) {
-      // Spawned and removed before the next 10 Hz network frame: the browser never needs to see it.
-      room.cannonNetPendingSpawns.delete(id);
-    } else {
-      room.cannonNetPendingRemoves.add(id);
-    }
+  if (!(room.projectileNetPendingSpawns instanceof Set)) room.projectileNetPendingSpawns = new Set();
+  if (!(room.projectileNetPendingRemoves instanceof Set)) room.projectileNetPendingRemoves = new Set();
+  if (room.projectileNetPendingSpawns.has(id)) {
+    // Spawned and removed before the next delivered live snapshot: the browser never
+    // observed it, so suppress both lifecycle events.
+    room.projectileNetPendingSpawns.delete(id);
+  } else {
+    room.projectileNetPendingRemoves.add(id);
   }
   return true;
 }
@@ -2743,17 +2448,21 @@ function removeProjectile(room, id) {
 function clearProjectiles(room) {
   if (!room || !room.projectiles) return;
   room.projectiles.clear();
-  resetHeavyProjectileNetState(room);
+  resetProjectileNetState(room);
 }
 
-function cannonProjectileWireRow(p) {
+function projectileWireRow(p) {
   return [
     p.id,
     roundWireNumber(p.x, 3),
     roundWireNumber(p.y, 3),
     roundWireNumber(p.vx, 3),
     roundWireNumber(p.vy, 3),
-    p.team === 'B' ? 1 : 0
+    roundWireNumber(p.radius, 3),
+    p.type === 'heal' ? 1 : 0,
+    p.team === 'B' ? 1 : 0,
+    p.character || null,
+    p.reactorFxBand == null ? null : p.reactorFxBand
   ];
 }
 
@@ -2784,7 +2493,7 @@ function spawnProjectileFromDirection(room, player, def, now, dx, dy, options = 
   });
   if (options.sprayLane) room.projectiles.get(id).sprayLane = options.sprayLane;
   if (options.sprayVolleyId) room.projectiles.get(id).sprayVolleyId = options.sprayVolleyId;
-  noteCannonProjectileSpawn(room, room.projectiles.get(id));
+  noteProjectileSpawn(room, room.projectiles.get(id));
   return id;
 }
 
@@ -2866,6 +2575,7 @@ function spawnSolarProjectile(room, player, def, now) {
     burnDuration: 0,
     bornAt: now
   });
+  noteProjectileSpawn(room, room.projectiles.get(id));
 }
 
 function updateProjectiles(room, dt, now) {
@@ -2986,15 +2696,10 @@ function updateRoom(room, dt, now) {
     clearProjectiles(room);
     room.beams = [];
     for (const p of room.players.values()) p.input.fire = false;
-    if (room.mode === 'competitive') {
-      const finalPotg = finalizePotg(room);
-      recordCompetitiveResult(room, now);
-      sendCompetitivePostGameSequence(room, finalPotg);
-    } else {
-      // Idle/ended heartbeat was removed in BWOpt4, so normal games need one explicit
-      // final state push at the transition.
-      broadcast(room, now);
-    }
+    if (room.mode === 'competitive') recordCompetitiveResult(room, now);
+    // Idle/ended heartbeat is disabled, so every mode receives one explicit final state.
+    // The client shows the winner announcement locally and then opens the result screen.
+    broadcast(room, now);
     return;
   }
 
@@ -3098,44 +2803,8 @@ function updateRoom(room, dt, now) {
   const aScoring = aAttackers.length > 0 && bDefenders.length === 0;
   const bScoring = bAttackers.length > 0 && aDefenders.length === 0;
 
-  if (potgEnabled(room)) {
-    // A direct stop means the opponent was scoring last tick and a defender is now present
-    // in the threatened home zone, ending that scoring state. Award once on the transition.
-    if (room.potg.lastScoring.A && !aScoring && bDefenders.length > 0) {
-      for (const defender of bDefenders) {
-        recordPotgEvent(room, defender.id, now, { objectiveStops: 1 });
-        queuePotgTrigger(room, defender.id);
-      }
-    }
-    if (room.potg.lastScoring.B && !bScoring && aDefenders.length > 0) {
-      for (const defender of aDefenders) {
-        recordPotgEvent(room, defender.id, now, { objectiveStops: 1 });
-        queuePotgTrigger(room, defender.id);
-      }
-    }
-  }
-
-  if (aScoring) {
-    room.scoreA += dt;
-    if (potgEnabled(room)) {
-      const contribution = dt / aAttackers.length;
-      for (const attacker of aAttackers) recordPotgEvent(room, attacker.id, now, { objectivePoints: contribution });
-    }
-  }
-  if (bScoring) {
-    room.scoreB += dt;
-    if (potgEnabled(room)) {
-      const contribution = dt / bAttackers.length;
-      for (const attacker of bAttackers) recordPotgEvent(room, attacker.id, now, { objectivePoints: contribution });
-    }
-  }
-
-  if (potgEnabled(room)) {
-    room.potg.lastScoring.A = aScoring;
-    room.potg.lastScoring.B = bScoring;
-    capturePotgReplayFrame(room, now);
-    processPendingPotgTriggers(room, now);
-  }
+  if (aScoring) room.scoreA += dt;
+  if (bScoring) room.scoreB += dt;
 }
 
 function competitivePhaseWireSnapshot(room, viewerId = null, spectator = false, now = Date.now()) {
@@ -3332,99 +3001,101 @@ function compactPlayerWireRow(p) {
   return row;
 }
 
-function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), forceCannonSync = false) {
+// BWOpt6/c5: player identity/team/character are static during a live match. They are
+// sent once as playerMeta instead of being repeated in every 10 Hz row. Beam visuals
+// also ride on two flag bits (active/contact) instead of full x1/y1/x2/y2 beam rows.
+function compactPlayerWireRowV5(p, beamActive = false, beamDidDamage = false) {
+  let flags = 0;
+  if (p.burning) flags |= 1 << 0;
+  if (p.poisoned) flags |= 1 << 1;
+  if (p.radiated) flags |= 1 << 2;
+  if (p.tailwind) flags |= 1 << 3;
+  if (p.frozen) flags |= 1 << 4;
+  if (p.stunned) flags |= 1 << 5;
+  if (p.invulnerable) flags |= 1 << 6;
+  if (p.diaForm) flags |= 1 << 7;
+  if (p.sprint) flags |= 1 << 8;
+  if (p.jetBoost) flags |= 1 << 9;
+  if (p.bufferLinkActive) flags |= 1 << 10;
+  if (beamActive) flags |= 1 << 11;
+  if (beamDidDamage) flags |= 1 << 12;
+  const ms = value => value == null ? null : Math.max(0, Math.round(Number(value) || 0));
+  const num = (value, digits = 3) => value == null ? null : roundWireNumber(value, digits);
+  const row = [
+    num(p.x), num(p.y), num(p.hp), num(p.maxHp), num(p.shield), num(p.maxShield), p.alive ? 1 : 0,
+    num(p.aimX), num(p.aimY), p.shotSeq || 0, p.projectileHitSeq || 0, p.healHitSeq || 0, p.abilityUseSeq || 0,
+    flags, p.connected === false ? 0 : 1,
+    ms(p.respawnMs), ms(p.shieldMs), ms(p.invulnerableMs), p.burnSourceId || null, p.radiationSourceId || null,
+    ms(p.diaFormMs), ms(p.diaCooldownMs), ms(p.sprintMs), ms(p.sprintCooldownMs),
+    ms(p.windTailwindMs), ms(p.windTailwindCooldownMs), ms(p.angelBlessCooldownMs),
+    p.shieldAbilityCharges == null ? null : Math.max(0, Math.floor(Number(p.shieldAbilityCharges) || 0)), ms(p.shieldRechargeMs),
+    ms(p.jetBoostMs), num(p.jetBoostStartX), num(p.jetBoostStartY), num(p.jetBoostEndX), num(p.jetBoostEndY), num(p.jetBoostDistance),
+    ms(p.jetBoostCooldownMs), ms(p.jetShieldMs), p.reactorOutput == null ? null : num(p.reactorOutput, 2),
+    p.bufferTargetId || null, p.lastHealTargetId || null, p.lastAbilityTargetId || null
+  ];
+  while (row.length && row[row.length - 1] == null) row.pop();
+  return row;
+}
+
+function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), forceProjectileSync = false) {
   if (!state || state.state !== 'playing') return state;
 
-  const regularProjectiles = [];
-  const sprayGroups = new Map();
-  for (const p of (state.projectiles || [])) {
-    if (p.character === 'cannon') continue;
-    if (p.character === 'spray') {
-      const volleyId = p.sprayVolleyId || p.id;
-      let group = sprayGroups.get(volleyId);
-      if (!group) {
-        group = { id: volleyId, team: p.team, lanes: [] };
-        sprayGroups.set(volleyId, group);
-      }
-      const laneCode = p.sprayLane === 'left' ? 1 : (p.sprayLane === 'right' ? 2 : 0);
-      group.lanes.push([
-        laneCode,
-        roundWireNumber(p.x, 3),
-        roundWireNumber(p.y, 3)
-      ]);
-      continue;
-    }
-    regularProjectiles.push([
-      p.id,
-      roundWireNumber(p.x, 3),
-      roundWireNumber(p.y, 3),
-      roundWireNumber(p.radius, 3),
-      p.type,
-      p.team,
-      p.character,
-      p.reactorFxBand == null ? null : p.reactorFxBand
-    ]);
-  }
-
-  const sprayVolleys = [...sprayGroups.values()].map(group => [
-    group.id,
-    group.team === 'B' ? 1 : 0,
-    group.lanes.sort((a, b) => a[0] - b[0])
-  ]);
-
-  let cannonSpawns = [];
-  let cannonRemoves = [];
-  let cannonSync = null;
+  let projectileSpawns = [];
+  let projectileRemoves = [];
+  let projectileSync = null;
   if (room) {
-    if (!(room.cannonNetPendingSpawns instanceof Set)) room.cannonNetPendingSpawns = new Set();
-    if (!(room.cannonNetPendingRemoves instanceof Set)) room.cannonNetPendingRemoves = new Set();
+    if (!(room.projectileNetPendingSpawns instanceof Set)) room.projectileNetPendingSpawns = new Set();
+    if (!(room.projectileNetPendingRemoves instanceof Set)) room.projectileNetPendingRemoves = new Set();
 
-    for (const id of room.cannonNetPendingSpawns) {
+    for (const id of room.projectileNetPendingSpawns) {
       const p = room.projectiles.get(id);
-      if (p && p.character === 'cannon') cannonSpawns.push(cannonProjectileWireRow(p));
+      if (p) projectileSpawns.push(projectileWireRow(p));
     }
-    cannonRemoves = [...room.cannonNetPendingRemoves];
+    projectileRemoves = [...room.projectileNetPendingRemoves];
 
-    const periodicSyncDue = !room.lastCannonNetSyncAt || now - room.lastCannonNetSyncAt >= 2000;
-    if (forceCannonSync || periodicSyncDue) {
-      cannonSync = [...room.projectiles.values()]
-        .filter(p => p.character === 'cannon')
-        .map(cannonProjectileWireRow);
-      room.lastCannonNetSyncAt = now;
+    const periodicSyncDue = !room.lastProjectileNetSyncAt || now - room.lastProjectileNetSyncAt >= 2000;
+    if (forceProjectileSync || periodicSyncDue) {
+      projectileSync = [...room.projectiles.values()].map(projectileWireRow);
+      projectileSpawns = [];
+      projectileRemoves = [];
+      room.lastProjectileNetSyncAt = now;
     }
   }
+
+  const beamByOwner = new Map();
+  for (const beam of (state.beams || [])) {
+    const prev = beamByOwner.get(beam.ownerId);
+    if (!prev) beamByOwner.set(beam.ownerId, { active: true, didDamage: !!beam.didDamage });
+    else if (beam.didDamage) prev.didDamage = true;
+  }
+
+  const playerMeta = (state.players || []).map(p => [p.id, p.name, p.team === 'B' ? 1 : 0, p.character || null]);
+  const playerMetaSignature = JSON.stringify(playerMeta);
+  const includePlayerMeta = forceProjectileSync || !room || room.lastPlayerNetMetaSignature !== playerMetaSignature;
+  if (room && includePlayerMeta) room.lastPlayerNetMetaSignature = playerMetaSignature;
 
   const out = {
-    ...state,
-    wireFormat: 'c3',
+    type: state.type,
+    state: state.state,
+    mode: state.mode,
+    room: state.room,
+    wireFormat: 'c5',
     scoreA: roundWireNumber(state.scoreA, 3),
     scoreB: roundWireNumber(state.scoreB, 3),
     timeLeft: roundWireNumber(state.timeLeft, 2),
-    players: (state.players || []).map(compactPlayerWireRow),
-    // c3: player rows are fixed-position arrays; ordinary projectiles stay in the live snapshot. Spray shares identity/team
-    // metadata per volley instead of repeating it three times. Cannon uses lifecycle
-    // spawn/remove events and a sparse authoritative resync.
-    projectiles: regularProjectiles,
-    sprayVolleys,
-    cannonEvents: [cannonSpawns, cannonRemoves],
-    beams: (state.beams || []).map(b => [
-      b.ownerId,
-      b.team,
-      b.character,
-      roundWireNumber(b.x1, 3),
-      roundWireNumber(b.y1, 3),
-      roundWireNumber(b.x2, 3),
-      roundWireNumber(b.y2, 3),
-      b.healedId || null,
-      b.hitEnemyId || null,
-      b.impact ? [roundWireNumber(b.impact.x, 3), roundWireNumber(b.impact.y, 3)] : null,
-      b.didDamage ? 1 : 0
-    ])
+    players: (state.players || []).map(p => {
+      const beam = beamByOwner.get(p.id);
+      return compactPlayerWireRowV5(p, !!beam, !!beam?.didDamage);
+    })
   };
-  if (cannonSync !== null) out.cannonSync = cannonSync;
+  if (includePlayerMeta) out.playerMeta = playerMeta;
+  if (projectileSpawns.length || projectileRemoves.length) out.projectileEvents = [projectileSpawns, projectileRemoves];
+  if (projectileSync !== null) out.projectileSync = projectileSync;
+  // No recurring live beam rows in c5. Client reconstructs beam geometry visually from
+  // authoritative player position/aim + static world/wall data; server 50 Hz beam hit,
+  // damage, healing and status logic is untouched.
   return out;
 }
-
 
 function sendPlayingSnapshotToConnection(room, conn, now = Date.now()) {
   if (!room || !conn || room.state !== 'playing') return false;
@@ -3438,23 +3109,25 @@ function broadcast(room, now = Date.now()) {
     // During live play there is no viewer-private draft information. Serialize once and
     // fan out the exact same authoritative packet. BWOpt4 reserves the actual framed
     // bytes against a hard per-room budget before sending; skipped snapshots do not
-    // affect the 50 Hz simulation and pending Cannon lifecycle events remain queued.
-    const previousCannonSyncAt = room.lastCannonNetSyncAt;
+    // affect the 50 Hz simulation and pending projectile lifecycle events remain queued.
+    const previousProjectileSyncAt = room.lastProjectileNetSyncAt;
+    const previousPlayerMetaSignature = room.lastPlayerNetMetaSignature;
     const text = JSON.stringify(compactPlayingSnapshotForWire(snapshot(room, null, true), room, now, false));
     const recipientCount = room.clients.size + room.spectators.size;
     const framedBytes = websocketFrameSize(Buffer.byteLength(text, 'utf8'));
     if (!allowLiveRoomBroadcast(room, framedBytes, recipientCount, now)) {
-      // Serialization may have prepared a periodic Cannon full-sync; if the entire
+      // Serialization may have prepared a periodic projectile full-sync; if the entire
       // snapshot is throttled, restore the timestamp so the next delivered packet can
       // still carry that authoritative resync.
-      room.lastCannonNetSyncAt = previousCannonSyncAt;
+      room.lastProjectileNetSyncAt = previousProjectileSyncAt;
+      room.lastPlayerNetMetaSignature = previousPlayerMetaSignature;
       room.lastBroadcastAt = now;
       return false;
     }
     for (const conn of room.clients.values()) conn.sendSerialized(text, 'live_state');
     for (const conn of room.spectators.values()) conn.sendSerialized(text, 'live_state');
-    room.cannonNetPendingSpawns?.clear();
-    room.cannonNetPendingRemoves?.clear();
+    room.projectileNetPendingSpawns?.clear();
+    room.projectileNetPendingRemoves?.clear();
   } else {
     for (const [playerId, conn] of room.clients.entries()) conn.send(snapshot(room, playerId));
     for (const conn of room.spectators.values()) conn.send(snapshot(room, null, true));
@@ -3521,12 +3194,11 @@ module.exports = {
   applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing,
   reactorStageForOutput, reactorDamageForOutput,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
-  updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
+  updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, statsVersionFromMatch,
-  teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate,
-  createPotgState, recordPotgEvent, queuePotgTrigger, calculatePotgWindow, considerPotgCandidate, finalizePotg, capturePotgReplayFrame, processPendingPotgTriggers, potgMultiKillBonus, potgSequencePayload, sendCompetitivePostGameSequence
+  teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate
 };

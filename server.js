@@ -34,8 +34,8 @@ const COMPETITIVE_DATA_DIR = process.env.SCHOOL_LINE_DATA_DIR ? path.resolve(pro
 const COMPETITIVE_STATS_FILE = path.join(COMPETITIVE_DATA_DIR, 'competitive_stats.json');
 const RESPAWN_MS = 10000;
 const RESPAWN_INVULN_MS = 2000;
-const NONCOMBAT_REGEN_DELAY_MS = 3000;
-const NONCOMBAT_REGEN_HPS = 50;
+const NONCOMBAT_REGEN_DELAY_MS = 4000;
+const NONCOMBAT_REGEN_HPS = 30;
 const SPECTATOR_PIN_HASH = '72a2d4365f37780690ee9d05b9a173e9036187fbfd5b5ae61785c5d5b0bf8a8a'; // SHA-256 of teacher PIN
 const SPECTATOR_MAX_FAILURES = 5;
 const SPECTATOR_LOCK_MS = 30000;
@@ -49,7 +49,7 @@ const BALANCE_VERSION = '1.4';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50';
+const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.4-r22-shield';
 
 

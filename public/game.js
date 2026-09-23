@@ -194,9 +194,8 @@ function buildCharacterStats(id) {
     rate = `${fmtNumber(c.fireRate)}발/s`;
   } else if (id === 'spray') {
     const centerDps = Number(c.damage || 0) * Number(c.fireRate || 0);
-    const oneSideDps = (Number(c.damage || 0) + Number(c.spraySideDamage || 0)) * Number(c.fireRate || 0);
-    const maxDps = (Number(c.damage || 0) + 2 * Number(c.spraySideDamage || 0)) * Number(c.fireRate || 0);
-    throughput = `${fmtNumber(centerDps)} / ${fmtNumber(oneSideDps)} / ${fmtNumber(maxDps)}`;
+    const sideDps = Number(c.spraySideDamage || 0) * Number(c.fireRate || 0);
+    throughput = `${fmtNumber(centerDps)} / ${fmtNumber(sideDps)} / ${fmtNumber(sideDps)}`;
     rateLabel = '발사 속도';
     rate = `${fmtNumber(c.fireRate)}발리/s · 발리당 3발`;
   } else if (id === 'buffer') {
@@ -263,9 +262,7 @@ function buildCharacterMini(id, meta) {
   if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) return `${c.distanceDamageBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
   if (id === 'spray') {
     const centerDps = Number(c.damage||0)*Number(c.fireRate||0);
-    const oneTargetMaxDps = (Number(c.damage||0)+Number(c.spraySideDamage||0))*Number(c.fireRate||0);
-    const wholeVolleyDps = (Number(c.damage||0)+2*Number(c.spraySideDamage||0))*Number(c.fireRate||0);
-    return `${fmtNumber(centerDps)} DPS 중심 · 단일대상 최대 ${fmtNumber(oneTargetMaxDps)} · 전체 화망 ${fmtNumber(wholeVolleyDps)} · ${move}`;
+    return `중심 ${fmtNumber(centerDps)} DPS`;
   }
   if (c.attackType === 'beam') return `${fmtNumber(c.beamDps)} DPS · ${move}`;
   return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
@@ -359,7 +356,7 @@ function renderPicker(kind) {
   const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
   const statHtml = buildCharacterStats(detailId).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
   const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">빨간색 원 밖의 적에게 더 높은 피해를 줍니다.</div>' : '';
-  const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 절반을 자신이 회복한다.</div>' : '';
+  const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 절반을 자신이 회복합니다.</div>' : '';
   detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
 }
 

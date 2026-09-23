@@ -49,14 +49,22 @@ const BALANCE_VERSION = '1.4';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15';
+const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.4-r22-shield';
 
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [4.0, 5.0, 6.0, 7.0, 8.0, 9.2];
-const GLOBAL_SHIELD_CAP = 150;
+const GLOBAL_SHIELD_CAP = 300;
 const MAX_EXTERNAL_HEAL_REDUCTION = 0.80;
+const HEALER_ALLY_SELF_HEAL_RATIO = 0.50;
+// Healing feedback reuses the existing healHitSeq/lastHealTargetId wire slots.
+// Throttle at the authority layer so beam/link healing cannot generate audio events every 50 Hz tick.
+const HEAL_FEEDBACK_INTERVAL_MS = 250;
+// Small private healer HUD numbers are aggregated in 200 ms windows. They are sent only
+// when effective healing was actually delivered to another ally, never as a recurring field.
+const HEAL_NUMBER_INTERVAL_MS = 200;
+const DAMAGE_TAKEN_MULTIPLIERS = Object.freeze({ iron: 0.90, shield: 0.90, mecha: 0.90 });
 // Dual-purpose healing projectiles are intentionally easier to land on allies only.
 // This is a server-side collision rule, so it adds no recurring WebSocket payload.
 const DUAL_PURPOSE_HEAL_ALLY_RADIUS_MULTIPLIER = 1.4;
@@ -84,12 +92,12 @@ const CHARACTERS = {
   iron: {
     name: '아이언', role: '탱커', hp: 600, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 13
+    projectileType: 'attack', damage: 15
   },
   mecha: {
     name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
-    projectileType: 'attack', damage: 9
+    projectileType: 'attack', damage: 13
   },
   jet: {
     name: '제트', role: '탱커', hp: 300, speed: 6.0, radius: 1.00,
@@ -107,9 +115,9 @@ const CHARACTERS = {
   shield: {
     name: '쉴드', role: '탱커', hp: 450, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 10,
-    abilityId: 'shield', shieldAmount: 75, shieldDuration: 3, shieldCap: GLOBAL_SHIELD_CAP,
-    shieldMaxCharges: 2, shieldRecharge: 9,
+    projectileType: 'attack', damage: 12,
+    abilityId: 'shield', shieldAmount: 150, shieldDuration: 3, shieldCap: GLOBAL_SHIELD_CAP,
+    shieldMaxCharges: 2, shieldRecharge: 8,
     abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
   },
   runner: {
@@ -120,7 +128,7 @@ const CHARACTERS = {
   },
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
-    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
+    fireRate: 5, range: 24, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'attack', damage: 20
   },
   sniper: {
@@ -162,8 +170,8 @@ const CHARACTERS = {
   spray: {
     name: '스프레이', role: '딜러', hp: 250, speed: 5.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 15,
-    spraySideProjectileRadius: 0.20, spraySideDamage: 5,
+    projectileType: 'attack', damage: 14,
+    spraySideProjectileRadius: 0.20, spraySideDamage: 4,
     spraySideAngleDeg: 10, spraySideOffset: 1.2
   },
   water: {
@@ -604,8 +612,7 @@ function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
       availableCharacters: Object.keys(CHARACTERS)
     },
     characters,
-    matches: versionMatches,
-    allMatches: Array.isArray(competitiveStats.matches) ? competitiveStats.matches : []
+    matches: versionMatches
   };
 }
 
@@ -890,7 +897,7 @@ function applyShield(room, source, target, amount, options = {}) {
   if (raw <= 0) return 0;
 
   // Alpha 1.3 unified shield rule:
-  // every temporary shield source shares one additive pool and the pool can never exceed 150.
+  // every temporary shield source shares one additive pool and the pool can never exceed 300.
   // The options argument is intentionally retained for backward-compatible callers/tests,
   // but per-source replace/cap behavior is no longer used.
   const before = Math.max(0, Number(target.shield) || 0);
@@ -1794,7 +1801,7 @@ function joinRoom(conn, msg) {
     jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
     reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0,
     perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
-    shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, abilityUseSeq: 0, lastAbilityTargetId: null,
+    shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
     stats: makeMatchStats(null)
   };
   room.players.set(id, player);
@@ -1984,7 +1991,7 @@ function startMatch(room, now = Date.now()) {
       jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
       reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, lastCombatAt: now,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
-      shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, abilityUseSeq: 0, lastAbilityTargetId: null,
+      shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
       stats: makeMatchStats(p.character)
     });
     p.input = { up: false, down: false, left: false, right: false, fire: false };
@@ -2125,8 +2132,6 @@ function activateAngelBlessing(room, player, target, now) {
   const actualHeal = applyHealing(room, player, target, def.abilityHeal, now);
   if (actualHeal > 0) {
     ensureMatchStats(player).angelBlessingHealing += actualHeal;
-    player.healHitSeq = (player.healHitSeq || 0) + 1;
-    player.lastHealTargetId = target.id;
   }
   return true;
 }
@@ -2278,8 +2283,13 @@ function ensureMatchStats(player) {
 }
 
 function dealDamageDetailed(room, attackerId, target, amount, now) {
-  const raw = Math.max(0, Number(amount) || 0);
-  if (raw <= 0 || !target || !target.alive || target.invulnerableUntil > now) return { total: 0, hp: 0, shield: 0 };
+  const incoming = Math.max(0, Number(amount) || 0);
+  if (incoming <= 0 || !target || !target.alive || target.invulnerableUntil > now) return { total: 0, hp: 0, shield: 0 };
+  // Alpha 1.4 defensive-role tuning: selected tanks take 10% less incoming damage from every
+  // damage path that reaches the authoritative damage resolver (projectiles, beams, DoT, etc.).
+  // Shield and Mecha remain stealth adjustments, as does the existing Iron reduction.
+  const damageTakenMultiplier = Number(DAMAGE_TAKEN_MULTIPLIERS[target.character]) || 1;
+  const raw = incoming * damageTakenMultiplier;
   let remaining = raw;
   const shieldBefore = Math.max(0, Number(target.shield) || 0);
   const shieldDamage = Math.min(shieldBefore, remaining);
@@ -2302,6 +2312,31 @@ function dealDamageDetailed(room, attackerId, target, amount, now) {
   return { total, hp: hpDamage, shield: shieldDamage };
 }
 function dealDamage(room, attackerId, target, amount, now) { return dealDamageDetailed(room, attackerId, target, amount, now).total; }
+
+function queueHealerNumberFeedback(healer, amount, now) {
+  const value = Math.max(0, Number(amount) || 0);
+  if (!healer || value <= 0) return;
+  healer.healNumberPending = Math.max(0, Number(healer.healNumberPending) || 0) + value;
+  if (!(Number(healer.healNumberFlushAt) > now)) healer.healNumberFlushAt = now + HEAL_NUMBER_INTERVAL_MS;
+}
+
+function flushHealerNumberFeedback(room, now) {
+  if (!room || room.state !== 'playing') return 0;
+  let sent = 0;
+  for (const healer of room.players.values()) {
+    const amount = Math.max(0, Number(healer.healNumberPending) || 0);
+    const flushAt = Math.max(0, Number(healer.healNumberFlushAt) || 0);
+    if (amount <= 0 || flushAt <= 0 || now < flushAt) continue;
+    healer.healNumberPending = 0;
+    healer.healNumberFlushAt = 0;
+    const conn = room.clients.get(healer.id);
+    if (!conn || healer.connected === false) continue;
+    // One tiny private event, at most 5 Hz per actively healing player. The displayed
+    // amount is the actual ally HP restored in the completed 200 ms window.
+    if (conn.send({ type: 'heal_number', amount: roundWireNumber(amount, 1) }, 'heal_number')) sent += 1;
+  }
+  return sent;
+}
 
 function applyHealing(room, healer, target, amount, now) {
   const raw = Math.max(0, Number(amount) || 0);
@@ -2340,6 +2375,32 @@ function applyHealing(room, healer, target, amount, now) {
   target.hp = before + actual;
   if (healer) {
     ensureMatchStats(healer).healing += actual;
+
+    const isOtherAlly = healer.id !== target.id && healer.team === target.team;
+    const healerDef = CHARACTERS[healer.character];
+
+    // Private healer HUD feedback: only effective healing delivered to another ally is
+    // accumulated. Generic 50% self-healing therefore never appears as a floating number.
+    if (isOtherAlly && healerDef?.role === '힐러') queueHealerNumberFeedback(healer, actual, now);
+
+    // Generic effective-healing feedback. This intentionally fires only for healing another ally:
+    // self-healing (including the healer-role 50% sustain below) is silent. The existing compact
+    // healHitSeq + lastHealTargetId fields are reused, so no new recurring WebSocket field is added.
+    // Continuous beam/link heals are authority-throttled to avoid audio spam on 50 Hz healing ticks.
+    if (isOtherAlly && now - (healer.lastHealFeedbackAt || 0) >= HEAL_FEEDBACK_INTERVAL_MS) {
+      healer.lastHealFeedbackAt = now;
+      healer.healHitSeq = (healer.healHitSeq || 0) + 1;
+      healer.lastHealTargetId = target.id;
+    }
+
+    // Generic healer-role sustain rule: when a healer restores actual HP to a different
+    // living ally, the healer restores 50% of that effective healing to themselves.
+    // Overhealing does not count because `actual` is already capped by the ally's missing HP.
+    // Calling applyHealing on self is safe: self-healing bypasses external anti-heal and the
+    // target===healer guard below prevents recursive self-heal generation.
+    if (healer.alive && healerDef?.role === '힐러' && isOtherAlly && HEALER_ALLY_SELF_HEAL_RATIO > 0) {
+      applyHealing(room, healer, healer, actual * HEALER_ALLY_SELF_HEAL_RATIO, now);
+    }
   }
   return actual;
 }
@@ -2740,11 +2801,7 @@ function updateProjectiles(room, dt, now) {
               }
             }
           } else if (relation === TARGET_RELATION.ALLY) {
-            const actualHeal = applyHealing(room, healer, t, p.heal, now);
-            if (actualHeal > 0 && healer) {
-              healer.healHitSeq = (healer.healHitSeq || 0) + 1;
-              healer.lastHealTargetId = t.id;
-            }
+            applyHealing(room, healer, t, p.heal, now);
           }
         }
       }
@@ -2786,6 +2843,7 @@ function updateRoom(room, dt, now) {
     return;
   }
 
+  flushHealerNumberFeedback(room, now);
   updatePerkSystem(room, now);
   room.beams = [];
   for (const player of room.players.values()) {
@@ -3120,6 +3178,66 @@ function compactPlayerWireRowV5(p, beamActive = false, beamDidDamage = false) {
   return row;
 }
 
+// BWOpt9/c6: keep the 15 always-needed live fields fixed, then append a sparse
+// [tag,value,...] extension only for optional character/status data that actually
+// exists. This removes c5's long runs of JSON null padding (especially for healer
+// target IDs, Buffer links, Shield charges, Reactor output and Jet state) without
+// changing any server-authoritative gameplay state or update frequency.
+function compactPlayerWireRowV6(p, beamActive = false, beamDidDamage = false) {
+  let flags = 0;
+  if (p.burning) flags |= 1 << 0;
+  if (p.poisoned) flags |= 1 << 1;
+  if (p.radiated) flags |= 1 << 2;
+  if (p.tailwind) flags |= 1 << 3;
+  if (p.frozen) flags |= 1 << 4;
+  if (p.stunned) flags |= 1 << 5;
+  if (p.invulnerable) flags |= 1 << 6;
+  if (p.diaForm) flags |= 1 << 7;
+  if (p.sprint) flags |= 1 << 8;
+  if (p.jetBoost) flags |= 1 << 9;
+  if (p.bufferLinkActive) flags |= 1 << 10;
+  if (beamActive) flags |= 1 << 11;
+  if (beamDidDamage) flags |= 1 << 12;
+
+  const ms = value => value == null ? null : Math.max(0, Math.round(Number(value) || 0));
+  const num = (value, digits = 3) => value == null ? null : roundWireNumber(value, digits);
+  const row = [
+    num(p.x), num(p.y), num(p.hp), num(p.maxHp), num(p.shield), num(p.maxShield), p.alive ? 1 : 0,
+    num(p.aimX), num(p.aimY), p.shotSeq || 0, p.projectileHitSeq || 0, p.healHitSeq || 0, p.abilityUseSeq || 0,
+    flags, p.connected === false ? 0 : 1
+  ];
+  const ext = [];
+  const add = (tag, value) => { if (value != null) ext.push(tag, value); };
+  add(0, ms(p.respawnMs));
+  add(1, ms(p.shieldMs));
+  add(2, ms(p.invulnerableMs));
+  add(3, p.burnSourceId || null);
+  add(4, p.radiationSourceId || null);
+  add(5, ms(p.diaFormMs));
+  add(6, ms(p.diaCooldownMs));
+  add(7, ms(p.sprintMs));
+  add(8, ms(p.sprintCooldownMs));
+  add(9, ms(p.windTailwindMs));
+  add(10, ms(p.windTailwindCooldownMs));
+  add(11, ms(p.angelBlessCooldownMs));
+  add(12, p.shieldAbilityCharges == null ? null : Math.max(0, Math.floor(Number(p.shieldAbilityCharges) || 0)));
+  add(13, ms(p.shieldRechargeMs));
+  add(14, ms(p.jetBoostMs));
+  add(15, num(p.jetBoostStartX));
+  add(16, num(p.jetBoostStartY));
+  add(17, num(p.jetBoostEndX));
+  add(18, num(p.jetBoostEndY));
+  add(19, num(p.jetBoostDistance));
+  add(20, ms(p.jetBoostCooldownMs));
+  add(21, ms(p.jetShieldMs));
+  add(22, p.reactorOutput == null ? null : num(p.reactorOutput, 2));
+  add(23, p.bufferTargetId || null);
+  add(24, p.lastHealTargetId || null);
+  add(25, p.lastAbilityTargetId || null);
+  if (ext.length) row.push(ext);
+  return row;
+}
+
 function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), forceProjectileSync = false) {
   if (!state || state.state !== 'playing') return state;
 
@@ -3162,13 +3280,13 @@ function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), for
     state: state.state,
     mode: state.mode,
     room: state.room,
-    wireFormat: 'c5',
+    wireFormat: 'c6',
     scoreA: roundWireNumber(state.scoreA, 3),
     scoreB: roundWireNumber(state.scoreB, 3),
     timeLeft: roundWireNumber(state.timeLeft, 2),
     players: (state.players || []).map(p => {
       const beam = beamByOwner.get(p.id);
-      return compactPlayerWireRowV5(p, !!beam, !!beam?.didDamage);
+      return compactPlayerWireRowV6(p, !!beam, !!beam?.didDamage);
     })
   };
   if (includePlayerMeta) out.playerMeta = playerMeta;
@@ -3274,10 +3392,10 @@ module.exports = {
   resetPerkState, perkOptionsForCharacter, publicPerkOption, perkSelectionUnlocked, maybeSendPerkOffer, choosePerk, updatePerkSystem,
   getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget,
   applyStatus, getStatus, hasStatus, clearStatus, clearAllStatuses, isStunned,
-  applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing,
+  applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing, queueHealerNumberFeedback, flushHealerNumberFeedback,
   reactorStageForOutput, reactorDamageForOutput,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
-  updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
+  updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,

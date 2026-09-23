@@ -261,7 +261,12 @@ function buildCharacterMini(id, meta) {
   if (c.attackType === 'lightBeam') return `${fmtNumber(c.healHps)} HPS · ${move}`;
   if (id === 'reactor' && Array.isArray(c.reactorOutputBands)) return `${c.reactorOutputBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
   if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) return `${c.distanceDamageBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
-  if (id === 'spray') return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS 중심 · 최대 ${fmtNumber((Number(c.damage||0)+2*Number(c.spraySideDamage||0))*Number(c.fireRate||0))} · ${move}`;
+  if (id === 'spray') {
+    const centerDps = Number(c.damage||0)*Number(c.fireRate||0);
+    const oneTargetMaxDps = (Number(c.damage||0)+Number(c.spraySideDamage||0))*Number(c.fireRate||0);
+    const wholeVolleyDps = (Number(c.damage||0)+2*Number(c.spraySideDamage||0))*Number(c.fireRate||0);
+    return `${fmtNumber(centerDps)} DPS 중심 · 단일대상 최대 ${fmtNumber(oneTargetMaxDps)} · 전체 화망 ${fmtNumber(wholeVolleyDps)} · ${move}`;
+  }
   if (c.attackType === 'beam') return `${fmtNumber(c.beamDps)} DPS · ${move}`;
   return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
 }
@@ -278,7 +283,7 @@ function buildCharacterMechanic(id, fallback='') {
     case 'solar': return '광선과 태양탄을 함께 사용하며, 태양탄이 실제 HP에 피해를 주면 자신을 회복합니다.';
     case 'shield': return '거리 제한 없이 자신 또는 아군에게 보호막을 부여하며 최대 2회 충전됩니다.';
     case 'runner': return '질주를 사용하면 4초간 이동속도가 1단계 상승합니다.';
-    case 'shooter': return '별도 능력 없이 안정적인 기본 공격에 집중합니다.';
+    case 'shooter': return '매우 빠른 투사체로 안정적인 기본 공격에 집중합니다.';
     case 'sniper': return '매우 빠른 장거리 투사체를 사용합니다.';
     case 'cannon': return '높은 연사 화력 대신 이동속도가 매우 느립니다.';
     case 'fire': return '공격 적중 시 2초간 10 DPS의 화상을 남깁니다.';
@@ -354,7 +359,8 @@ function renderPicker(kind) {
   const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
   const statHtml = buildCharacterStats(detailId).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
   const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">빨간색 원 밖의 적에게 더 높은 피해를 줍니다.</div>' : '';
-  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
+  const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 절반을 자신이 회복한다.</div>' : '';
+  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
 }
 
 function selectLobbyCharacter(id) {
@@ -495,6 +501,9 @@ let adminStatsAuthorized = false;
 let lastAdminStatsData = null;
 let selectedCompetitiveStatsVersion = null;
 let selectedTargetId = null; // Targeted ability selection (Angel Blessing and future targeted abilities).
+// Local-only healer awareness UI. A teammate enters the attention set at <=50% HP
+// and stays highlighted until >=60% HP to prevent threshold flicker.
+const healerLowHpAttention = new Set();
 
 const CHARACTER_INTRO_TIPS = Object.freeze({
   iron: { role:'tank', text:'혼자 깊게 들어가기보다 팀과 함께 뭉쳐서 움직이세요. 속도가 느리니 방어에 집중하세요.' },
@@ -699,6 +708,7 @@ let bgmStep = 0;
 let lastHitFeedbackAt = 0;
 let lastProjectileHitAt = 0;
 let lastHealConfirmAt = 0;
+let lastHealReceivedAt = 0;
 let beamHum = null;
 let matchAlertTimer = null;
 const shownTimeWarnings = new Set();
@@ -780,11 +790,39 @@ function playProjectileHitConfirm() {
 }
 
 function playHealConfirm() {
+  // Local healer cue: "I successfully restored an ally's actual HP."
   const now = performance.now();
-  if (now - lastHealConfirmAt < 145) return;
+  if (now - lastHealConfirmAt < 250) return;
   lastHealConfirmAt = now;
   synthTone({freq:660, endFreq:760, duration:.075, type:'sine', gain:.022});
   synthTone({freq:990, endFreq:1180, duration:.090, type:'sine', gain:.015, when:.025});
+}
+
+function playHealReceivedCue() {
+  // Local recipient cue: "An ally just restored my actual HP." Kept softer/lower than
+  // the healer-success cue so simultaneous team healing stays readable rather than noisy.
+  const now = performance.now();
+  if (now - lastHealReceivedAt < 300) return;
+  lastHealReceivedAt = now;
+  synthTone({freq:520, endFreq:640, duration:.105, type:'sine', gain:.017});
+  synthTone({freq:780, endFreq:900, duration:.115, type:'sine', gain:.011, when:.035});
+}
+
+function showHealNumber(amount) {
+  if (spectatorMode || !state || state.state !== 'playing') return;
+  const value = Math.max(0, Number(amount) || 0);
+  if (value <= 0) return;
+  const layer = $('healNumberLayer');
+  if (!layer) return;
+  const popup = document.createElement('span');
+  popup.className = 'heal-number-popup';
+  // Keep the HUD compact: integer display is easier to read at 5 Hz, while the server
+  // still aggregates exact effective healing before sending the 200 ms total.
+  popup.textContent = `+${Math.max(1, Math.round(value))}`;
+  layer.appendChild(popup);
+  while (layer.children.length > 5) layer.firstElementChild?.remove();
+  popup.addEventListener('animationend', () => popup.remove(), { once:true });
+  setTimeout(() => popup.remove(), 700);
 }
 
 function playSniperShotCue() {
@@ -1112,7 +1150,10 @@ function processCombatFeedback(previousState, nextState) {
     if ((after.healHitSeq||0) > (before.healHitSeq||0)) {
       const target=afterById.get(after.lastHealTargetId);
       if (target) addWorldFx('heal', target);
+      // Two separate local-only cues: healer success vs. recipient confirmation.
+      // Self-healing never raises healHitSeq on the server, so the 50% healer sustain is silent.
       if (after.id===myId) playHealConfirm();
+      if (after.id!==myId && after.lastHealTargetId===myId) playHealReceivedCue();
     }
 
     if ((after.abilityUseSeq||0) > (before.abilityUseSeq||0)) {
@@ -1414,6 +1455,69 @@ function expandCompactPlayerRowC5(p, meta) {
   return out;
 }
 
+function expandCompactPlayerRowC6(p, meta) {
+  if (!Array.isArray(p)) return p;
+  const m = Array.isArray(meta) ? meta : [];
+  const flags = Number(p[13] || 0);
+  const out = {
+    id:m[0] || null, name:m[1] || '', team:m[2] === 1 ? 'B' : 'A', character:m[3] || null,
+    x:Number(p[0] || 0), y:Number(p[1] || 0), hp:Number(p[2] || 0), maxHp:Number(p[3] || 0),
+    shield:Number(p[4] || 0), maxShield:Number(p[5] || 0), alive:!!p[6],
+    aimX:Number(p[7] || 0), aimY:Number(p[8] || 0),
+    shotSeq:Number(p[9] || 0), projectileHitSeq:Number(p[10] || 0), healHitSeq:Number(p[11] || 0), abilityUseSeq:Number(p[12] || 0),
+    connected:p[14] !== 0
+  };
+  if (flags & (1 << 0)) out.burning = true;
+  if (flags & (1 << 1)) out.poisoned = true;
+  if (flags & (1 << 2)) out.radiated = true;
+  if (flags & (1 << 3)) out.tailwind = true;
+  if (flags & (1 << 4)) out.frozen = true;
+  if (flags & (1 << 5)) out.stunned = true;
+  if (flags & (1 << 6)) out.invulnerable = true;
+  if (flags & (1 << 7)) out.diaForm = true;
+  if (flags & (1 << 8)) out.sprint = true;
+  if (flags & (1 << 9)) out.jetBoost = true;
+  if (flags & (1 << 10)) out.bufferLinkActive = true;
+  if (flags & (1 << 11)) out.beamActive = true;
+  if (flags & (1 << 12)) out.beamDidDamage = true;
+
+  const ext = Array.isArray(p[15]) ? p[15] : [];
+  for (let i = 0; i + 1 < ext.length; i += 2) {
+    const tag = Number(ext[i]);
+    const value = ext[i + 1];
+    switch (tag) {
+      case 0: out.respawnMs = Number(value || 0); break;
+      case 1: out.shieldMs = Number(value || 0); break;
+      case 2: out.invulnerableMs = Number(value || 0); break;
+      case 3: if (value) out.burnSourceId = value; break;
+      case 4: if (value) out.radiationSourceId = value; break;
+      case 5: out.diaFormMs = Number(value || 0); break;
+      case 6: out.diaCooldownMs = Number(value || 0); break;
+      case 7: out.sprintMs = Number(value || 0); break;
+      case 8: out.sprintCooldownMs = Number(value || 0); break;
+      case 9: out.windTailwindMs = Number(value || 0); break;
+      case 10: out.windTailwindCooldownMs = Number(value || 0); break;
+      case 11: out.angelBlessCooldownMs = Number(value || 0); break;
+      case 12: out.shieldAbilityCharges = Number(value || 0); break;
+      case 13: out.shieldRechargeMs = Number(value || 0); break;
+      case 14: out.jetBoostMs = Number(value || 0); break;
+      case 15: out.jetBoostStartX = Number(value || 0); break;
+      case 16: out.jetBoostStartY = Number(value || 0); break;
+      case 17: out.jetBoostEndX = Number(value || 0); break;
+      case 18: out.jetBoostEndY = Number(value || 0); break;
+      case 19: out.jetBoostDistance = Number(value || 0); break;
+      case 20: out.jetBoostCooldownMs = Number(value || 0); break;
+      case 21: out.jetShieldMs = Number(value || 0); break;
+      case 22: out.reactorOutput = Number(value || 0); break;
+      case 23: if (value) out.bufferTargetId = value; break;
+      case 24: if (value) out.lastHealTargetId = value; break;
+      case 25: if (value) out.lastAbilityTargetId = value; break;
+      default: break;
+    }
+  }
+  return out;
+}
+
 function expandWireMessage(msg) {
   if (!msg) return msg;
   if (msg.type !== 'state') return msg;
@@ -1422,11 +1526,11 @@ function expandWireMessage(msg) {
     delete msg.wireFormat;
     return msg;
   }
-  if (msg.wireFormat !== 'c1' && msg.wireFormat !== 'c2' && msg.wireFormat !== 'c3' && msg.wireFormat !== 'c4' && msg.wireFormat !== 'c5') return msg;
+  if (msg.wireFormat !== 'c1' && msg.wireFormat !== 'c2' && msg.wireFormat !== 'c3' && msg.wireFormat !== 'c4' && msg.wireFormat !== 'c5' && msg.wireFormat !== 'c6') return msg;
   const wireFormat = msg.wireFormat;
-  if (wireFormat === 'c5') {
+  if (wireFormat === 'c5' || wireFormat === 'c6') {
     if (Array.isArray(msg.playerMeta)) livePlayerMeta = msg.playerMeta.map(row => Array.isArray(row) ? row.slice() : row);
-    msg.players = (msg.players || []).map((row, i) => expandCompactPlayerRowC5(row, livePlayerMeta[i]));
+    msg.players = (msg.players || []).map((row, i) => wireFormat === 'c6' ? expandCompactPlayerRowC6(row, livePlayerMeta[i]) : expandCompactPlayerRowC5(row, livePlayerMeta[i]));
     delete msg.playerMeta;
   } else if (wireFormat === 'c3' || wireFormat === 'c4') msg.players = (msg.players || []).map(expandCompactPlayerRow);
   msg.projectiles = (msg.projectiles || []).map(p => ({
@@ -1616,6 +1720,10 @@ function handleMessage(msg) {
   }
   if (msg.type === 'perk_selected') {
     hidePerkChoicePanel();
+    return;
+  }
+  if (msg.type === 'heal_number') {
+    showHealNumber(msg.amount);
     return;
   }
   if (msg.type === 'state') {
@@ -1853,14 +1961,25 @@ function teamPlayerOrder(team, comp) {
   const ids = comp?.teamOrders?.[team] || [];
   return ids.map(id => playerFromState(id)).filter(Boolean);
 }
+function draftRoleCounts(team, comp) {
+  const counts = { '탱커':0, '딜러':0, '힐러':0 };
+  for (const pick of (comp.picks || [])) {
+    if (pick.team !== team) continue;
+    const meta = CHARACTER_META[pick.character];
+    const role = characterPublicDef(pick.character)?.role || meta?.role;
+    if (Object.prototype.hasOwnProperty.call(counts, role)) counts[role] += 1;
+  }
+  return counts;
+}
 function renderDraftBanSummary(comp) {
   const root = $('draftBanSummary');
   root.innerHTML = '';
   for (const team of ['A','B']) {
     const ban = (comp.bans || []).find(b => b.team === team);
+    const counts = draftRoleCounts(team, comp);
     const box = document.createElement('div');
     box.className = `draft-ban-box team-${team.toLowerCase()}`;
-    box.innerHTML = `<b>${team === 'A' ? '🔵' : '🔴'} ${team}팀 밴</b><span class="draft-ban-value">${ban ? characterLabel(ban.character) : '대기 중'}</span>`;
+    box.innerHTML = `<div class="draft-ban-main"><b>${team === 'A' ? '🔵' : '🔴'} ${team}팀 밴</b><span class="draft-ban-value">${ban ? characterLabel(ban.character) : '대기 중'}</span></div><div class="draft-role-counts" aria-label="${team}팀 역할 구성"><span>🛡️ 탱커 <strong>${counts['탱커']}</strong></span><span>⚔️ 딜러 <strong>${counts['딜러']}</strong></span><span>💚 힐러 <strong>${counts['힐러']}</strong></span></div>`;
     root.appendChild(box);
   }
 }
@@ -1890,28 +2009,40 @@ function renderDraftCharacterGrid(comp) {
   const me = !spectatorMode ? playerFromState(myId) : null;
   const canBan = !!me && comp.phase === 'ban' && me.team === comp.activeBanTeam;
   const canPick = !!me && comp.phase === 'pick' && comp.currentPickerId === myId;
-  for (const [id, m] of Object.entries(CHARACTER_META)) {
-    const st = draftCardState(id, comp);
-    const votes = Number(comp.banVoteCounts?.[id] || 0);
-    const selectedVote = comp.myBanVote === id;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `draft-char-card ${st.cls}${selectedVote ? ' vote-selected' : ''}`;
-    const role = characterPublicDef(id)?.role || m.role;
-    let stateText = st.text;
-    if (!st.locked && comp.phase === 'ban' && canBan) stateText = votes ? `🗳️ ${votes}표${selectedVote ? ' · 내 표' : ''}` : (selectedVote ? '🗳️ 내 표' : '');
-    if (!st.locked && comp.phase === 'pick' && canPick) stateText = '선택 가능';
-    btn.innerHTML = `<span class="draft-char-name">${m.icon} ${escapeHtml(characterPublicDef(id)?.name || m.name)}</span><span class="draft-char-role">${escapeHtml(role)} · ${escapeHtml(buildCharacterMini(id,m))}</span><span class="draft-char-state">${stateText}</span>`;
-    btn.disabled = st.locked || (!canBan && !canPick);
-    if (!btn.disabled) {
-      btn.onpointerdown = e => {
-        e.preventDefault();
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
-        if (comp.phase === 'ban') ws.send(JSON.stringify({ type:'draft_ban_vote', character:id }));
-        else if (comp.phase === 'pick') ws.send(JSON.stringify({ type:'draft_pick', character:id }));
-      };
+  for (const roleName of ROLE_ORDER) {
+    const section = document.createElement('section');
+    section.className = `draft-role-section role-${roleName === '탱커' ? 'tank' : roleName === '딜러' ? 'damage' : 'healer'}`;
+    const title = document.createElement('div');
+    title.className = 'draft-role-title';
+    title.textContent = ROLE_LABEL[roleName] || roleName;
+    const cards = document.createElement('div');
+    cards.className = 'draft-role-cards';
+    const roleEntries = Object.entries(CHARACTER_META).filter(([id, m]) => (characterPublicDef(id)?.role || m.role) === roleName);
+    for (const [id, m] of roleEntries) {
+      const st = draftCardState(id, comp);
+      const votes = Number(comp.banVoteCounts?.[id] || 0);
+      const selectedVote = comp.myBanVote === id;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `draft-char-card ${st.cls}${selectedVote ? ' vote-selected' : ''}`;
+      let stateText = st.text;
+      if (!st.locked && comp.phase === 'ban' && canBan) stateText = votes ? `🗳️ ${votes}표${selectedVote ? ' · 내 표' : ''}` : (selectedVote ? '🗳️ 내 표' : '');
+      if (!st.locked && comp.phase === 'pick' && canPick) stateText = '선택 가능';
+      btn.innerHTML = `<span class="draft-char-name">${m.icon} ${escapeHtml(characterPublicDef(id)?.name || m.name)}</span><span class="draft-char-role">${escapeHtml(buildCharacterMini(id,m))}</span><span class="draft-char-state">${stateText}</span>`;
+      btn.disabled = st.locked || (!canBan && !canPick);
+      if (!btn.disabled) {
+        btn.onpointerdown = e => {
+          e.preventDefault();
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          if (comp.phase === 'ban') ws.send(JSON.stringify({ type:'draft_ban_vote', character:id }));
+          else if (comp.phase === 'pick') ws.send(JSON.stringify({ type:'draft_pick', character:id }));
+        };
+      }
+      cards.appendChild(btn);
     }
-    root.appendChild(btn);
+    section.appendChild(title);
+    section.appendChild(cards);
+    root.appendChild(section);
   }
 }
 function renderReadyAssignments(comp) {
@@ -2729,11 +2860,35 @@ function drawHomeZoneLabels(viewState) {
   ctx.restore();
 }
 
+function updateHealerLowHpAttention(viewState, localPlayer) {
+  const role = localPlayer ? (characterPublicDef(localPlayer.character)?.role || CHARACTER_META[localPlayer.character]?.role) : null;
+  if (!localPlayer || !localPlayer.alive || role !== '힐러') {
+    healerLowHpAttention.clear();
+    return false;
+  }
+
+  const eligibleIds = new Set();
+  for (const ally of (viewState.players || [])) {
+    if (!ally.alive || ally.id === localPlayer.id || ally.team !== localPlayer.team || !(Number(ally.maxHp) > 0)) continue;
+    eligibleIds.add(ally.id);
+    const hpRatio = Math.max(0, Math.min(1, Number(ally.hp || 0) / Number(ally.maxHp)));
+    if (hpRatio <= 0.50) healerLowHpAttention.add(ally.id);
+    else if (hpRatio >= 0.60) healerLowHpAttention.delete(ally.id);
+  }
+
+  for (const id of [...healerLowHpAttention]) {
+    if (!eligibleIds.has(id)) healerLowHpAttention.delete(id);
+  }
+  return true;
+}
+
 function renderGame() {
   requestAnimationFrame(renderGame);
   const viewState = state;
   if (!viewState || viewState.state !== 'playing' || !config) { clearScoringStatusUi(); return; }
   updateScoringStatusUi(viewState);
+  const healerViewer = spectatorMode ? null : viewState.players.find(p => p.id === myId);
+  const healerAttentionEnabled = updateHealerLowHpAttention(viewState, healerViewer);
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle = '#121821'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
@@ -2894,6 +3049,7 @@ function renderGame() {
     }
 
     const bw=42,bh=5,bx=x-bw/2,by=y-radius-15;
+    const needsHealingAttention = healerAttentionEnabled && healerViewer && p.id !== healerViewer.id && p.team === healerViewer.team && healerLowHpAttention.has(p.id);
     if (!spectatorMode && p.id === myId) {
       // Local-only "this is me" marker. No network data is needed.
       ctx.save();
@@ -2903,8 +3059,32 @@ function renderGame() {
       ctx.stroke(); ctx.fill();
       ctx.restore();
     }
+    if (needsHealingAttention) {
+      const hpRatio=Math.max(0,Math.min(1,Number(p.hp||0)/Math.max(1,Number(p.maxHp||1))));
+      const danger=Math.max(0,Math.min(1,(0.50-hpRatio)/0.50));
+      const pulse=.72+.28*Math.sin(beamFxNow*.012 + x*.018 + y*.011);
+      ctx.save();
+      ctx.globalAlpha=.58+.22*pulse;
+      ctx.fillStyle='rgba(111,255,157,.24)';
+      ctx.shadowColor='#6fff9d';
+      ctx.shadowBlur=(10+14*danger)*pulse;
+      ctx.fillRect(bx-2,by-2,bw+4,bh+4);
+      ctx.restore();
+    }
     ctx.fillStyle='#241e24'; ctx.fillRect(bx,by,bw,bh);
-    ctx.fillStyle='#7ee18b'; ctx.fillRect(bx,by,bw*Math.max(0,p.hp/p.maxHp),bh);
+    if (needsHealingAttention) {
+      const hpRatio=Math.max(0,Math.min(1,Number(p.hp||0)/Math.max(1,Number(p.maxHp||1))));
+      const danger=Math.max(0,Math.min(1,(0.50-hpRatio)/0.50));
+      const pulse=.76+.24*Math.sin(beamFxNow*.012 + x*.018 + y*.011);
+      ctx.save();
+      ctx.fillStyle='#a8ffbf';
+      ctx.shadowColor='#6fff9d';
+      ctx.shadowBlur=(7+11*danger)*pulse;
+      ctx.fillRect(bx,by,bw*hpRatio,bh);
+      ctx.restore();
+    } else {
+      ctx.fillStyle='#7ee18b'; ctx.fillRect(bx,by,bw*Math.max(0,p.hp/p.maxHp),bh);
+    }
     if (p.character === 'reactor') {
       const output=Math.max(0,Math.min(100,Number(p.reactorOutput)||0));
       ctx.fillStyle='rgba(10,13,18,.86)'; ctx.fillRect(bx,by+7,bw,3);
@@ -2915,6 +3095,21 @@ function renderGame() {
       ctx.fillStyle='#65c7ff'; ctx.fillRect(bx,by-5,bw*Math.max(0,Math.min(1,p.shield/p.maxShield)),3);
     }
     drawText(`${p.team} ${p.name}`,x,by-7,11,'center','#f6f8fb');
+    if (needsHealingAttention) {
+      const hpRatio=Math.max(0,Math.min(1,Number(p.hp||0)/Math.max(1,Number(p.maxHp||1))));
+      const danger=Math.max(0,Math.min(1,(0.50-hpRatio)/0.50));
+      const pulse=.78+.22*Math.sin(beamFxNow*.012 + x*.018 + y*.011);
+      ctx.save();
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font='800 9px system-ui';
+      ctx.lineWidth=2.5; ctx.strokeStyle='rgba(7,24,14,.92)';
+      ctx.strokeText('치유 필요!',x,by-19);
+      ctx.globalAlpha=.88+.12*pulse;
+      ctx.fillStyle=danger>.55 ? '#d7ffe1' : '#b8ffca';
+      ctx.shadowColor='#6fff9d'; ctx.shadowBlur=(4+7*danger)*pulse;
+      ctx.fillText('치유 필요!',x,by-19);
+      ctx.restore();
+    }
   }
 
   const me = spectatorMode ? null : viewState.players.find(p => p.id === myId);

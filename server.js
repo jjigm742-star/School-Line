@@ -49,7 +49,7 @@ const BALANCE_VERSION = '1.4';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1';
+const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.4-r22-shield';
 
 

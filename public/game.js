@@ -1534,7 +1534,7 @@ function expandWireMessage(msg) {
     id:p[0], x:p[1], y:p[2], radius:p[3], type:p[4], team:p[5], character:p[6],
     reactorFxBand:p[7] == null ? null : p[7]
   }));
-  if (wireFormat === 'c4' || wireFormat === 'c5') {
+  if (wireFormat === 'c4' || wireFormat === 'c5' || wireFormat === 'c6') {
     applyProjectileNetworkUpdate(msg);
     delete msg.projectileEvents;
     delete msg.projectileSync;
@@ -1560,7 +1560,7 @@ function expandWireMessage(msg) {
     delete msg.cannonEvents;
     delete msg.cannonSync;
   }
-  if (wireFormat === 'c5') {
+  if (wireFormat === 'c5' || wireFormat === 'c6') {
     // Beam geometry is reconstructed visually from player position/aim + static map.
     msg.beams = [];
   } else {

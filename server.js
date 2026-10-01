@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -52,7 +53,7 @@ const BALANCE_VERSION = '1.5';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.5-r22-shield-cumulative-bwopt9c6sparse-c6projectilefix1-draftrolesui1-shooter42-spray14-4-4-healnumbers200-healerselfheal25-angelbless12-windhps60-bufferhps45-fireburnantiheal30-starhp200-diacd16-diabeam90-diaspeed7-autoroomclose10-iron85-shield75-shieldspeed14-shieldcap500-reactordmg5-kill10-reactorbands80-105-130-respawnshield100x3-windhp175-angelhp175-angelhps50-bufferhp200-irondr20-shieldgrant175-diaformhp450-homecover6x1p8-jethp350-ultcharge1-ultui1-ulteffects1';
+const COMPETITIVE_BUILD_ID = 'alpha-1.5-r22-shield-cumulative-bwopt9c6sparse-c6projectilefix1-draftrolesui1-shooter42-spray14-4-4-healnumbers200-healerselfheal25-angelbless12-windhps60-bufferhps45-fireburnantiheal30-starhp200-diacd16-diabeam90-diaspeed7-autoroomclose10-iron85-shield75-shieldspeed14-shieldcap500-reactordmg5-kill10-reactorbands80-105-130-respawnshield100x3-windhp175-angelhp175-angelhps50-bufferhp200-irondr20-shieldgrant175-diaformhp450-homecover6x1p8-jethp350-ultcharge1-ultui1-ulteffects1-ult22fx1';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.5-r22-shield';
 
 
@@ -105,20 +106,23 @@ const CHARACTERS = {
   mecha: {
     name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
-    projectileType: 'attack', damage: 13
+    projectileType: 'attack', damage: 13,
+    ultimateName: '자폭', ultimateCost: 1000, ultimateDescription: '1초 뒤 자신에게 200 피해 + 반경 16m 적 전원 200 피해', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 1
   },
   jet: {
     name: '제트', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
     fireRate: 5, range: 12, projectileSpeed: 20, projectileRadius: 0.32,
     projectileType: 'attack', damage: 19,
     boostDistance: 12, boostDuration: 0.3, boostCooldown: 10,
-    boostShield: 50, boostShieldDuration: 3, abilityId: 'boost'
+    boostShield: 50, boostShieldDuration: 3, abilityId: 'boost',
+    ultimateName: '로켓 러시', ultimateCost: 1000, ultimateDescription: '부스터 즉시 재장전 + 8초간 부스터 쿨 2초', ultimateDuration: 8, ultimateBoostCooldown: 2
   },
   solar: {
     name: '솔라', role: '탱커', hp: 375, speed: 5.0, radius: 1.00,
     attackType: 'beam', range: 16, beamDps: 55,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
-    solarProjectileRadius: 0.32, solarProjectileDamage: 25, solarSelfHeal: 25
+    solarProjectileRadius: 0.32, solarProjectileDamage: 25, solarSelfHeal: 25,
+    ultimateName: '일출', ultimateCost: 1200, ultimateDescription: '4초간 반경 24m 적에게 15 DPS + 자신 30 HPS', ultimateDuration: 4, ultimateRadius: 24, ultimateAuraDps: 15, ultimateSelfHealHps: 30
   },
   shield: {
     name: '쉴드', role: '탱커', hp: 450, speed: 5.0, radius: 1.00,
@@ -126,13 +130,15 @@ const CHARACTERS = {
     projectileType: 'attack', damage: 15,
     abilityId: 'shield', shieldAmount: 175, shieldDuration: 3, shieldCap: GLOBAL_SHIELD_CAP,
     shieldMaxCharges: 2, shieldRecharge: 8,
-    abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
+    abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false },
+    ultimateName: '보호막 홍수', ultimateCost: 600, ultimateDescription: '자신과 살아 있는 아군 전원에게 보호막 300(3초)', ultimateShield: 300, ultimateShieldDuration: 3
   },
   runner: {
     name: '러너', role: '딜러', hp: 175, speed: 8.0, radius: 0.65,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 11,
-    sprintDuration: 4, sprintCooldown: 8, abilityId: 'sprint'
+    sprintDuration: 4, sprintCooldown: 8, abilityId: 'sprint',
+    ultimateName: '마지막 스퍼트', ultimateCost: 300, ultimateDescription: '8초간 이동속도 초고속 9.2', ultimateDuration: 8
   },
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
@@ -150,7 +156,8 @@ const CHARACTERS = {
   cannon: {
     name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
     fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 13
+    projectileType: 'attack', damage: 13,
+    ultimateName: '초대형 포격', ultimateCost: 1300, ultimateDescription: '8초간 이동 불가, 기본 공격 DPS +50', ultimateDuration: 8, ultimateDamage: 18
   },
   fire: {
     name: '파이어', role: '딜러', hp: 200, speed: 7.0, radius: 0.80,
@@ -161,7 +168,8 @@ const CHARACTERS = {
   poison: {
     name: '포이즌', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 75,
-    poisonHealReduction: 0.50, poisonDuration: 1.5
+    poisonHealReduction: 0.50, poisonDuration: 1.5,
+    ultimateName: '맹독', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해 + 3초간 완전 치유 불가', ultimateRadius: 12, ultimateDamage: 50, ultimatePoisonDuration: 3
   },
   reactor: {
     name: '리액터', role: '딜러', hp: 225, speed: 6.0, radius: 0.80,
@@ -177,14 +185,16 @@ const CHARACTERS = {
     ],
     reactorDamagePerOutput: 5, reactorKillOutputGain: 10, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
     reactorHighThreshold: 66, reactorHighSpeed: 7.0,
-    radiationHealReduction: 0.25, radiationDuration: 1.5
+    radiationHealReduction: 0.25, radiationDuration: 1.5,
+    ultimateName: '원자로 폭주', ultimateCost: 1000, ultimateDescription: '8초간 이동속도 +1단계, 출력 감소 정지', ultimateDuration: 8, ultimateSpeedTierDelta: 1
   },
   spray: {
     name: '스프레이', role: '딜러', hp: 250, speed: 5.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
     projectileType: 'attack', damage: 14,
     spraySideProjectileRadius: 0.20, spraySideDamage: 4,
-    spraySideAngleDeg: 10, spraySideOffset: 1.2
+    spraySideAngleDeg: 10, spraySideOffset: 1.2,
+    ultimateName: '탄막', ultimateCost: 1400, ultimateDescription: '8초간 좌우 보조탄 피해가 중앙탄과 동일', ultimateDuration: 8, ultimateSideDamage: 14
   },
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
@@ -196,45 +206,53 @@ const CHARACTERS = {
     name: '윈드', role: '힐러', hp: 175, speed: 7.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
     projectileType: 'heal', heal: 12, damage: 10,
-    tailwindDuration: 4, tailwindCooldown: 15, abilityId: 'tailwind'
+    tailwindDuration: 4, tailwindCooldown: 15, abilityId: 'tailwind',
+    ultimateName: '계절풍', ultimateCost: 1400, ultimateDescription: '8초간 반경 12m 자신·아군 30 HPS', ultimateDuration: 8, ultimateRadius: 12, ultimateHealHps: 30
   },
   star: {
     name: '스타', role: '힐러', hp: 200, speed: 5.0, radius: 0.80,
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
-    projectileType: 'heal', heal: 45, damage: 25
+    projectileType: 'heal', heal: 45, damage: 25,
+    ultimateName: '슈퍼노바', ultimateCost: 1400, ultimateDescription: '반경 30m 자신·아군 150 회복 + 적 전원 100 피해', ultimateRadius: 30, ultimateHeal: 150, ultimateDamage: 100
   },
   angel: {
     name: '엔젤', role: '힐러', hp: 175, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'heal', heal: 10, damage: 10,
     abilityId: 'blessing', abilityCooldown: 12, abilityHeal: 100,
-    abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
+    abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false },
+    ultimateName: '기적', ultimateCost: 1300, ultimateDescription: '대상 아군 또는 자신 3초 무적', ultimateDuration: 3
   },
   buffer: {
     name: '버퍼', role: '힐러', hp: 200, speed: 5.0, radius: 0.65,
     range: 16, noBasicAttack: true,
     linkHealHps: 45, actionSpeedBoost: 0.25,
-    linkTargeting: { relations: [TARGET_RELATION.ALLY], range: 16, requireLos: false }
+    linkTargeting: { relations: [TARGET_RELATION.ALLY], range: 16, requireLos: false },
+    ultimateName: '업그레이드', ultimateCost: 1000, ultimateDescription: '8초간 버퍼 HPS +20, 링크 대상 이동속도 +1단계', ultimateDuration: 8, ultimateLinkHealHps: 65, ultimateLinkedSpeedTierDelta: 1
   },
   light: {
     name: '라이트', role: '힐러', hp: 225, speed: 6.0, radius: 0.65,
-    attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 50
+    attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 50,
+    ultimateName: '스포트라이트', ultimateCost: 1200, ultimateDescription: '8초간 사거리 24m, DPS/HPS +20', ultimateDuration: 8, ultimateRange: 24, ultimateBeamDps: 70, ultimateHealHps: 70
   },
   laser: {
     name: '레이저', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
-    attackType: 'beam', range: 16, beamDps: 65, maxHpDpsRatio: 0.10
+    attackType: 'beam', range: 16, beamDps: 65, maxHpDpsRatio: 0.10,
+    ultimateName: '분해 광선', ultimateCost: 1400, ultimateDescription: '8초간 최대체력 비례 추가 DPS 15%', ultimateDuration: 8, ultimateMaxHpDpsRatio: 0.15
   },
   ice: {
     name: '아이스', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 70,
-    slowTierDelta: -1, slowDuration: 1.5
+    slowTierDelta: -1, slowDuration: 1.5,
+    ultimateName: '절대영도', ultimateCost: 1000, ultimateDescription: '반경 16m 적 전원 1초 기절 + 자신 300 회복', ultimateRadius: 16, ultimateStunDuration: 1, ultimateHeal: 300
   },
   dia: {
     name: '다이아', role: '탱커', hp: 350, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13,
     formDuration: 6, formCooldown: 16, formHp: 450, formSpeed: 7.0,
-    formRange: 16, formBeamDps: 90, formKillCooldownReduction: 6, abilityId: 'form'
+    formRange: 16, formBeamDps: 90, formKillCooldownReduction: 6, abilityId: 'form',
+    ultimateName: '완전 변신', ultimateCost: 600, ultimateDescription: '즉시 다이아폼 변신 + 8초간 강제 유지', ultimateDuration: 8
   }
 };
 
@@ -757,7 +775,9 @@ function currentAttackDef(player, now) {
     return { attackType: 'beam', range: def.formRange, beamDps: def.formBeamDps, maxHpDpsRatio: 0 };
   }
   if (player.character === 'reactor') {
-    return { ...def, damage: reactorDamageForOutput(def, player.reactorOutput) };
+    const damage = reactorDamageForOutput(def, player.reactorOutput);
+    if (isUltimateActive(player, now)) return { ...def, damage };
+    return { ...def, damage };
   }
   if (isUltimateActive(player, now)) {
     if (player.character === 'shooter') {
@@ -773,6 +793,18 @@ function currentAttackDef(player, now) {
     if (player.character === 'fire') {
       return { ...def, projectileRadius: def.ultimateProjectileRadius, burnDuration: def.ultimateBurnDuration };
     }
+    if (player.character === 'cannon') {
+      return { ...def, damage: def.ultimateDamage };
+    }
+    if (player.character === 'spray') {
+      return { ...def, spraySideDamage: def.ultimateSideDamage };
+    }
+    if (player.character === 'light') {
+      return { ...def, range: def.ultimateRange, beamDps: def.ultimateBeamDps, healHps: def.ultimateHealHps };
+    }
+    if (player.character === 'laser') {
+      return { ...def, maxHpDpsRatio: def.ultimateMaxHpDpsRatio };
+    }
   }
   return def;
 }
@@ -784,16 +816,20 @@ function currentBaseSpeed(player, now) {
   return def.speed;
 }
 
-function effectiveSpeed(player, now) {
+function effectiveSpeed(player, now, room = null) {
+  if (player.character === 'runner' && isUltimateActive(player, now)) return SPEED_TIERS[SPEED_TIERS.length - 1];
   let delta = 0;
   if (player.character === 'runner' && player.sprintUntil > now) delta += 1;
   if (player.character === 'shooter' && isUltimateActive(player, now)) delta += Number(CHARACTERS.shooter.ultimateSpeedTierDelta) || 0;
+  if (player.character === 'reactor' && isUltimateActive(player, now)) delta += Number(CHARACTERS.reactor.ultimateSpeedTierDelta) || 0;
+  delta += linkedBufferUltimateSpeedDelta(room, player, now);
   const tailwind = getStatus(player, 'tailwind', now);
   const slow = getStatus(player, 'slow', now);
   if (tailwind) delta += Number(tailwind.data && tailwind.data.tierDelta) || 1;
   if (slow) delta += Number(slow.data && slow.data.tierDelta) || -1;
   return speedWithTierDelta(currentBaseSpeed(player, now), delta);
 }
+
 
 function resolveBufferTarget(room, buffer) {
   if (!room || !buffer || buffer.character !== 'buffer' || !buffer.bufferTargetId) return null;
@@ -824,6 +860,16 @@ function clearBufferTargetRefs(room, playerId) {
   for (const p of room.players.values()) {
     if (p.character === 'buffer' && p.bufferTargetId === playerId) p.bufferTargetId = null;
   }
+}
+
+function linkedBufferUltimateSpeedDelta(room, player, now = Date.now()) {
+  if (!room || !player || !player.alive) return 0;
+  for (const buffer of room.players.values()) {
+    if (buffer.character !== 'buffer' || buffer.team !== player.team || !isUltimateActive(buffer, now)) continue;
+    const state = bufferLinkState(room, buffer, now);
+    if (state.active && state.target && state.target.id === player.id) return Number(CHARACTERS.buffer.ultimateLinkedSpeedTierDelta) || 0;
+  }
+  return 0;
 }
 
 function periodicActionRateMultiplier(room, player, now = Date.now()) {
@@ -1092,7 +1138,7 @@ function handleAccessControlRequest(req, res) {
 
 function mimeType(file) {
   const ext = path.extname(file).toLowerCase();
-  return ({ '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' })[ext] || 'application/octet-stream';
+  return ({ '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml' })[ext] || 'application/octet-stream';
 }
 
 const server = http.createServer((req, res) => {
@@ -1126,12 +1172,27 @@ const server = http.createServer((req, res) => {
     }
     fs.readFile(file, (err, data) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
-      res.writeHead(200, {
+      const ext = path.extname(file).toLowerCase();
+      const compressible = ext === '.html' || ext === '.js' || ext === '.css' || ext === '.json' || ext === '.svg';
+      const acceptsGzip = /(?:^|,)\s*gzip(?:\s*[,;]|$)/i.test(String(req.headers['accept-encoding'] || ''));
+      const headers = {
         'Content-Type': mimeType(file),
         'Cache-Control': 'public, max-age=0, must-revalidate',
         'ETag': etag,
-        'Content-Length': data.length
-      });
+        'Vary': 'Accept-Encoding'
+      };
+      if (compressible && acceptsGzip && data.length >= 1024) {
+        zlib.gzip(data, { level: zlib.constants.Z_BEST_SPEED }, (zipErr, zipped) => {
+          if (zipErr) { res.writeHead(500); res.end('Compression error'); return; }
+          headers['Content-Encoding'] = 'gzip';
+          headers['Content-Length'] = zipped.length;
+          res.writeHead(200, headers);
+          res.end(zipped);
+        });
+        return;
+      }
+      headers['Content-Length'] = data.length;
+      res.writeHead(200, headers);
       res.end(data);
     });
   });
@@ -1631,7 +1692,7 @@ function onMessage(conn, msg) {
     player.respawnShieldAt = 0;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
+    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
     resetPerkState(player);
     broadcast(room);
     return;
@@ -1706,7 +1767,7 @@ function onMessage(conn, msg) {
     return;
   }
   if (msg.type === 'ultimate' && room.state === 'playing') {
-    activateUltimate(room, player, Date.now());
+    activateUltimate(room, player, Date.now(), msg.targetId || null);
     return;
   }
   if (msg.type === 'link_target' && room.state === 'playing') {
@@ -1842,7 +1903,7 @@ function joinRoom(conn, msg) {
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
     jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
-    reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0,
+    reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0,
     perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
     shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
     stats: makeMatchStats(null)
@@ -1945,7 +2006,7 @@ function publicCharacterDefs() {
     'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
     'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction',
-    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateLongRangeDamage', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration'
+    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateLongRangeDamage', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedTierDelta'
   ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
     const def = {
@@ -2033,7 +2094,7 @@ function startMatch(room, now = Date.now()) {
       shieldAbilityCharges: p.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0, shieldRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
       jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
-      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, lastCombatAt: now,
+      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, lastCombatAt: now,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
       stats: makeMatchStats(p.character)
@@ -2041,6 +2102,23 @@ function startMatch(room, now = Date.now()) {
     p.input = { up: false, down: false, left: false, right: false, fire: false };
   }
   broadcast(room);
+}
+
+function jetBoostCooldownSeconds(player, now = Date.now()) {
+  const def = CHARACTERS.jet;
+  if (player && player.character === 'jet' && isUltimateActive(player, now)) return Number(def.ultimateBoostCooldown || 2) || 2;
+  return Number(def.boostCooldown || 10) || 10;
+}
+
+function currentBufferLinkHealHps(player, now = Date.now()) {
+  const def = CHARACTERS.buffer;
+  if (player && player.character === 'buffer' && isUltimateActive(player, now)) return Number(def.ultimateLinkHealHps || def.linkHealHps) || Number(def.linkHealHps) || 0;
+  return Number(def.linkHealHps) || 0;
+}
+
+function isHealingFullyBlocked(player, now = Date.now()) {
+  const poison = getStatus(player, 'poison', now);
+  return !!(poison && poison.data && poison.data.fullBlock);
 }
 
 function activateDiaForm(player, now) {
@@ -2140,7 +2218,7 @@ function activateJetBoost(room, player, now) {
   const endpoint = jetBoostEndpoint(player, def);
   if (!endpoint) return false;
 
-  player.jetBoostCooldownUntil = now + def.boostCooldown * 1000;
+  player.jetBoostCooldownUntil = now + jetBoostCooldownSeconds(player, now) * 1000;
   player.jetBoostStartAt = now;
   player.jetBoostStartX = player.x;
   player.jetBoostStartY = player.y;
@@ -2226,6 +2304,7 @@ function die(room, player, now) {
     player.maxHp = CHARACTERS.dia.hp;
   }
   if (player.character === 'runner') player.sprintUntil = 0;
+  if (player.character === 'mecha') player.mechaSelfDestructAt = 0;
   if (player.character === 'jet') { player.jetBoostUntil = 0; player.jetBoostStartAt = 0; player.jetShieldUntil = 0; clearShield(player); }
   if (player.character === 'reactor') { player.reactorOutput = 0; player.reactorLastDamageAt = 0; }
   if (player.character === 'buffer') player.bufferTargetId = null;
@@ -2244,6 +2323,7 @@ function respawn(room, player, now) {
   player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
   if (player.character === 'runner') player.sprintUntil = 0;
+  if (player.character === 'mecha') player.mechaSelfDestructAt = 0;
   if (player.character === 'jet') { player.jetBoostUntil = 0; player.jetBoostStartAt = 0; player.jetShieldUntil = 0; }
   if (player.character === 'reactor') { player.reactorOutput = 0; player.reactorLastDamageAt = 0; }
   if (player.character === 'buffer') player.bufferTargetId = null;
@@ -2345,7 +2425,7 @@ function ultimateCostForPlayer(player) {
 function grantUltimateCharge(player, amount) {
   const cost = ultimateCostForPlayer(player);
   const gain = Math.max(0, Number(amount) || 0);
-  if (cost <= 0 || gain <= 0) return 0;
+  if (cost <= 0 || gain <= 0 || isUltimateActive(player, Date.now())) return 0;
   const before = clamp(Number(player.ultimateCharge) || 0, 0, cost);
   const after = Math.min(cost, before + gain);
   player.ultimateCharge = after;
@@ -2358,7 +2438,7 @@ function ultimateChargePercent(player) {
   return clamp((Number(player.ultimateCharge) || 0) / cost * 100, 0, 100);
 }
 
-function activateUltimate(room, player, now = Date.now()) {
+function activateUltimate(room, player, now = Date.now(), targetId = null) {
   if (!room || !player || !player.alive || isStunned(player, now)) return false;
   const def = CHARACTERS[player.character];
   const cost = ultimateCostForPlayer(player);
@@ -2390,8 +2470,77 @@ function activateUltimate(room, player, now = Date.now()) {
       if (target.character === 'jet') target.jetShieldUntil = target.shieldUntil;
     }
     activated = true;
-  } else if (player.character === 'shooter' || player.character === 'sniper' || player.character === 'fire') {
+  } else if (player.character === 'shooter' || player.character === 'sniper' || player.character === 'fire' || player.character === 'runner' || player.character === 'cannon' || player.character === 'reactor' || player.character === 'spray' || player.character === 'wind' || player.character === 'buffer' || player.character === 'light' || player.character === 'laser' || player.character === 'solar') {
     player.ultimateUntil = now + (Number(def.ultimateDuration) || 8) * 1000;
+    if (player.character === 'jet') player.jetBoostCooldownUntil = now;
+    activated = true;
+  } else if (player.character === 'mecha') {
+    player.mechaSelfDestructAt = now + (Number(def.ultimateDelay) || 1) * 1000;
+    player.ultimateUntil = player.mechaSelfDestructAt;
+    activated = true;
+  } else if (player.character === 'jet') {
+    player.jetBoostCooldownUntil = now;
+    player.ultimateUntil = now + (Number(def.ultimateDuration) || 8) * 1000;
+    activated = true;
+  } else if (player.character === 'shield') {
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team !== player.team) continue;
+      applyShield(room, player, target, Number(def.ultimateShield) || 300);
+      target.shieldUntil = Math.max(Number(target.shieldUntil) || 0, now + (Number(def.ultimateShieldDuration) || 3) * 1000);
+      if (target.character === 'jet') target.jetShieldUntil = target.shieldUntil;
+    }
+    activated = true;
+  } else if (player.character === 'poison') {
+    const radius = Number(def.ultimateRadius) || 12;
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team === player.team || target.id === player.id) continue;
+      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
+      const result = dealDamageDetailed(room, player.id, target, Number(def.ultimateDamage) || 50, now, { countsForUltimate: false });
+      if (result.total > 0) applyStatus(room, player, target, 'poison', (Number(def.ultimatePoisonDuration) || 3) * 1000, now, { healReduction: 1, fullBlock: true });
+      if (target.hp <= 0) {
+        registerDirectKill(room, player.id, now);
+        die(room, target, now);
+      }
+    }
+    activated = true;
+  } else if (player.character === 'star') {
+    const radius = Number(def.ultimateRadius) || 30;
+    for (const target of room.players.values()) {
+      if (!target.alive) continue;
+      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
+      if (target.team === player.team) applyHealing(room, player, target, Number(def.ultimateHeal) || 150, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+      else {
+        dealDamageDetailed(room, player.id, target, Number(def.ultimateDamage) || 100, now, { countsForUltimate: false });
+        if (target.hp <= 0) {
+          registerDirectKill(room, player.id, now);
+          die(room, target, now);
+        }
+      }
+    }
+    activated = true;
+  } else if (player.character === 'angel') {
+    const target = (targetId && room.players.get(String(targetId)) && room.players.get(String(targetId)).alive && room.players.get(String(targetId)).team === player.team)
+      ? room.players.get(String(targetId))
+      : player;
+    player.ultimateUntil = now + (Number(def.ultimateDuration) || 3) * 1000;
+    target.invulnerableUntil = Math.max(Number(target.invulnerableUntil) || 0, player.ultimateUntil);
+    activated = true;
+  } else if (player.character === 'ice') {
+    const radius = Number(def.ultimateRadius) || 16;
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team === player.team || target.id === player.id) continue;
+      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
+      applyStatus(room, player, target, 'stun', (Number(def.ultimateStunDuration) || 1) * 1000, now);
+    }
+    applyHealing(room, player, player, Number(def.ultimateHeal) || 300, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+    activated = true;
+  } else if (player.character === 'dia') {
+    if (player.diaFormUntil <= now) {
+      player.maxHp = def.formHp;
+      player.hp = Math.min(def.formHp, player.hp + (def.formHp - def.hp));
+    }
+    player.ultimateUntil = now + (Number(def.ultimateDuration) || 8) * 1000;
+    player.diaFormUntil = player.ultimateUntil;
     activated = true;
   }
 
@@ -2400,6 +2549,7 @@ function activateUltimate(room, player, now = Date.now()) {
   player.ultimateUseSeq = (player.ultimateUseSeq || 0) + 1;
   return true;
 }
+
 
 function dealDamageDetailed(room, attackerId, target, amount, now, options = null) {
   const incoming = Math.max(0, Number(amount) || 0);
@@ -2461,9 +2611,20 @@ function flushHealerNumberFeedback(room, now) {
 
 function applyHealing(room, healer, target, amount, now, options = null) {
   const raw = Math.max(0, Number(amount) || 0);
+  if (!target || !target.alive || raw <= 0) return 0;
   const before = Math.max(0, target.hp);
   const missing = Math.max(0, target.maxHp - before);
-  if (raw <= 0 || missing <= 0) return 0;
+  if (missing <= 0) return 0;
+
+  const fullBlock = getStatus(target, 'poison', now);
+  if (fullBlock && fullBlock.data && fullBlock.data.fullBlock) {
+    const prevented = Math.min(missing, raw);
+    if (prevented > 0 && room && room.players) {
+      const source = room.players.get(fullBlock.sourceId);
+      if (source && source.character === 'poison') ensureMatchStats(source).healingPrevented += prevented;
+    }
+    return 0;
+  }
 
   let effectiveRaw = raw;
   // Harmful anti-heal effects use simple additive reduction. Natural noncombat regen
@@ -3021,7 +3182,7 @@ function updateRoom(room, dt, now) {
       if (reactorStageForOutput(reactorDef, player.reactorOutput) === 3) {
         ensureMatchStats(player).reactorStage3Seconds += dt;
       }
-      if (player.reactorOutput > 0 && player.reactorLastDamageAt > 0 && now - player.reactorLastDamageAt >= reactorDef.reactorDecayDelay * 1000) {
+      if (player.reactorOutput > 0 && player.reactorLastDamageAt > 0 && !isUltimateActive(player, now) && now - player.reactorLastDamageAt >= reactorDef.reactorDecayDelay * 1000) {
         player.reactorOutput = Math.max(0, player.reactorOutput - reactorDef.reactorDecayPerSecond * dt);
       }
     }
@@ -3041,7 +3202,50 @@ function updateRoom(room, dt, now) {
       }
     }
 
-    if (player.hp < player.maxHp && now - player.lastCombatAt >= NONCOMBAT_REGEN_DELAY_MS) {
+    if (player.character === 'mecha' && player.mechaSelfDestructAt > 0 && now >= player.mechaSelfDestructAt) {
+      const radius = Number(CHARACTERS.mecha.ultimateRadius) || 16;
+      player.mechaSelfDestructAt = 0;
+      player.ultimateUntil = 0;
+      for (const target of room.players.values()) {
+        if (!target.alive || target.team === player.team || target.id === player.id) continue;
+        if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
+        dealDamageDetailed(room, player.id, target, Number(CHARACTERS.mecha.ultimateDamage) || 200, now, { countsForUltimate: false });
+        if (target.hp <= 0) {
+          registerDirectKill(room, player.id, now);
+          die(room, target, now);
+        }
+      }
+      player.hp = Math.max(0, player.hp - (Number(CHARACTERS.mecha.ultimateSelfDamage) || 200));
+      if (player.hp <= 0) {
+        die(room, player, now);
+        continue;
+      }
+    }
+
+    if (isUltimateActive(player, now)) {
+      if (player.character === 'solar') {
+        const udef = CHARACTERS.solar;
+        for (const target of room.players.values()) {
+          if (!target.alive || target.team === player.team || target.id === player.id) continue;
+          if (distance(player.x, player.y, target.x, target.y) > (Number(udef.ultimateRadius) || 24) + 1e-9) continue;
+          dealDamageDetailed(room, player.id, target, (Number(udef.ultimateAuraDps) || 15) * dt, now, { countsForUltimate: false });
+          if (target.hp <= 0) {
+            registerKill(room, player.id, now, false);
+            die(room, target, now);
+          }
+        }
+        applyHealing(room, player, player, (Number(udef.ultimateSelfHealHps) || 30) * dt, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+      } else if (player.character === 'wind') {
+        const udef = CHARACTERS.wind;
+        for (const target of room.players.values()) {
+          if (!target.alive || target.team !== player.team) continue;
+          if (distance(player.x, player.y, target.x, target.y) > (Number(udef.ultimateRadius) || 12) + 1e-9) continue;
+          applyHealing(room, player, target, (Number(udef.ultimateHealHps) || 30) * dt, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+        }
+      }
+    }
+
+    if (player.hp < player.maxHp && now - player.lastCombatAt >= NONCOMBAT_REGEN_DELAY_MS && !isHealingFullyBlocked(player, now)) {
       player.hp = Math.min(player.maxHp, player.hp + NONCOMBAT_REGEN_HPS * dt);
     }
 
@@ -3059,15 +3263,16 @@ function updateRoom(room, dt, now) {
     let my = stunned ? 0 : (player.input.down ? 1 : 0) - (player.input.up ? 1 : 0);
     const ml = Math.hypot(mx, my);
     if (ml > 0) { mx /= ml; my /= ml; }
-    const speed = effectiveSpeed(player, now);
-    movePlayer(player, mx * speed * dt, my * speed * dt, def.radius);
+    const speed = effectiveSpeed(player, now, room);
+    const lockedByUltimate = player.character === 'cannon' && isUltimateActive(player, now);
+    movePlayer(player, (lockedByUltimate ? 0 : mx * speed * dt), (lockedByUltimate ? 0 : my * speed * dt), def.radius);
 
     if (player.character === 'buffer') {
       const link = bufferLinkState(room, player, now);
       if (!link.target && player.bufferTargetId) player.bufferTargetId = null;
       if (link.active) {
         ensureMatchStats(player).bufferLinkSeconds += dt;
-        applyHealing(room, player, link.target, def.linkHealHps * dt, now);
+        applyHealing(room, player, link.target, currentBufferLinkHealHps(player, now) * dt, now);
       }
     }
 
@@ -3403,7 +3608,7 @@ function compactPlayerWireRowV6(p, beamActive = false, beamDidDamage = false) {
   add(23, p.bufferTargetId || null);
   add(24, p.lastHealTargetId || null);
   add(25, p.lastAbilityTargetId || null);
-  add(26, p.ultimateCharge == null ? null : num(p.ultimateCharge, 2));
+  add(26, p.ultimateCharge == null || Number(p.ultimateCharge) <= 0 ? null : num(p.ultimateCharge, 2));
   add(27, p.ultimateUseSeq ? Math.max(0, Math.floor(Number(p.ultimateUseSeq) || 0)) : null);
   add(28, ms(p.ultimateActiveMs));
   if (ext.length) row.push(ext);

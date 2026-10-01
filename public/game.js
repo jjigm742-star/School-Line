@@ -30,6 +30,37 @@ const CHARACTER_META = {
   light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' }
 };
 
+const CHARACTER_ART = Object.freeze({
+  iron:    { portrait:'/assets/characters/iron/portrait.webp',    token:'/assets/characters/iron/token.webp',    renderScale:1.12 },
+  shooter: { portrait:'/assets/characters/shooter/portrait.webp', token:'/assets/characters/shooter/token.webp', renderScale:1.00 },
+  water:   { portrait:'/assets/characters/water/portrait.webp',   token:'/assets/characters/water/token.webp',   renderScale:1.02 },
+  fire:    { portrait:'/assets/characters/fire/portrait.webp',    token:'/assets/characters/fire/token.webp',    renderScale:1.02 },
+  sniper:  { portrait:'/assets/characters/sniper/portrait.webp',  token:'/assets/characters/sniper/token.webp',  renderScale:.98 },
+  angel:   { portrait:'/assets/characters/angel/portrait.webp',   token:'/assets/characters/angel/token.webp',   renderScale:1.00 },
+  star:    { portrait:'/assets/characters/star/portrait.webp',    token:'/assets/characters/star/token.webp',    renderScale:1.00 },
+  dia:     { portrait:'/assets/characters/dia/portrait.webp',     token:'/assets/characters/dia/token.webp',     renderScale:1.08 },
+  laser:   { portrait:'/assets/characters/laser/portrait.webp',   token:'/assets/characters/laser/token.webp',   renderScale:1.05 }
+});
+
+// Character art is visual-only. Missing/failed art always falls back to the legacy circle + emoji renderer.
+const CHARACTER_TOKEN_IMAGES = new Map();
+for (const [id, art] of Object.entries(CHARACTER_ART)) {
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = art.token;
+  CHARACTER_TOKEN_IMAGES.set(id, img);
+}
+function characterArt(id) { return CHARACTER_ART[id] || null; }
+function characterTokenImage(id) {
+  const img = CHARACTER_TOKEN_IMAGES.get(id);
+  return img && img.complete && img.naturalWidth > 0 ? img : null;
+}
+function characterPortraitHtml(id, name) {
+  const art = characterArt(id);
+  if (!art) return '';
+  return `<div class="character-portrait-wrap"><img class="character-portrait" src="${art.portrait}" alt="${escapeHtml(name)} 캐릭터 일러스트" loading="lazy" decoding="async"></div>`;
+}
+
 const CHARACTER_STORIES = {
   iron: {
     title:'아이언', icon:'⚙️',
@@ -359,7 +390,9 @@ function renderPicker(kind) {
   const statHtml = buildCharacterStats(detailId).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
   const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">빨간색 원 밖의 적에게 더 높은 피해를 줍니다.</div>' : '';
   const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 25%를 자신이 회복합니다.</div>' : '';
-  detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
+  const portraitHtml = characterPortraitHtml(detailId, displayName);
+  detail.classList.toggle('has-character-art', !!portraitHtml);
+  detail.innerHTML = `${portraitHtml}<div class="character-detail-body"><div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}</div>`;
 }
 
 function selectLobbyCharacter(id) {
@@ -1020,10 +1053,27 @@ function playUltimateUseFeedback(local=false) {
   if (local && navigator.vibrate) navigator.vibrate([45,25,80]);
 }
 
+function playCharacterUltimateCue(character, local=false) {
+  playUltimateUseFeedback(local);
+  const gain = local ? 1 : .72;
+  if (character==='angel' || character==='star' || character==='water' || character==='wind' || character==='light') {
+    synthTone({freq:520,endFreq:820,duration:.18,type:'sine',gain:.030*gain});
+    synthTone({freq:820,endFreq:1180,duration:.16,type:'triangle',gain:.018*gain,when:.05});
+  } else if (character==='fire' || character==='mecha' || character==='cannon' || character==='reactor' || character==='poison' || character==='laser') {
+    noiseBurst(.070, .028*gain);
+    synthTone({freq:190,endFreq:120,duration:.20,type:'sawtooth',gain:.028*gain});
+  } else if (character==='runner' || character==='jet' || character==='shooter' || character==='sniper' || character==='spray') {
+    synthTone({freq:440,endFreq:940,duration:.18,type:'triangle',gain:.022*gain});
+    synthTone({freq:980,endFreq:1320,duration:.10,type:'sine',gain:.013*gain,when:.04});
+  } else {
+    synthTone({freq:360,endFreq:760,duration:.20,type:'triangle',gain:.020*gain});
+  }
+}
+
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ironUltimate:560,waterUltimate:620,shooterUltimate:520,sniperUltimate:520,fireUltimate:560};
+  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ironUltimate:560,waterUltimate:620,shooterUltimate:520,sniperUltimate:520,fireUltimate:560,ultimateCast:760};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -1206,12 +1256,9 @@ function processCombatFeedback(previousState, nextState) {
     }
 
     if ((after.ultimateUseSeq||0) > (before.ultimateUseSeq||0)) {
-      const fxType = ({iron:'ironUltimate',water:'waterUltimate',shooter:'shooterUltimate',sniper:'sniperUltimate',fire:'fireUltimate'})[after.character];
-      if (fxType) {
-        const extra = after.character==='iron' ? {radiusWorld:12} : (after.character==='water' ? {radiusWorld:16} : {});
-        addWorldFx(fxType, after, extra);
-      }
-      playUltimateUseFeedback(after.id===myId);
+      const castRadius = ({iron:12,water:16,mecha:16,solar:24,poison:12,wind:12,star:30,ice:16})[after.character] || 0;
+      addWorldFx('ultimateCast', after, { radiusWorld: castRadius });
+      playCharacterUltimateCue(after.character, after.id===myId);
       if (after.id===myId) pulseUltimateButton();
     }
   }
@@ -1896,7 +1943,9 @@ function useUltimate() {
   const def = config && config.characters ? config.characters[me.character] : null;
   const cost = Math.max(0, Number(def && def.ultimateCost) || 0);
   if (cost <= 0 || (Number(me.ultimateCharge) || 0) + 1e-9 < cost) return;
-  ws.send(JSON.stringify({ type:'ultimate' }));
+  const payload = { type:'ultimate' };
+  if (selectedTargetId) payload.targetId = selectedTargetId;
+  ws.send(JSON.stringify(payload));
 }
 
 async function enterGameDisplayMode() {
@@ -2783,6 +2832,24 @@ function drawWorldFx(nowMs) {
     } else if (fx.type==='fireUltimate') {
       ctx.strokeStyle='#ff9a45'; ctx.lineWidth=3.0;
       for (let k=0;k<6;k++) { const ang=k*Math.PI/3+q*.9; const r1=8+q*10, r2=15+q*25; ctx.globalAlpha=(1-q)*(.88-k*.06); ctx.beginPath(); ctx.moveTo(a.x+Math.cos(ang)*r1,a.y+Math.sin(ang)*r1); ctx.lineTo(a.x+Math.cos(ang)*r2,a.y+Math.sin(ang)*r2); ctx.stroke(); }
+    } else if (fx.type==='ultimateCast') {
+      const radius=Math.max(0,Number(fx.radiusWorld)||0)*SCALE;
+      if (radius > 0) {
+        ctx.globalAlpha=(1-q)*.88; ctx.strokeStyle=c; ctx.lineWidth=4.0-1.8*q; ctx.beginPath(); ctx.arc(a.x,a.y,radius,0,Math.PI*2); ctx.stroke();
+        ctx.globalAlpha=(1-q)*.16; ctx.fillStyle=c; ctx.beginPath(); ctx.arc(a.x,a.y,radius,0,Math.PI*2); ctx.fill();
+      }
+      if (fx.character==='angel') {
+        const alpha=Math.sin(Math.PI*Math.min(1,q));
+        ctx.globalAlpha=alpha*.85; ctx.strokeStyle='#fff4cd'; ctx.lineWidth=2.6; ctx.beginPath(); ctx.arc(a.x,a.y,7+q*20,0,Math.PI*2); ctx.stroke();
+      } else if (fx.character==='jet' || fx.character==='runner' || fx.character==='shooter' || fx.character==='sniper') {
+        ctx.globalAlpha=(1-q)*.86; ctx.strokeStyle=c; ctx.lineWidth=2.8;
+        for (let k=0;k<3;k++) { const rr=8+q*(18+k*7); ctx.beginPath(); ctx.arc(a.x,a.y,rr,k*2.05+q*2,k*2.05+q*2+.85); ctx.stroke(); }
+      } else if (fx.character==='mecha' || fx.character==='cannon' || fx.character==='reactor' || fx.character==='poison') {
+        ctx.strokeStyle=c; ctx.lineWidth=3.0;
+        for (let k=0;k<6;k++) { const ang=k*Math.PI/3+q*.9; const r1=8+q*10, r2=15+q*25; ctx.globalAlpha=(1-q)*(.88-k*.06); ctx.beginPath(); ctx.moveTo(a.x+Math.cos(ang)*r1,a.y+Math.sin(ang)*r1); ctx.lineTo(a.x+Math.cos(ang)*r2,a.y+Math.sin(ang)*r2); ctx.stroke(); }
+      } else {
+        ctx.globalAlpha=(1-q)*.82; ctx.strokeStyle=c; ctx.lineWidth=2.8; ctx.beginPath(); ctx.arc(a.x,a.y,6+q*24,0,Math.PI*2); ctx.stroke();
+      }
     } else if (fx.type==='reactor33' || fx.type==='reactor66' || fx.type==='reactor100' || fx.type==='reactorDown') {
       const strong=fx.type==='reactor100'?1:(fx.type==='reactor66' ? .78:(fx.type==='reactor33' ? .48:.34));
       ctx.globalAlpha=(1-q)*(.50+strong*.32); ctx.strokeStyle=fx.type==='reactorDown'?'#d08a63':'#ff7a2e'; ctx.lineWidth=1.7+strong*2.0;
@@ -3068,24 +3135,58 @@ function renderGame() {
 
   for (const p of viewState.players) {
     if (!p.alive) continue;
-    const radius = characterRadiusWorld(p.character) * SCALE;
+    const hitRadius = characterRadiusWorld(p.character) * SCALE;
     const renderWorld = renderedPlayerWorldPosition(p, beamFxNow);
     const s=worldToScreen(renderWorld.x,renderWorld.y), x=s.x,y=s.y;
-    ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
-    ctx.fillStyle = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',shield:'#4f9ed6',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character];
-    ctx.fill();
-    if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
+    const characterFill = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',shield:'#4f9ed6',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character] || '#8793a3';
+    const tokenImg = characterTokenImage(p.character);
+    const art = characterArt(p.character);
+    const tokenSize = tokenImg ? Math.max(30, Math.min(58, hitRadius * 3.65 * Number(art?.renderScale || 1))) : 0;
+    // `radius` below is a visual radius used by rings/labels. Server hit/collision radius remains `hitRadius`.
+    const radius = tokenImg ? Math.max(hitRadius, tokenSize/2) : hitRadius;
+    // Faint body disc shows the true server hitbox footprint underneath the larger chibi art.
+    ctx.save(); ctx.globalAlpha=tokenImg ? .16 : 1; ctx.fillStyle=characterFill;
+    ctx.beginPath(); ctx.arc(x,y,hitRadius,0,Math.PI*2); ctx.fill(); ctx.restore();
+    if (tokenImg) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(tokenImg, x-tokenSize/2, y-tokenSize/2, tokenSize, tokenSize);
+      if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
+        ctx.globalAlpha=.52; ctx.filter='brightness(1.9) saturate(.35)';
+        ctx.drawImage(tokenImg, x-tokenSize/2, y-tokenSize/2, tokenSize, tokenSize);
+      }
+      ctx.restore();
+    } else if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
       ctx.save(); ctx.globalAlpha=.48; ctx.fillStyle='#ffffff';
       ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill(); ctx.restore();
     }
-    ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
+    // Always-visible team ring sits outside the token and is independent of character palette.
+    ctx.save(); ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545';
+    ctx.beginPath(); ctx.arc(x,y,radius+1.5,0,Math.PI*2); ctx.stroke(); ctx.restore();
     if (Number(p.ultimateActiveMs||0) > 0) {
       const phase=beamFxNow*.006;
-      const palette=({shooter:'#93c8ff',sniper:'#eadcff',fire:'#ff9a45'})[p.character];
+      const palette=({mecha:'#9af0bd',jet:'#b8ecff',solar:'#ffd45c',runner:'#ffd27a',shooter:'#93c8ff',sniper:'#eadcff',cannon:'#ffd66b',fire:'#ff9a45',reactor:'#ff7a2e',spray:'#9ae7ff',wind:'#9ef7d5',buffer:'#e5d8ff',light:'#fff0a6',laser:'#ff699a',angel:'#fff0c8',dia:'#d9fbff'})[p.character];
       if (palette) {
         ctx.save(); ctx.strokeStyle=palette; ctx.lineWidth=2.6; ctx.globalAlpha=.72+.18*Math.sin(phase+x*.01);
         ctx.beginPath(); ctx.arc(x,y,radius+10+2*Math.sin(phase),0,Math.PI*2); ctx.stroke();
-        ctx.globalAlpha=.13; ctx.fillStyle=palette; ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.fill(); ctx.restore();
+        ctx.globalAlpha=.13; ctx.fillStyle=palette; ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.fill();
+        if (p.character==='runner' || p.character==='jet') {
+          ctx.globalAlpha=.86; ctx.lineWidth=2.0;
+          for (let k=0;k<3;k++) { const rr=radius+12+k*5; ctx.beginPath(); ctx.arc(x,y,rr,phase*2+k*2.0,phase*2+k*2.0+.8); ctx.stroke(); }
+        }
+        ctx.restore();
+      }
+      if (p.character === 'mecha') {
+        const warningPulse=.65+.35*Math.sin(beamFxNow*.026);
+        ctx.save();
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font='900 25px system-ui';
+        ctx.lineWidth=5; ctx.strokeStyle='rgba(80,0,0,.92)'; ctx.fillStyle='#fff36b';
+        ctx.globalAlpha=.75+.25*warningPulse;
+        ctx.strokeText('!',x,y-radius-30); ctx.fillText('!',x,y-radius-30);
+        ctx.strokeStyle='#ff4b3e'; ctx.lineWidth=4.2; ctx.globalAlpha=.75+.22*warningPulse;
+        ctx.beginPath(); ctx.arc(x,y,radius+15+4*warningPulse,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
       }
     }
     if (p.shield > 0) {
@@ -3151,16 +3252,18 @@ function renderGame() {
     const target=worldToScreen(p.aimX,p.aimY), adx=target.x-x, ady=target.y-y, al=Math.hypot(adx,ady)||1;
     ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+(adx/al)*(radius+9),y+(ady/al)*(radius+9)); ctx.stroke();
 
-    // Keep the simple colored circle, but make character identity readable at a glance.
+    // Art-enabled characters use the fixed token above. Others keep the legacy emoji fallback.
     const meta = CHARACTER_META[p.character];
     if (meta) {
       ctx.save();
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      const emojiSize=Math.max(12,Math.min(17,radius*1.65));
-      ctx.font=`${emojiSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
-      ctx.shadowColor='rgba(0,0,0,.65)'; ctx.shadowBlur=2;
-      ctx.fillText(meta.icon,x,y+0.5);
-      ctx.shadowBlur=0;
+      if (!tokenImg) {
+        const emojiSize=Math.max(12,Math.min(17,radius*1.65));
+        ctx.font=`${emojiSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+        ctx.shadowColor='rgba(0,0,0,.65)'; ctx.shadowBlur=2;
+        ctx.fillText(meta.icon,x,y+0.5);
+        ctx.shadowBlur=0;
+      }
       ctx.font='700 10px system-ui';
       ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.88)';
       ctx.strokeText(meta.name,x,y+radius+12);

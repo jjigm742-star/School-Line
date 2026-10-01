@@ -40,6 +40,8 @@ const RESPAWN_POST_SHIELD = 100;
 const RESPAWN_POST_SHIELD_MS = 3000;
 const NONCOMBAT_REGEN_DELAY_MS = 4000;
 const NONCOMBAT_REGEN_HPS = 30;
+const ULTIMATE_AUTO_CHARGE_INTERVAL_MS = 4000;
+const ULTIMATE_AUTO_CHARGE_RATIO = 0.03;
 const SPECTATOR_PIN_HASH = '72a2d4365f37780690ee9d05b9a173e9036187fbfd5b5ae61785c5d5b0bf8a8a'; // SHA-256 of teacher PIN
 const SPECTATOR_MAX_FAILURES = 5;
 const SPECTATOR_LOCK_MS = 30000;
@@ -53,7 +55,7 @@ const BALANCE_VERSION = '1.6.1';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.6.1-r22-allultimates-uiwhite-cumulative-bwopt9c6sparse-c6projectilefix1-draftrolesui1-shooter42-spray14-4-4-healnumbers200-healerselfheal25-angelbless12-windhps60-bufferhps45-fireburnantiheal30-starhp200-diacd16-diabeam90-diaspeed7-autoroomclose10-iron85-shield75-shieldspeed14-shieldcap500-reactordmg5-kill10-reactorbands80-105-130-respawnshield100x3-windhp175-angelhp175-angelhps50-bufferhp200-irondr20-shieldgrant175-diaformhp450-homecover6x1p8-jethp350-ultcharge1-ultui1-ulteffects1-ult22fx1';
+const COMPETITIVE_BUILD_ID = 'alpha-1.6.1-r22-allultimates-uiwhite-topulthud1-charcardult1-portraitzoom1-darknames1-autoult3p4s1-cumulative-bwopt9c6sparse-c6projectilefix1-draftrolesui1-shooter42-spray14-4-4-healnumbers200-healerselfheal25-angelbless12-windhps60-bufferhps45-fireburnantiheal30-starhp200-diacd16-diabeam90-diaspeed7-autoroomclose10-iron85-shield75-shieldspeed14-shieldcap500-reactordmg5-kill10-reactorbands80-105-130-respawnshield100x3-windhp175-angelhp175-angelhps50-bufferhp200-irondr20-shieldgrant175-diaformhp450-homecover6x1p8-jethp350-ultcharge1-ultui1-ulteffects1-ult22fx1';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.1-r22-allultimates';
 
 
@@ -2080,6 +2082,7 @@ function startMatch(room, now = Date.now()) {
   room.scoreA = 0; room.scoreB = 0; room.winner = null; room.winnerReason = null; room.endedAt = 0;
   room.matchStartedAt = now;
   room.matchEndAt = now + MATCH_SECONDS * 1000;
+  room.nextUltimateAutoChargeAt = now + ULTIMATE_AUTO_CHARGE_INTERVAL_MS;
   clearProjectiles(room);
   room.beams = [];
   // Force one fresh c5 static player dictionary at every match start.
@@ -2422,10 +2425,10 @@ function ultimateCostForPlayer(player) {
   return Math.max(0, Number(CHARACTERS[player.character]?.ultimateCost) || 0);
 }
 
-function grantUltimateCharge(player, amount) {
+function grantUltimateCharge(player, amount, now = Date.now()) {
   const cost = ultimateCostForPlayer(player);
   const gain = Math.max(0, Number(amount) || 0);
-  if (cost <= 0 || gain <= 0 || isUltimateActive(player, Date.now())) return 0;
+  if (cost <= 0 || gain <= 0 || isUltimateActive(player, now)) return 0;
   const before = clamp(Number(player.ultimateCharge) || 0, 0, cost);
   const after = Math.min(cost, before + gain);
   player.ultimateCharge = after;
@@ -2577,7 +2580,7 @@ function dealDamageDetailed(room, attackerId, target, amount, now, options = nul
   if (attacker) {
     ensureMatchStats(attacker).damage += total;
     const countsForUltimate = !options || options.countsForUltimate !== false;
-    if (countsForUltimate && attacker.team !== target.team) grantUltimateCharge(attacker, total);
+    if (countsForUltimate && attacker.team !== target.team) grantUltimateCharge(attacker, total, now);
   }
   markCombat(room, attackerId, target, now);
   return { total, hp: hpDamage, shield: shieldDamage };
@@ -2661,7 +2664,7 @@ function applyHealing(room, healer, target, amount, now, options = null) {
     ensureMatchStats(healer).healing += actual;
     const countsForUltimate = !options || options.countsForUltimate !== false;
     const isSelfOrAlly = healer.id === target.id || healer.team === target.team;
-    if (countsForUltimate && isSelfOrAlly) grantUltimateCharge(healer, actual);
+    if (countsForUltimate && isSelfOrAlly) grantUltimateCharge(healer, actual, now);
 
     const isOtherAlly = healer.id !== target.id && healer.team === target.team;
     const healerDef = CHARACTERS[healer.character];
@@ -3167,6 +3170,24 @@ function updateRoom(room, dt, now) {
 
   flushHealerNumberFeedback(room, now);
   updatePerkSystem(room, now);
+
+  // Alpha 1.6.1: universal time-based ultimate safety net.
+  // Every four seconds, each player receives 3% of that character's ultimate cost.
+  // Death does not pause this clock. Sustained/self-buff ultimates still lock charge at 0,
+  // so scheduled ticks that land during an active ultimate are intentionally skipped.
+  if (!Number.isFinite(room.nextUltimateAutoChargeAt) || room.nextUltimateAutoChargeAt <= 0) {
+    room.nextUltimateAutoChargeAt = Math.max(Number(room.matchStartedAt) || now, now) + ULTIMATE_AUTO_CHARGE_INTERVAL_MS;
+  }
+  while (now + 1e-9 >= room.nextUltimateAutoChargeAt) {
+    const chargeAt = room.nextUltimateAutoChargeAt;
+    room.nextUltimateAutoChargeAt += ULTIMATE_AUTO_CHARGE_INTERVAL_MS;
+    for (const chargePlayer of room.players.values()) {
+      const cost = ultimateCostForPlayer(chargePlayer);
+      if (cost <= 0 || isUltimateActive(chargePlayer, chargeAt)) continue;
+      grantUltimateCharge(chargePlayer, cost * ULTIMATE_AUTO_CHARGE_RATIO, chargeAt);
+    }
+  }
+
   room.beams = [];
   for (const player of room.players.values()) {
     const def = CHARACTERS[player.character];

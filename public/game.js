@@ -79,10 +79,11 @@ function characterPortraitHtml(id, name) {
   const art = characterArt(id);
   const icon = CHARACTER_META[id]?.icon || '◈';
   const src = art?.portrait || '';
+  const safeName = escapeHtml(name);
   const imageHtml = src
-    ? `<img class="character-portrait" src="${src}" alt="${escapeHtml(name)} 캐릭터 일러스트" loading="lazy" decoding="async" onload="this.parentElement.classList.add('art-loaded')" onerror="this.classList.add('hidden')">`
+    ? `<img class="character-portrait" src="${src}" alt="${safeName} 캐릭터 일러스트" loading="lazy" decoding="async" onload="this.parentElement.classList.add('art-loaded')" onerror="this.classList.add('hidden')">`
     : '';
-  return `<div class="character-portrait-wrap">${imageHtml}<div class="character-portrait-placeholder" aria-hidden="true"><span>${icon}</span><small>일러스트 준비 중</small></div></div>`;
+  return `<button type="button" class="character-portrait-wrap" data-character-name="${safeName}" aria-label="${safeName} 일러스트 크게 보기">${imageHtml}<div class="character-portrait-placeholder" aria-hidden="true"><span>${icon}</span><small>일러스트 준비 중</small></div><span class="character-portrait-zoom" aria-hidden="true">🔍</span></button>`;
 }
 
 const CHARACTER_STORIES = {
@@ -299,7 +300,7 @@ function buildCharacterStats(id) {
     ['이동속도', `${speedLabel(c.speed)} · ${fmtNumber(c.speed)} m/s`],
     ['크기', sizeLabel(c.radius)]
   ];
-  if (Number(c.ultimateCost || 0) > 0) rows.push(['궁극기', `${c.ultimateName || '궁극기'} · ${c.ultimateDescription || ''} · 충전 ${fmtNumber(c.ultimateCost)}`]);
+  if (Number(c.ultimateCost || 0) > 0) rows.push(['궁극기 충전', fmtNumber(c.ultimateCost)]);
   return rows;
 }
 
@@ -354,6 +355,73 @@ function buildCharacterMechanic(id, fallback='') {
     case 'light': return '광선으로 아군을 치유하고 그 뒤의 적에게 동시에 피해를 줄 수 있습니다.';
     default: return fallback;
   }
+}
+
+function buildCharacterUltimateSection(id) {
+  const c = characterPublicDef(id);
+  if (!c || Number(c.ultimateCost || 0) <= 0) return '';
+  const name = escapeHtml(c.ultimateName || '궁극기');
+  const description = escapeHtml(c.ultimateDescription || '');
+  const cost = fmtNumber(c.ultimateCost);
+  return `<div class="character-ultimate-section"><div class="character-ultimate-title">궁극기 설명</div><div class="character-ultimate-name">⚡ ${name} <span>충전 ${cost}</span></div><div class="character-ultimate-description">${description}</div></div>`;
+}
+
+function closePortraitHoverPreview() {
+  const preview = $('portraitHoverPreview');
+  if (preview) preview.classList.add('hidden');
+}
+
+function showPortraitHoverPreview(button) {
+  const preview = $('portraitHoverPreview');
+  const img = button?.querySelector('.character-portrait');
+  if (!preview || !img || !button.classList.contains('art-loaded') || !img.naturalWidth) return;
+  const previewImg = preview.querySelector('img');
+  if (!previewImg) return;
+  previewImg.src = img.currentSrc || img.src;
+  previewImg.alt = img.alt || '';
+  const r = button.getBoundingClientRect();
+  preview.classList.remove('hidden');
+  const w = Math.min(280, Math.max(220, window.innerWidth * .22));
+  preview.style.width = `${w}px`;
+  const pad = 12;
+  const desiredLeft = r.right + 12;
+  const left = desiredLeft + w <= window.innerWidth - pad ? desiredLeft : Math.max(pad, r.left - w - 12);
+  const top = Math.max(pad, Math.min(r.top, window.innerHeight - Math.min(390, window.innerHeight * .72) - pad));
+  preview.style.left = `${left}px`;
+  preview.style.top = `${top}px`;
+}
+
+function openPortraitLightbox(button) {
+  const overlay = $('portraitLightbox');
+  const img = button?.querySelector('.character-portrait');
+  if (!overlay || !img || !button.classList.contains('art-loaded') || !img.naturalWidth) return;
+  closePortraitHoverPreview();
+  const large = $('portraitLightboxImage');
+  const caption = $('portraitLightboxCaption');
+  large.src = img.currentSrc || img.src;
+  large.alt = img.alt || '';
+  if (caption) caption.textContent = button.dataset.characterName || '';
+  overlay.classList.remove('hidden');
+  document.body.classList.add('portrait-lightbox-open');
+}
+
+function closePortraitLightbox() {
+  const overlay = $('portraitLightbox');
+  if (overlay) overlay.classList.add('hidden');
+  document.body.classList.remove('portrait-lightbox-open');
+}
+
+function wireCharacterPortraitPreview(detail) {
+  const button = detail?.querySelector('.character-portrait-wrap');
+  if (!button) return;
+  const canHover = window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+  if (canHover) {
+    button.addEventListener('mouseenter', () => showPortraitHoverPreview(button));
+    button.addEventListener('mouseleave', closePortraitHoverPreview);
+    button.addEventListener('focus', () => showPortraitHoverPreview(button));
+    button.addEventListener('blur', closePortraitHoverPreview);
+  }
+  button.addEventListener('click', () => openPortraitLightbox(button));
 }
 
 function isTeamCharacterTaken(id) {
@@ -416,7 +484,9 @@ function renderPicker(kind) {
   const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 25%를 자신이 회복합니다.</div>' : '';
   const portraitHtml = characterPortraitHtml(detailId, displayName);
   detail.classList.add('has-character-art');
-  detail.innerHTML = `<div class="character-detail-hero">${portraitHtml}<div class="character-detail-headcopy"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
+  const ultimateSection = buildCharacterUltimateSection(detailId);
+  detail.innerHTML = `<div class="character-detail-hero">${portraitHtml}<div class="character-detail-headcopy"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${ultimateSection}${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
+  wireCharacterPortraitPreview(detail);
 }
 
 function selectLobbyCharacter(id) {
@@ -1940,6 +2010,16 @@ $('ultimateButton').onclick = useUltimate;
 $('storyButton').onclick = openMyCharacterStory;
 $('storyCloseButton').onclick = closeMyCharacterStory;
 $('storyOverlay').onclick = e => { if (e.target === $('storyOverlay')) closeMyCharacterStory(); };
+$('portraitLightboxClose').onclick = closePortraitLightbox;
+$('portraitLightbox').onclick = e => { if (e.target === $('portraitLightbox')) closePortraitLightbox(); };
+window.addEventListener('keydown', e => {
+  if (e.code === 'Escape' && !$('portraitLightbox').classList.contains('hidden')) {
+    e.preventDefault();
+    closePortraitLightbox();
+  }
+});
+window.addEventListener('resize', closePortraitHoverPreview);
+window.addEventListener('scroll', closePortraitHoverPreview, true);
 updateSoundButton();
 
 function useAbility() {
@@ -3343,7 +3423,12 @@ function renderGame() {
       ctx.fillStyle='#1a2734'; ctx.fillRect(bx,by-5,bw,3);
       ctx.fillStyle='#65c7ff'; ctx.fillRect(bx,by-5,bw*Math.max(0,Math.min(1,p.shield/p.maxShield)),3);
     }
-    drawText(`${p.team} ${p.name}`,x,by-7,11,'center','#f6f8fb');
+    ctx.save();
+    ctx.font='700 11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.lineWidth=3; ctx.lineJoin='round'; ctx.strokeStyle='rgba(255,255,255,.92)';
+    ctx.strokeText(`${p.team} ${p.name}`,x,by-7);
+    ctx.fillStyle='#17202a'; ctx.fillText(`${p.team} ${p.name}`,x,by-7);
+    ctx.restore();
     if (needsHealingAttention) {
       const hpRatio=Math.max(0,Math.min(1,Number(p.hp||0)/Math.max(1,Number(p.maxHp||1))));
       const danger=Math.max(0,Math.min(1,(0.50-hpRatio)/0.50));
@@ -3424,25 +3509,32 @@ function renderGame() {
     const ultCharge = ultCost > 0 ? Math.max(0, Math.min(ultCost, Number(me.ultimateCharge) || 0)) : 0;
     const ultPct = ultCost > 0 ? Math.floor(ultCharge / ultCost * 100) : 0;
     const ultReady = ultCost > 0 && ultCharge + 1e-9 >= ultCost;
-    $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${extra}`;
+    const ultActiveMs = Math.max(0, Number(me.ultimateActiveMs) || 0);
+    let ultInfoLine = '';
+    if (ultCost > 0) {
+      const ultName = escapeHtml(ultDef?.ultimateName || '궁극기');
+      if (ultActiveMs > 0) {
+        ultInfoLine = `<span class="my-info-ultimate active">⚡ ${ultName} 0% · 활성 ${(ultActiveMs/1000).toFixed(1)}초</span>`;
+      } else if (ultReady) {
+        ultInfoLine = `<span class="my-info-ultimate ready">⚡ ${ultName} 100% · 준비 완료</span>`;
+      } else {
+        ultInfoLine = `<span class="my-info-ultimate">⚡ ${ultName} ${ultPct}% · ${Math.floor(ultCharge)}/${Math.floor(ultCost)}</span>`;
+      }
+    }
+    $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${extra}${ultInfoLine}`;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 
+    // Alpha 1.6.1: ultimate charge now lives in the top-left personal info card.
+    // Keep the legacy bottom-center meter hidden; the action button remains the cast control.
     const ultimateHud = $('ultimateHud');
+    if (ultimateHud) ultimateHud.classList.add('hidden');
     const ultimateButton = $('ultimateButton');
     if (ultCost > 0) {
-      ultimateHud.classList.remove('hidden');
-      ultimateHud.classList.toggle('ready', ultReady);
-      $('ultimateName').textContent = `⚡ ${ultDef?.ultimateName || '궁극기'}`;
-      $('ultimateValue').textContent = Number(me.ultimateActiveMs||0) > 0 ? `${ultDef?.ultimateName || '궁극기'} 활성 · ${(Number(me.ultimateActiveMs)/1000).toFixed(1)}초` : (ultReady ? '100% · 준비 완료' : `${ultPct}% · ${Math.floor(ultCharge)}/${Math.floor(ultCost)}`);
-      $('ultimateFill').style.width = `${Math.max(0, Math.min(100, ultPct))}%`;
       ultimateButton.classList.remove('hidden');
       ultimateButton.classList.toggle('ready', ultReady);
       ultimateButton.disabled = !me.alive || me.stunned || !ultReady;
       ultimateButton.textContent = ultReady ? `⚡ ${ultDef?.ultimateName || '궁극기'} · R` : `⚡ ${ultPct}%`;
     } else {
-      ultimateHud.classList.add('hidden');
-      ultimateHud.classList.remove('ready');
-      $('ultimateFill').style.width = '0%';
       ultimateButton.classList.add('hidden');
       ultimateButton.classList.remove('ready');
       ultimateButton.disabled = true;

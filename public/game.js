@@ -32,33 +32,57 @@ const CHARACTER_META = {
 
 const CHARACTER_ART = Object.freeze({
   iron:    { portrait:'/assets/characters/iron/portrait.webp',    token:'/assets/characters/iron/token.webp',    renderScale:1.12 },
-  shooter: { portrait:'/assets/characters/shooter/portrait.webp', token:'/assets/characters/shooter/token.webp', renderScale:1.00 },
-  water:   { portrait:'/assets/characters/water/portrait.webp',   token:'/assets/characters/water/token.webp',   renderScale:1.02 },
-  fire:    { portrait:'/assets/characters/fire/portrait.webp',    token:'/assets/characters/fire/token.webp',    renderScale:1.02 },
-  sniper:  { portrait:'/assets/characters/sniper/portrait.webp',  token:'/assets/characters/sniper/token.webp',  renderScale:.98 },
-  angel:   { portrait:'/assets/characters/angel/portrait.webp',   token:'/assets/characters/angel/token.webp',   renderScale:1.00 },
-  star:    { portrait:'/assets/characters/star/portrait.webp',    token:'/assets/characters/star/token.webp',    renderScale:1.00 },
+  mecha:   { portrait:'/assets/characters/mecha/portrait.webp',   token:'/assets/characters/mecha/token.webp',   renderScale:1.00 },
+  jet:     { portrait:'/assets/characters/jet/portrait.webp',     token:'/assets/characters/jet/token.webp',     renderScale:1.00 },
   dia:     { portrait:'/assets/characters/dia/portrait.webp',     token:'/assets/characters/dia/token.webp',     renderScale:1.08 },
-  laser:   { portrait:'/assets/characters/laser/portrait.webp',   token:'/assets/characters/laser/token.webp',   renderScale:1.05 }
+  solar:   { portrait:'/assets/characters/solar/portrait.webp',   token:'/assets/characters/solar/token.webp',   renderScale:1.00 },
+  shield:  { portrait:'/assets/characters/shield/portrait.webp',  token:'/assets/characters/shield/token.webp',  renderScale:1.00 },
+  runner:  { portrait:'/assets/characters/runner/portrait.webp',  token:'/assets/characters/runner/token.webp',  renderScale:1.00 },
+  shooter: { portrait:'/assets/characters/shooter/portrait.webp', token:'/assets/characters/shooter/token.webp', renderScale:1.00 },
+  sniper:  { portrait:'/assets/characters/sniper/portrait.webp',  token:'/assets/characters/sniper/token.webp',  renderScale:.98 },
+  cannon:  { portrait:'/assets/characters/cannon/portrait.webp',  token:'/assets/characters/cannon/token.webp',  renderScale:1.00 },
+  fire:    { portrait:'/assets/characters/fire/portrait.webp',    token:'/assets/characters/fire/token.webp',    renderScale:1.02 },
+  poison:  { portrait:'/assets/characters/poison/portrait.webp',  token:'/assets/characters/poison/token.webp',  renderScale:1.00 },
+  reactor: { portrait:'/assets/characters/reactor/portrait.webp', token:'/assets/characters/reactor/token.webp', renderScale:1.00 },
+  spray:   { portrait:'/assets/characters/spray/portrait.webp',   token:'/assets/characters/spray/token.webp',   renderScale:1.00 },
+  laser:   { portrait:'/assets/characters/laser/portrait.webp',   token:'/assets/characters/laser/token.webp',   renderScale:1.05 },
+  ice:     { portrait:'/assets/characters/ice/portrait.webp',     token:'/assets/characters/ice/token.webp',     renderScale:1.00 },
+  water:   { portrait:'/assets/characters/water/portrait.webp',   token:'/assets/characters/water/token.webp',   renderScale:1.02 },
+  wind:    { portrait:'/assets/characters/wind/portrait.webp',    token:'/assets/characters/wind/token.webp',    renderScale:1.00 },
+  star:    { portrait:'/assets/characters/star/portrait.webp',    token:'/assets/characters/star/token.webp',    renderScale:1.00 },
+  angel:   { portrait:'/assets/characters/angel/portrait.webp',   token:'/assets/characters/angel/token.webp',   renderScale:1.00 },
+  buffer:  { portrait:'/assets/characters/buffer/portrait.webp',  token:'/assets/characters/buffer/token.webp',  renderScale:1.00 },
+  light:   { portrait:'/assets/characters/light/portrait.webp',   token:'/assets/characters/light/token.webp',   renderScale:1.00 }
 });
 
-// Character art is visual-only. Missing/failed art always falls back to the legacy circle + emoji renderer.
+// Character art is visual-only. All 22 characters already have stable asset slots.
+// Missing files show a placeholder in the picker and use the legacy circle + emoji in-game.
+// Adding portrait.webp/token.webp later at the conventional path activates them without layout changes.
 const CHARACTER_TOKEN_IMAGES = new Map();
-for (const [id, art] of Object.entries(CHARACTER_ART)) {
-  const img = new Image();
-  img.decoding = 'async';
-  img.src = art.token;
-  CHARACTER_TOKEN_IMAGES.set(id, img);
-}
 function characterArt(id) { return CHARACTER_ART[id] || null; }
 function characterTokenImage(id) {
-  const img = CHARACTER_TOKEN_IMAGES.get(id);
-  return img && img.complete && img.naturalWidth > 0 ? img : null;
+  const art = characterArt(id);
+  if (!art || !art.token) return null;
+  let img = CHARACTER_TOKEN_IMAGES.get(id);
+  if (!img) {
+    img = new Image();
+    img.decoding = 'async';
+    img.dataset.failed = '0';
+    img.onload = () => { img.dataset.failed = '0'; };
+    img.onerror = () => { img.dataset.failed = '1'; };
+    img.src = art.token;
+    CHARACTER_TOKEN_IMAGES.set(id, img);
+  }
+  return img.dataset.failed !== '1' && img.complete && img.naturalWidth > 0 ? img : null;
 }
 function characterPortraitHtml(id, name) {
   const art = characterArt(id);
-  if (!art) return '';
-  return `<div class="character-portrait-wrap"><img class="character-portrait" src="${art.portrait}" alt="${escapeHtml(name)} 캐릭터 일러스트" loading="lazy" decoding="async"></div>`;
+  const icon = CHARACTER_META[id]?.icon || '◈';
+  const src = art?.portrait || '';
+  const imageHtml = src
+    ? `<img class="character-portrait" src="${src}" alt="${escapeHtml(name)} 캐릭터 일러스트" loading="lazy" decoding="async" onload="this.parentElement.classList.add('art-loaded')" onerror="this.classList.add('hidden')">`
+    : '';
+  return `<div class="character-portrait-wrap">${imageHtml}<div class="character-portrait-placeholder" aria-hidden="true"><span>${icon}</span><small>일러스트 준비 중</small></div></div>`;
 }
 
 const CHARACTER_STORIES = {
@@ -391,8 +415,8 @@ function renderPicker(kind) {
   const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">빨간색 원 밖의 적에게 더 높은 피해를 줍니다.</div>' : '';
   const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 25%를 자신이 회복합니다.</div>' : '';
   const portraitHtml = characterPortraitHtml(detailId, displayName);
-  detail.classList.toggle('has-character-art', !!portraitHtml);
-  detail.innerHTML = `${portraitHtml}<div class="character-detail-body"><div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}</div>`;
+  detail.classList.add('has-character-art');
+  detail.innerHTML = `<div class="character-detail-hero">${portraitHtml}<div class="character-detail-headcopy"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
 }
 
 function selectLobbyCharacter(id) {
@@ -3017,8 +3041,8 @@ function drawHomeZoneLabels(viewState) {
   ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 22px system-ui';
   ctx.lineWidth=3; ctx.globalAlpha=.18; ctx.strokeStyle='rgba(0,0,0,.9)';
   ctx.strokeText(left,leftX,y); ctx.strokeText(right,rightX,y);
-  ctx.fillStyle='#dce9ff'; ctx.fillText(left,leftX,y);
-  ctx.fillStyle='#ffe1e1'; ctx.fillText(right,rightX,y);
+  ctx.fillStyle='#43689a'; ctx.fillText(left,leftX,y);
+  ctx.fillStyle='#9b5151'; ctx.fillText(right,rightX,y);
   ctx.restore();
 }
 
@@ -3052,12 +3076,12 @@ function renderGame() {
   const healerViewer = spectatorMode ? null : viewState.players.find(p => p.id === myId);
   const healerAttentionEnabled = updateHealerLowHpAttention(viewState, healerViewer);
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle = '#121821'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
   // Owned zones are left/right in mobile landscape view.
-  ctx.fillStyle = 'rgba(65,130,255,.16)'; ctx.fillRect(0,0,config.world.aZoneEnd*SCALE,canvas.height);
-  ctx.fillStyle = 'rgba(255,80,80,.14)'; ctx.fillRect(config.world.bZoneStart*SCALE,0,(config.world.height-config.world.bZoneStart)*SCALE,canvas.height);
-  ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([7,7]);
+  ctx.fillStyle = 'rgba(65,130,255,.09)'; ctx.fillRect(0,0,config.world.aZoneEnd*SCALE,canvas.height);
+  ctx.fillStyle = 'rgba(255,80,80,.075)'; ctx.fillRect(config.world.bZoneStart*SCALE,0,(config.world.height-config.world.bZoneStart)*SCALE,canvas.height);
+  ctx.strokeStyle = 'rgba(55,65,81,.28)'; ctx.setLineDash([7,7]);
   for (const y of [config.world.aZoneEnd, config.world.bZoneStart]) { ctx.beginPath(); ctx.moveTo(y*SCALE,0); ctx.lineTo(y*SCALE,canvas.height); ctx.stroke(); }
   ctx.setLineDash([]);
 
@@ -3065,7 +3089,7 @@ function renderGame() {
   drawHomeZoneLabels(viewState);
 
   // Walls rotated into landscape view.
-  ctx.fillStyle = '#4b5565';
+  ctx.fillStyle = '#5c6675';
   for (const w of config.walls) ctx.fillRect(w.y*SCALE,w.x*SCALE,w.h*SCALE,w.w*SCALE);
 
   const beamFxNow = performance.now();
@@ -3090,8 +3114,9 @@ function renderGame() {
     else if (p.character === 'mecha') ctx.fillStyle = '#b7ffd1';
     else if (p.character === 'runner') ctx.fillStyle = '#ffd27a';
     else if (p.character === 'solar') ctx.fillStyle = '#ffd45c';
-    else ctx.fillStyle = p.team === 'A' ? '#8bbcff' : '#ff9c9c';
+    else ctx.fillStyle = p.team === 'A' ? '#5b91e8' : '#eb7676';
     ctx.fill();
+    ctx.strokeStyle='rgba(28,36,48,.70)'; ctx.lineWidth=Math.max(1,Math.min(1.8,r*.36)); ctx.stroke();
   }
 
   drawWorldFx(beamFxNow);
@@ -3250,7 +3275,7 @@ function renderGame() {
     }
 
     const target=worldToScreen(p.aimX,p.aimY), adx=target.x-x, ady=target.y-y, al=Math.hypot(adx,ady)||1;
-    ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+(adx/al)*(radius+9),y+(ady/al)*(radius+9)); ctx.stroke();
+    ctx.strokeStyle='rgba(28,36,48,.58)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+(adx/al)*(radius+9),y+(ady/al)*(radius+9)); ctx.stroke();
 
     // Art-enabled characters use the fixed token above. Others keep the legacy emoji fallback.
     const meta = CHARACTER_META[p.character];

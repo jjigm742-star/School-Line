@@ -28,9 +28,9 @@ h2, h3 { margin-top: 0; }
 .result { margin: 14px 0; padding: 12px; border-radius: 10px; background: #2a3445; font-weight: 700; }
 .character-card { margin-top: 14px; padding: 13px; border-radius: 12px; background: #111823; line-height: 1.6; }
 
-.game-screen { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; background: #070a0f; touch-action: none; user-select: none; -webkit-user-select: none; }
+.game-screen { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; background: #ffffff; touch-action: none; user-select: none; -webkit-user-select: none; }
 .game-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-#gameCanvas { display: block; width: min(100vw, calc(100dvh * 1.6190476)); height: auto; max-height: 100dvh; max-width: 100vw; aspect-ratio: 1020 / 630; background: #121821; touch-action: none; }
+#gameCanvas { display: block; width: min(100vw, calc(100dvh * 1.6190476)); height: auto; max-height: 100dvh; max-width: 100vw; aspect-ratio: 1020 / 630; background: #ffffff; touch-action: none; }
 .heal-number-layer { position:absolute; left:50%; top:48%; width:1px; height:1px; z-index:17; pointer-events:none; overflow:visible; }
 .heal-number-popup { position:absolute; left:0; top:0; transform:translate(-50%,0); color:#baf7cd; font-size:clamp(11px,2.15vh,14px); line-height:1; font-weight:900; font-variant-numeric:tabular-nums; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,.85),0 0 5px rgba(77,223,132,.22); animation:heal-number-float .52s ease-out forwards; }
 @keyframes heal-number-float { 0% { opacity:0; transform:translate(-50%,5px) scale(.94); } 16% { opacity:.96; } 68% { opacity:.82; } 100% { opacity:0; transform:translate(-50%,-23px) scale(1); } }
@@ -129,13 +129,17 @@ h2, h3 { margin-top: 0; }
 .character-choice .char-name { font-weight: 900; font-size: 15px; }
 .character-choice .char-mini { color: #9fb0c6; font-size: 11px; line-height: 1.3; }
 .character-detail { margin-top: 10px; min-height: 118px; padding: 13px; border-radius: 12px; background: #0d141e; border: 1px solid #2c394c; line-height: 1.48; }
-.character-detail.has-character-art { display:grid; grid-template-columns:112px minmax(0,1fr); gap:11px; align-items:start; }
-.character-portrait-wrap { width:112px; aspect-ratio:4/5; overflow:hidden; border-radius:11px; border:1px solid rgba(255,255,255,.10); background:#111823; box-shadow:0 6px 16px rgba(0,0,0,.22); }
-.character-portrait { display:block; width:100%; height:100%; object-fit:cover; object-position:center top; }
-.character-detail-body { min-width:0; }
-
-.character-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
-.character-detail-name { font-weight: 950; font-size: 18px; }
+/* 1.6.1: portrait occupies only the compact header. Stats/traits always receive full card width. */
+.character-detail.has-character-art { display:block; }
+.character-detail-hero { display:flex; align-items:center; gap:11px; min-width:0; margin-bottom:8px; }
+.character-portrait-wrap { position:relative; flex:0 0 76px; width:76px; height:95px; overflow:hidden; border-radius:11px; border:1px solid rgba(255,255,255,.10); background:#111823; box-shadow:0 5px 13px rgba(0,0,0,.20); }
+.character-portrait { position:relative; z-index:2; display:block; width:100%; height:100%; object-fit:cover; object-position:center top; background:#111823; }
+.character-portrait-placeholder { position:absolute; inset:0; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:6px; text-align:center; color:#8fa5be; background:linear-gradient(145deg,#111a26,#172333); }
+.character-portrait-placeholder span { font-size:28px; line-height:1; filter:grayscale(.15); }
+.character-portrait-placeholder small { font-size:9px; line-height:1.2; font-weight:850; word-break:keep-all; }
+.character-portrait-wrap.art-loaded .character-portrait-placeholder { display:none; }
+.character-detail-headcopy { min-width:0; flex:1 1 auto; display:flex; flex-direction:column; align-items:flex-start; gap:7px; }
+.character-detail-name { font-weight: 950; font-size: 18px; line-height:1.25; overflow-wrap:anywhere; }
 .role-badge { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: #263449; color: #dce8f7; font-size: 12px; font-weight: 850; }
 .character-statline { color: #b8c7da; font-size: 13px; margin-bottom: 5px; }
 .character-summary { font-weight: 800; margin-bottom: 5px; }
@@ -144,8 +148,10 @@ h2, h3 { margin-top: 0; }
 @media (max-width: 560px) {
   .character-choices { grid-template-columns: repeat(2, 1fr); }
   .join-panel { margin-top: 12px; }
-  .character-detail.has-character-art { grid-template-columns:92px minmax(0,1fr); gap:9px; }
-  .character-portrait-wrap { width:92px; }
+  .character-detail-hero { gap:9px; }
+  .character-portrait-wrap { flex-basis:64px; width:64px; height:80px; }
+  .character-portrait-placeholder span { font-size:24px; }
+  .character-detail-name { font-size:17px; }
 }
 
 /* Alpha 0.8: same-team unique character picks */

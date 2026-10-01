@@ -49,12 +49,12 @@ const ADMIN_STATS_LOCK_MS = 30000;
 const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN hash; plaintext never leaves the browser request.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.5';
+const BALANCE_VERSION = '1.6';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.5-r22-shield-cumulative-bwopt9c6sparse-c6projectilefix1-draftrolesui1-shooter42-spray14-4-4-healnumbers200-healerselfheal25-angelbless12-windhps60-bufferhps45-fireburnantiheal30-starhp200-diacd16-diabeam90-diaspeed7-autoroomclose10-iron85-shield75-shieldspeed14-shieldcap500-reactordmg5-kill10-reactorbands80-105-130-respawnshield100x3-windhp175-angelhp175-angelhps50-bufferhp200-irondr20-shieldgrant175-diaformhp450-homecover6x1p8-jethp350-ultcharge1-ultui1-ulteffects1-ult22fx1';
-const COMPETITIVE_ROSTER_VERSION = 'alpha-1.5-r22-shield';
+const COMPETITIVE_BUILD_ID = 'alpha-1.6-r22-allultimates-cumulative-bwopt9c6sparse-c6projectilefix1-draftrolesui1-shooter42-spray14-4-4-healnumbers200-healerselfheal25-angelbless12-windhps60-bufferhps45-fireburnantiheal30-starhp200-diacd16-diabeam90-diaspeed7-autoroomclose10-iron85-shield75-shieldspeed14-shieldcap500-reactordmg5-kill10-reactorbands80-105-130-respawnshield100x3-windhp175-angelhp175-angelhps50-bufferhp200-irondr20-shieldgrant175-diaformhp450-homecover6x1p8-jethp350-ultcharge1-ultui1-ulteffects1-ult22fx1';
+const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6-r22-allultimates';
 
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };

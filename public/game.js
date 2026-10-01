@@ -235,7 +235,7 @@ function buildCharacterStats(id) {
     rate = `${fmtNumber(c.fireRate)}발/s`;
   }
 
-  return [
+  const rows = [
     ['체력', `${fmtNumber(c.hp)} HP`],
     ['공격 방식', attackType],
     ['사거리', range],
@@ -244,6 +244,8 @@ function buildCharacterStats(id) {
     ['이동속도', `${speedLabel(c.speed)} · ${fmtNumber(c.speed)} m/s`],
     ['크기', sizeLabel(c.radius)]
   ];
+  if (Number(c.ultimateCost || 0) > 0) rows.push(['궁극기', `${c.ultimateName || '궁극기'} · ${c.ultimateDescription || ''} · 충전 ${fmtNumber(c.ultimateCost)}`]);
+  return rows;
 }
 
 function buildCharacterMini(id, meta) {
@@ -276,14 +278,14 @@ function buildCharacterMechanic(id, fallback='') {
     case 'iron': return '높은 체력으로 전선을 버티며 느린 투사체로 압박합니다.';
     case 'mecha': return '짧은 사거리 대신 높은 체력과 빠른 이동속도로 공간을 장악합니다.';
     case 'jet': return '부스터로 최대 12m 돌진하고 종료 후 보호막 50을 얻습니다.';
-    case 'dia': return '6초간 다이아폼으로 변신하며, 폼에서 직접 처치하면 남은 쿨다운이 줄어듭니다.';
+    case 'dia': return '6초간 다이아폼으로 변신해 이동속도 7.0과 90 DPS 광선을 얻으며, 폼에서 직접 처치하면 남은 쿨다운이 줄어듭니다.';
     case 'solar': return '광선과 태양탄을 함께 사용하며, 태양탄이 실제 HP에 피해를 주면 자신을 회복합니다.';
     case 'shield': return '거리 제한 없이 자신 또는 아군에게 보호막을 부여하며 최대 2회 충전됩니다.';
     case 'runner': return '질주를 사용하면 4초간 이동속도가 1단계 상승합니다.';
     case 'shooter': return '매우 빠른 투사체로 안정적인 기본 공격에 집중합니다.';
     case 'sniper': return '매우 빠른 장거리 투사체를 사용합니다.';
     case 'cannon': return '높은 연사 화력 대신 이동속도가 매우 느립니다.';
-    case 'fire': return '공격 적중 시 2초간 10 DPS의 화상을 남깁니다.';
+    case 'fire': return '공격 적중 시 2초간 10 DPS의 화상을 남기며, 화상 중에는 대상이 받는 외부 치유량이 30% 감소합니다.';
     case 'poison': return '광선 적중 시 대상이 받는 외부 치유량을 50% 감소시킵니다.';
     case 'reactor': return '실제 HP 피해와 적 처치로 출력 에너지가 상승하며 3단계에서 더 강하고 빨라집니다.';
     case 'spray': return '한 번에 중앙탄과 좌우 보조탄을 함께 발사합니다.';
@@ -293,7 +295,7 @@ function buildCharacterMechanic(id, fallback='') {
     case 'wind': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 순풍으로 팀의 이동속도도 높입니다.';
     case 'star': return '매우 빠른 장거리 투사체로 아군을 치유하고 적에게 50 DPS를 줄 수 있습니다.';
     case 'angel': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 축복으로 어디서든 아군을 도울 수 있습니다.';
-    case 'buffer': return '아군 한 명을 연결해 50 HPS와 공격속도 25% 증가를 제공합니다.';
+    case 'buffer': return '아군 한 명을 연결해 45 HPS와 공격속도 25% 증가를 제공합니다.';
     case 'light': return '광선으로 아군을 치유하고 그 뒤의 적에게 동시에 피해를 줄 수 있습니다.';
     default: return fallback;
   }
@@ -356,7 +358,7 @@ function renderPicker(kind) {
   const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
   const statHtml = buildCharacterStats(detailId).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
   const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">빨간색 원 밖의 적에게 더 높은 피해를 줍니다.</div>' : '';
-  const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 절반을 자신이 회복합니다.</div>' : '';
+  const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 25%를 자신이 회복합니다.</div>' : '';
   detail.innerHTML = `<div class="character-detail-head"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
 }
 
@@ -447,7 +449,7 @@ function applyCannonNetworkUpdate(msg) {
   for (const id of removes) liveProjectileRegistry.delete(id);
 }
 
-// Dormant perk-selection client shell. Alpha 1.4 receives no perk_offer while the
+// Dormant perk-selection client shell. Alpha 1.5 receives no perk_offer while the
 // server PERK_SYSTEM flag is disabled, so these controls never become visible.
 let activePerkOffer = null;
 
@@ -1003,10 +1005,25 @@ function pulseAbilityButton() {
   setTimeout(() => btn.classList.remove('fx-pulse'), 260);
 }
 
+function pulseUltimateButton() {
+  const btn=$('ultimateButton');
+  if (!btn) return;
+  btn.classList.remove('fx-pulse');
+  void btn.offsetWidth;
+  btn.classList.add('fx-pulse');
+  setTimeout(() => btn.classList.remove('fx-pulse'), 320);
+}
+
+function playUltimateUseFeedback(local=false) {
+  synthTone({freq:local?330:260,endFreq:local?660:430,duration:.24,type:'sawtooth',gain:local?.18:.10});
+  synthTone({freq:local?660:520,endFreq:local?990:720,duration:.18,type:'square',gain:local?.10:.06,when:.06});
+  if (local && navigator.vibrate) navigator.vibrate([45,25,80]);
+}
+
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420};
+  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ironUltimate:560,waterUltimate:620,shooterUltimate:520,sniperUltimate:520,fireUltimate:560};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -1186,6 +1203,16 @@ function processCombatFeedback(previousState, nextState) {
         addWorldFx('ability', after);
         if (after.id===myId) { playAbilityUseFeedback(); pulseAbilityButton(); }
       }
+    }
+
+    if ((after.ultimateUseSeq||0) > (before.ultimateUseSeq||0)) {
+      const fxType = ({iron:'ironUltimate',water:'waterUltimate',shooter:'shooterUltimate',sniper:'sniperUltimate',fire:'fireUltimate'})[after.character];
+      if (fxType) {
+        const extra = after.character==='iron' ? {radiusWorld:12} : (after.character==='water' ? {radiusWorld:16} : {});
+        addWorldFx(fxType, after, extra);
+      }
+      playUltimateUseFeedback(after.id===myId);
+      if (after.id===myId) pulseUltimateButton();
     }
   }
 }
@@ -1407,6 +1434,9 @@ function expandCompactPlayerRow(p) {
   if (p[42]) out.bufferTargetId = p[42];
   if (p[43]) out.lastHealTargetId = p[43];
   if (p[44]) out.lastAbilityTargetId = p[44];
+  if (p[45] != null) out.ultimateCharge = Number(p[45] || 0);
+  if (p[46] != null) out.ultimateUseSeq = Number(p[46] || 0);
+  if (p[47] != null) out.ultimateActiveMs = Number(p[47] || 0);
   return out;
 }
 
@@ -1449,6 +1479,9 @@ function expandCompactPlayerRowC5(p, meta) {
   if (p[38]) out.bufferTargetId = p[38];
   if (p[39]) out.lastHealTargetId = p[39];
   if (p[40]) out.lastAbilityTargetId = p[40];
+  if (p[41] != null) out.ultimateCharge = Number(p[41] || 0);
+  if (p[42] != null) out.ultimateUseSeq = Number(p[42] || 0);
+  if (p[43] != null) out.ultimateActiveMs = Number(p[43] || 0);
   return out;
 }
 
@@ -1509,6 +1542,9 @@ function expandCompactPlayerRowC6(p, meta) {
       case 23: if (value) out.bufferTargetId = value; break;
       case 24: if (value) out.lastHealTargetId = value; break;
       case 25: if (value) out.lastAbilityTargetId = value; break;
+      case 26: out.ultimateCharge = Number(value || 0); break;
+      case 27: out.ultimateUseSeq = Number(value || 0); break;
+      case 28: out.ultimateActiveMs = Number(value || 0); break;
       default: break;
     }
   }
@@ -1622,6 +1658,27 @@ $('spectatorJoinButton').onclick = () => {
 };
 
 function handleMessage(msg) {
+  if (msg.type === 'room_closed') {
+    const message = msg.message || '경기가 종료되어 방이 자동으로 닫혔습니다.';
+    resetPostGameSequence();
+    stopBgm();
+    stopBeamHum();
+    hideCharacterIntroTip();
+    hidePerkChoicePanel();
+    clearResumeCredentials();
+    clearLiveProjectileRegistry();
+    playerMotionTracks.clear();
+    selectedTargetId = null;
+    myId = null;
+    spectatorMode = false;
+    state = null;
+    config = null;
+    document.body.classList.remove('spectator-mode');
+    $('spectatorBadge')?.classList.add('hidden');
+    show('join');
+    $('joinError').textContent = message;
+    return;
+  }
   if (msg.type === 'access_locked') {
     resetClientForAccessLock(msg.message || '관리자가 입장을 제한했습니다.');
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
@@ -1808,6 +1865,7 @@ $('fullscreenButton').onclick = enterGameDisplayMode;
 $('gameFullscreenButton').onclick = enterGameDisplayMode;
 $('soundButton').onclick = toggleSound;
 $('abilityButton').onclick = useAbility;
+$('ultimateButton').onclick = useUltimate;
 $('storyButton').onclick = openMyCharacterStory;
 $('storyCloseButton').onclick = closeMyCharacterStory;
 $('storyOverlay').onclick = e => { if (e.target === $('storyOverlay')) closeMyCharacterStory(); };
@@ -1829,6 +1887,16 @@ function useAbility() {
   const payload = { type:'ability', ability:abilityId };
   if (selectedTargetId) payload.targetId = selectedTargetId;
   ws.send(JSON.stringify(payload));
+}
+
+function useUltimate() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;
+  const me = state.players.find(p => p.id === myId);
+  if (!me || !me.alive || me.stunned) return;
+  const def = config && config.characters ? config.characters[me.character] : null;
+  const cost = Math.max(0, Number(def && def.ultimateCost) || 0);
+  if (cost <= 0 || (Number(me.ultimateCharge) || 0) + 1e-9 < cost) return;
+  ws.send(JSON.stringify({ type:'ultimate' }));
 }
 
 async function enterGameDisplayMode() {
@@ -2271,15 +2339,21 @@ function renderLobby() {
     }
   }
   const isHost = !spectatorMode && state.hostId === myId;
+  const roomEnding = state.state === 'ended';
   $('competitiveStatsButton').classList.remove('hidden');
   const countA = state.players.filter(p => p.team === 'A' && p.connected !== false).length;
   const countB = state.players.filter(p => p.team === 'B' && p.connected !== false).length;
   const competitiveReady = state.players.length === 8 && countA === 4 && countB === 4 && state.players.every(p => p.connected !== false);
-  $('normalStartButton').classList.toggle('hidden', !isHost);
-  $('competitiveStartButton').classList.toggle('hidden', !isHost);
-  $('competitiveStartButton').disabled = !competitiveReady;
-  $('hostLabel').textContent = spectatorMode ? '📺 관전자 모드 · 경기 시작 대기 중' : (isHost ? '내가 방장입니다. 일반게임 또는 경쟁게임을 시작할 수 있습니다.' : '방장이 게임 모드를 선택해 시작합니다.');
-  $('modeStartHint').textContent = isHost ? (competitiveReady ? '🏆 4 vs 4 완성 · 경쟁 시작 가능' : `🏆 경쟁게임 대기: A ${countA}/4 · B ${countB}/4`) : (competitiveReady ? '🏆 4 vs 4 완성 · 방장이 경쟁게임을 시작할 수 있습니다.' : `현재 A ${countA}/4 · B ${countB}/4`);
+  $('normalStartButton').classList.toggle('hidden', !isHost || roomEnding);
+  $('competitiveStartButton').classList.toggle('hidden', !isHost || roomEnding);
+  $('competitiveStartButton').disabled = roomEnding || !competitiveReady;
+  if (roomEnding) {
+    $('hostLabel').textContent = '🏁 경기가 종료되었습니다. 이 방은 경기 종료 10초 후 자동으로 닫힙니다.';
+    $('modeStartHint').textContent = '결과를 확인한 뒤 모든 참가자와 관전자가 자동으로 퇴장합니다.';
+  } else {
+    $('hostLabel').textContent = spectatorMode ? '📺 관전자 모드 · 경기 시작 대기 중' : (isHost ? '내가 방장입니다. 일반게임 또는 경쟁게임을 시작할 수 있습니다.' : '방장이 게임 모드를 선택해 시작합니다.');
+    $('modeStartHint').textContent = isHost ? (competitiveReady ? '🏆 4 vs 4 완성 · 경쟁 시작 가능' : `🏆 경쟁게임 대기: A ${countA}/4 · B ${countB}/4`) : (competitiveReady ? '🏆 4 vs 4 완성 · 방장이 경쟁게임을 시작할 수 있습니다.' : `현재 A ${countA}/4 · B ${countB}/4`);
+  }
   $('resultBanner').classList.toggle('hidden', state.state !== 'ended');
   if (state.state === 'ended') {
     const finalScore = `${Math.floor(state.scoreA)} : ${Math.floor(state.scoreB)}`;
@@ -2376,7 +2450,8 @@ window.addEventListener('keydown', e => {
   if (spectatorMode || gameScreen.classList.contains('hidden')) return;
   setKey(e.code, true);
   if (e.code === 'Space' && !e.repeat) useAbility();
-  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyR' && !e.repeat) useUltimate();
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyR'].includes(e.code)) e.preventDefault();
 });
 window.addEventListener('keyup', e => setKey(e.code, false));
 window.addEventListener('blur', resetInputs);
@@ -2685,6 +2760,29 @@ function drawWorldFx(nowMs) {
     } else if (fx.type==='jetWallSpark') {
       ctx.strokeStyle='#ffffff'; ctx.lineWidth=1.5; ctx.globalAlpha=(1-q)*.86;
       for (let k=0;k<5;k++) { const ang=k*Math.PI*2/5+.35; const rr1=4+q*5, rr2=9+q*12; ctx.beginPath(); ctx.moveTo(a.x+Math.cos(ang)*rr1,a.y+Math.sin(ang)*rr1); ctx.lineTo(a.x+Math.cos(ang)*rr2,a.y+Math.sin(ang)*rr2); ctx.stroke(); }
+    } else if (fx.type==='ironUltimate') {
+      const exact=Math.max(0,Number(fx.radiusWorld)||12)*SCALE;
+      ctx.globalAlpha=(1-q)*.92; ctx.strokeStyle='#ffd36b'; ctx.lineWidth=4.2-2.0*q;
+      ctx.beginPath(); ctx.arc(a.x,a.y,exact,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=(1-q)*.34; ctx.fillStyle='#ffc447'; ctx.beginPath(); ctx.arc(a.x,a.y,exact,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=(1-q)*.88; ctx.strokeStyle='#fff0ad'; ctx.lineWidth=3.0;
+      ctx.beginPath(); ctx.arc(a.x,a.y,exact*q,0,Math.PI*2); ctx.stroke();
+    } else if (fx.type==='waterUltimate') {
+      const exact=Math.max(0,Number(fx.radiusWorld)||16)*SCALE;
+      ctx.globalAlpha=(1-q)*.82; ctx.strokeStyle='#7eeaff'; ctx.lineWidth=4.0-1.7*q;
+      ctx.beginPath(); ctx.arc(a.x,a.y,exact,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=(1-q)*.22; ctx.fillStyle='#55d8ff'; ctx.beginPath(); ctx.arc(a.x,a.y,exact,0,Math.PI*2); ctx.fill();
+      for (let k=0;k<3;k++) { const phase=Math.max(0,Math.min(1,q-k*.10)); ctx.globalAlpha=(1-phase)*.72; ctx.strokeStyle='#c8f8ff'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(a.x,a.y,exact*phase,0,Math.PI*2); ctx.stroke(); }
+    } else if (fx.type==='shooterUltimate') {
+      ctx.globalAlpha=(1-q)*.86; ctx.strokeStyle='#93c8ff'; ctx.lineWidth=3.3;
+      for (let k=0;k<3;k++) { const rr=8+q*(18+k*7); ctx.beginPath(); ctx.arc(a.x,a.y,rr,k*2.05+q*2,k*2.05+q*2+.85); ctx.stroke(); }
+    } else if (fx.type==='sniperUltimate') {
+      ctx.globalAlpha=(1-q)*.90; ctx.strokeStyle='#eadcff'; ctx.lineWidth=2.7;
+      ctx.beginPath(); ctx.arc(a.x,a.y,7+q*28,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(a.x-22-q*12,a.y); ctx.lineTo(a.x+22+q*12,a.y); ctx.moveTo(a.x,a.y-22-q*12); ctx.lineTo(a.x,a.y+22+q*12); ctx.stroke();
+    } else if (fx.type==='fireUltimate') {
+      ctx.strokeStyle='#ff9a45'; ctx.lineWidth=3.0;
+      for (let k=0;k<6;k++) { const ang=k*Math.PI/3+q*.9; const r1=8+q*10, r2=15+q*25; ctx.globalAlpha=(1-q)*(.88-k*.06); ctx.beginPath(); ctx.moveTo(a.x+Math.cos(ang)*r1,a.y+Math.sin(ang)*r1); ctx.lineTo(a.x+Math.cos(ang)*r2,a.y+Math.sin(ang)*r2); ctx.stroke(); }
     } else if (fx.type==='reactor33' || fx.type==='reactor66' || fx.type==='reactor100' || fx.type==='reactorDown') {
       const strong=fx.type==='reactor100'?1:(fx.type==='reactor66' ? .78:(fx.type==='reactor33' ? .48:.34));
       ctx.globalAlpha=(1-q)*(.50+strong*.32); ctx.strokeStyle=fx.type==='reactorDown'?'#d08a63':'#ff7a2e'; ctx.lineWidth=1.7+strong*2.0;
@@ -2949,6 +3047,23 @@ function renderGame() {
       ctx.stroke();
       ctx.restore();
     }
+
+    // Local-only pre-cast radius guide for the two instant area ultimates.
+    // Opponents do not see this preparation guide; everybody sees the exact cast ring after activation.
+    const ultGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && (p.character === 'iron' || p.character === 'water'));
+    if (ultGuidePlayer) {
+      const udef = characterPublicDef(ultGuidePlayer.character);
+      const cost = Math.max(0, Number(udef?.ultimateCost) || 0);
+      const charge = Math.max(0, Number(ultGuidePlayer.ultimateCharge) || 0);
+      const radiusWorld = Math.max(0, Number(udef?.ultimateRadius) || 0);
+      if (cost > 0 && charge + 1e-9 >= cost && radiusWorld > 0) {
+        const uw = renderedPlayerWorldPosition(ultGuidePlayer, beamFxNow);
+        const us = worldToScreen(uw.x, uw.y);
+        const pulse=.26+.06*Math.sin(beamFxNow*.006);
+        ctx.save(); ctx.globalAlpha=pulse; ctx.strokeStyle=ultGuidePlayer.character==='iron'?'#ffd36b':'#7eeaff'; ctx.lineWidth=1.7; ctx.setLineDash([7,7]);
+        ctx.beginPath(); ctx.arc(us.x,us.y,radiusWorld*SCALE,0,Math.PI*2); ctx.stroke(); ctx.restore();
+      }
+    }
   }
 
   for (const p of viewState.players) {
@@ -2964,6 +3079,15 @@ function renderGame() {
       ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill(); ctx.restore();
     }
     ctx.lineWidth = p.id === myId ? 4 : 2.2; ctx.strokeStyle = p.team === 'A' ? '#2f77ff' : '#ff4545'; ctx.stroke();
+    if (Number(p.ultimateActiveMs||0) > 0) {
+      const phase=beamFxNow*.006;
+      const palette=({shooter:'#93c8ff',sniper:'#eadcff',fire:'#ff9a45'})[p.character];
+      if (palette) {
+        ctx.save(); ctx.strokeStyle=palette; ctx.lineWidth=2.6; ctx.globalAlpha=.72+.18*Math.sin(phase+x*.01);
+        ctx.beginPath(); ctx.arc(x,y,radius+10+2*Math.sin(phase),0,Math.PI*2); ctx.stroke();
+        ctx.globalAlpha=.13; ctx.fillStyle=palette; ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.fill(); ctx.restore();
+      }
+    }
     if (p.shield > 0) {
       const spulse=.72 + .18*Math.sin(beamFxNow*.010 + x*.01);
       ctx.save(); ctx.globalAlpha=spulse; ctx.lineWidth=2.4; ctx.strokeStyle='#67d8ff';
@@ -3118,7 +3242,10 @@ function renderGame() {
   if (spectatorMode) {
     $('myInfo').innerHTML = '';
     $('respawn').textContent = '';
+    $('actionButtons').classList.add('hidden');
     $('abilityButton').classList.add('hidden');
+    $('ultimateButton').classList.add('hidden');
+    $('ultimateHud').classList.add('hidden');
   }
   $('scoreA').textContent = Math.floor(viewState.scoreA); $('scoreB').textContent = Math.floor(viewState.scoreB);
   if (me) {
@@ -3164,12 +3291,40 @@ function renderGame() {
     }
     const shieldLine = me.shield > 0 ? `<br>🛡️ 보호막 ${Math.ceil(me.shield)}/${Math.ceil(me.maxShield || me.shield)}${me.shieldMs > 0 ? ` · ${(me.shieldMs/1000).toFixed(1)}초` : ''}` : '';
     const stunLine = me.stunned ? '<br>💫 기절' : '';
+    const ultDef = characterPublicDef(me.character);
+    const ultCost = Math.max(0, Number(ultDef?.ultimateCost) || 0);
+    const ultCharge = ultCost > 0 ? Math.max(0, Math.min(ultCost, Number(me.ultimateCharge) || 0)) : 0;
+    const ultPct = ultCost > 0 ? Math.floor(ultCharge / ultCost * 100) : 0;
+    const ultReady = ultCost > 0 && ultCharge + 1e-9 >= ultCost;
     $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${extra}`;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
+
+    const ultimateHud = $('ultimateHud');
+    const ultimateButton = $('ultimateButton');
+    if (ultCost > 0) {
+      ultimateHud.classList.remove('hidden');
+      ultimateHud.classList.toggle('ready', ultReady);
+      $('ultimateName').textContent = `⚡ ${ultDef?.ultimateName || '궁극기'}`;
+      $('ultimateValue').textContent = Number(me.ultimateActiveMs||0) > 0 ? `${ultDef?.ultimateName || '궁극기'} 활성 · ${(Number(me.ultimateActiveMs)/1000).toFixed(1)}초` : (ultReady ? '100% · 준비 완료' : `${ultPct}% · ${Math.floor(ultCharge)}/${Math.floor(ultCost)}`);
+      $('ultimateFill').style.width = `${Math.max(0, Math.min(100, ultPct))}%`;
+      ultimateButton.classList.remove('hidden');
+      ultimateButton.classList.toggle('ready', ultReady);
+      ultimateButton.disabled = !me.alive || me.stunned || !ultReady;
+      ultimateButton.textContent = ultReady ? `⚡ ${ultDef?.ultimateName || '궁극기'} · R` : `⚡ ${ultPct}%`;
+    } else {
+      ultimateHud.classList.add('hidden');
+      ultimateHud.classList.remove('ready');
+      $('ultimateFill').style.width = '0%';
+      ultimateButton.classList.add('hidden');
+      ultimateButton.classList.remove('ready');
+      ultimateButton.disabled = true;
+    }
 
     const ability = $('abilityButton');
     const hasAbility = me.character === 'dia' || me.character === 'runner' || me.character === 'wind' || me.character === 'angel' || me.character === 'shield' || me.character === 'jet';
     ability.classList.toggle('hidden', !hasAbility);
+    const actionButtons = $('actionButtons');
+    actionButtons.classList.toggle('hidden', !hasAbility && ultCost <= 0);
     if (me.character === 'dia') {
       if (!me.alive) { ability.textContent = '💎 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }
       else if (me.diaForm) { ability.textContent = `💎 폼 ${(me.diaFormMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.add('active'); }

@@ -27,6 +27,7 @@ const WS_PING_INTERVAL_MS = Math.max(5000, Number(process.env.SCHOOL_LINE_WS_PIN
 const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS + 5000, Number(process.env.SCHOOL_LINE_WS_STALE_TIMEOUT_MS || 15000));
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
+const POST_GAME_ROOM_CLOSE_MS = 10000;
 const COMPETITIVE_BAN_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_BAN_MS || 10000));
 const COMPETITIVE_PICK_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_PICK_MS || 10000));
 const COMPETITIVE_READY_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_READY_MS || 20000));
@@ -34,6 +35,8 @@ const COMPETITIVE_DATA_DIR = process.env.SCHOOL_LINE_DATA_DIR ? path.resolve(pro
 const COMPETITIVE_STATS_FILE = path.join(COMPETITIVE_DATA_DIR, 'competitive_stats.json');
 const RESPAWN_MS = 10000;
 const RESPAWN_INVULN_MS = 2000;
+const RESPAWN_POST_SHIELD = 100;
+const RESPAWN_POST_SHIELD_MS = 3000;
 const NONCOMBAT_REGEN_DELAY_MS = 4000;
 const NONCOMBAT_REGEN_HPS = 30;
 const SPECTATOR_PIN_HASH = '72a2d4365f37780690ee9d05b9a173e9036187fbfd5b5ae61785c5d5b0bf8a8a'; // SHA-256 of teacher PIN
@@ -45,26 +48,26 @@ const ADMIN_STATS_LOCK_MS = 30000;
 const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN hash; plaintext never leaves the browser request.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.4';
+const BALANCE_VERSION = '1.5';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1';
-const COMPETITIVE_ROSTER_VERSION = 'alpha-1.4-r22-shield';
+const COMPETITIVE_BUILD_ID = 'alpha-1.5-r22-shield-cumulative-bwopt9c6sparse-c6projectilefix1-draftrolesui1-shooter42-spray14-4-4-healnumbers200-healerselfheal25-angelbless12-windhps60-bufferhps45-fireburnantiheal30-starhp200-diacd16-diabeam90-diaspeed7-autoroomclose10-iron85-shield75-shieldspeed14-shieldcap500-reactordmg5-kill10-reactorbands80-105-130-respawnshield100x3-windhp175-angelhp175-angelhps50-bufferhp200-irondr20-shieldgrant175-diaformhp450-homecover6x1p8-jethp350-ultcharge1-ultui1-ulteffects1';
+const COMPETITIVE_ROSTER_VERSION = 'alpha-1.5-r22-shield';
 
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
 const SPEED_TIERS = [4.0, 5.0, 6.0, 7.0, 8.0, 9.2];
-const GLOBAL_SHIELD_CAP = 300;
+const GLOBAL_SHIELD_CAP = 500;
 const MAX_EXTERNAL_HEAL_REDUCTION = 0.80;
-const HEALER_ALLY_SELF_HEAL_RATIO = 0.50;
+const HEALER_ALLY_SELF_HEAL_RATIO = 0.25;
 // Healing feedback reuses the existing healHitSeq/lastHealTargetId wire slots.
 // Throttle at the authority layer so beam/link healing cannot generate audio events every 50 Hz tick.
 const HEAL_FEEDBACK_INTERVAL_MS = 250;
 // Small private healer HUD numbers are aggregated in 200 ms windows. They are sent only
 // when effective healing was actually delivered to another ally, never as a recurring field.
 const HEAL_NUMBER_INTERVAL_MS = 200;
-const DAMAGE_TAKEN_MULTIPLIERS = Object.freeze({ iron: 0.90, shield: 0.90, mecha: 0.90 });
+const DAMAGE_TAKEN_MULTIPLIERS = Object.freeze({ iron: 0.80, shield: 0.90, mecha: 0.90 });
 // Dual-purpose healing projectiles are intentionally easier to land on allies only.
 // This is a server-side collision rule, so it adds no recurring WebSocket payload.
 const DUAL_PURPOSE_HEAL_ALLY_RADIUS_MULTIPLIER = 1.4;
@@ -81,18 +84,23 @@ const STATUS_DEFS = Object.freeze({
 });
 
 const WALLS = [
+  // Alpha 1.5 home-zone cover: symmetric 6 m x 1.8 m LOS blockers centered in each 18 m owned zone.
+  // World coordinates use x across the 42 m width and y along the 68 m depth.
+  { x: 20.1, y: 6, w: 1.8, h: 6 },
   { x: 5, y: 24, w: 10, h: 3 },
   { x: 27, y: 24, w: 10, h: 3 },
   { x: 18, y: 31, w: 6, h: 6 },
   { x: 5, y: 41, w: 10, h: 3 },
-  { x: 27, y: 41, w: 10, h: 3 }
+  { x: 27, y: 41, w: 10, h: 3 },
+  { x: 20.1, y: 56, w: 1.8, h: 6 }
 ];
 
 const CHARACTERS = {
   iron: {
     name: '아이언', role: '탱커', hp: 600, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 15
+    projectileType: 'attack', damage: 17,
+    ultimateName: '분쇄', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해 + 1.5초 기절', ultimateRadius: 12, ultimateDamage: 50, ultimateStunDuration: 1.5
   },
   mecha: {
     name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
@@ -100,7 +108,7 @@ const CHARACTERS = {
     projectileType: 'attack', damage: 13
   },
   jet: {
-    name: '제트', role: '탱커', hp: 300, speed: 6.0, radius: 1.00,
+    name: '제트', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
     fireRate: 5, range: 12, projectileSpeed: 20, projectileRadius: 0.32,
     projectileType: 'attack', damage: 19,
     boostDistance: 12, boostDuration: 0.3, boostCooldown: 10,
@@ -114,9 +122,9 @@ const CHARACTERS = {
   },
   shield: {
     name: '쉴드', role: '탱커', hp: 450, speed: 5.0, radius: 1.00,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 12,
-    abilityId: 'shield', shieldAmount: 150, shieldDuration: 3, shieldCap: GLOBAL_SHIELD_CAP,
+    fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.32,
+    projectileType: 'attack', damage: 15,
+    abilityId: 'shield', shieldAmount: 175, shieldDuration: 3, shieldCap: GLOBAL_SHIELD_CAP,
     shieldMaxCharges: 2, shieldRecharge: 8,
     abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
   },
@@ -129,13 +137,15 @@ const CHARACTERS = {
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 42, projectileRadius: 0.20,
-    projectileType: 'attack', damage: 20
+    projectileType: 'attack', damage: 20,
+    ultimateName: '자신감', ultimateCost: 1000, ultimateDescription: '8초간 이속 +2단계 · 125 DPS · 사거리 32m', ultimateDuration: 8, ultimateDamage: 25, ultimateRange: 32, ultimateSpeedTierDelta: 2
   },
   sniper: {
     name: '스나이퍼', role: '딜러', hp: 150, speed: 5.0, radius: 0.65,
     fireRate: 2, range: 36, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'attack', distanceDamage: true,
-    distanceDamageBands: [{ max: 16, damage: 45 }, { max: 36, damage: 60 }]
+    distanceDamageBands: [{ max: 16, damage: 45 }, { max: 36, damage: 60 }],
+    ultimateName: '집중 사격', ultimateCost: 800, ultimateDescription: '8초간 16m 초과 200 DPS · 탄 크기 보통', ultimateDuration: 8, ultimateLongRangeDamage: 100, ultimateProjectileRadius: 0.32
   },
   cannon: {
     name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
@@ -145,7 +155,8 @@ const CHARACTERS = {
   fire: {
     name: '파이어', role: '딜러', hp: 200, speed: 7.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
-    projectileType: 'attack', damage: 16, burnDps: 10, burnDuration: 2
+    projectileType: 'attack', damage: 16, burnDps: 10, burnDuration: 2, burnHealReduction: 0.30,
+    ultimateName: '대화재', ultimateCost: 800, ultimateDescription: '8초간 탄 크기 1단계 증가 · 화상 4초', ultimateDuration: 8, ultimateProjectileRadius: 0.32, ultimateBurnDuration: 4
   },
   poison: {
     name: '포이즌', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
@@ -155,15 +166,16 @@ const CHARACTERS = {
   reactor: {
     name: '리액터', role: '딜러', hp: 225, speed: 6.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 18,
+    projectileType: 'attack', damage: 16,
     // Official output stages use exclusive upper bounds for stages 1 and 2:
     // stage 1 = [0,33), stage 2 = [33,66), stage 3 = [66,100].
+    // Alpha 1.5 structure pass: 80 / 105 / 130 DPS at 5 shots/s.
     reactorOutputBands: [
-      { max: 33, damage: 18 },
-      { max: 66, damage: 22 },
+      { max: 33, damage: 16 },
+      { max: 66, damage: 21 },
       { max: 100, damage: 26 }
     ],
-    reactorDamagePerOutput: 3, reactorKillOutputGain: 25, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
+    reactorDamagePerOutput: 5, reactorKillOutputGain: 10, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
     reactorHighThreshold: 66, reactorHighSpeed: 7.0,
     radiationHealReduction: 0.25, radiationDuration: 1.5
   },
@@ -177,30 +189,31 @@ const CHARACTERS = {
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
-    projectileType: 'heal', heal: 16, damage: 10
+    projectileType: 'heal', heal: 16, damage: 10,
+    ultimateName: '범람', ultimateCost: 1600, ultimateDescription: '반경 16m 자신·아군 200 회복 + 보호막 200(3초)', ultimateRadius: 16, ultimateHeal: 200, ultimateShield: 200, ultimateShieldDuration: 3
   },
   wind: {
-    name: '윈드', role: '힐러', hp: 225, speed: 7.0, radius: 0.65,
+    name: '윈드', role: '힐러', hp: 175, speed: 7.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
-    projectileType: 'heal', heal: 13, damage: 10,
+    projectileType: 'heal', heal: 12, damage: 10,
     tailwindDuration: 4, tailwindCooldown: 15, abilityId: 'tailwind'
   },
   star: {
-    name: '스타', role: '힐러', hp: 175, speed: 5.0, radius: 0.80,
+    name: '스타', role: '힐러', hp: 200, speed: 5.0, radius: 0.80,
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'heal', heal: 45, damage: 25
   },
   angel: {
-    name: '엔젤', role: '힐러', hp: 200, speed: 6.0, radius: 0.65,
+    name: '엔젤', role: '힐러', hp: 175, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
-    projectileType: 'heal', heal: 8, damage: 10,
-    abilityId: 'blessing', abilityCooldown: 10, abilityHeal: 100,
+    projectileType: 'heal', heal: 10, damage: 10,
+    abilityId: 'blessing', abilityCooldown: 12, abilityHeal: 100,
     abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
   },
   buffer: {
-    name: '버퍼', role: '힐러', hp: 225, speed: 5.0, radius: 0.65,
+    name: '버퍼', role: '힐러', hp: 200, speed: 5.0, radius: 0.65,
     range: 16, noBasicAttack: true,
-    linkHealHps: 50, actionSpeedBoost: 0.25,
+    linkHealHps: 45, actionSpeedBoost: 0.25,
     linkTargeting: { relations: [TARGET_RELATION.ALLY], range: 16, requireLos: false }
   },
   light: {
@@ -220,13 +233,13 @@ const CHARACTERS = {
     name: '다이아', role: '탱커', hp: 350, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13,
-    formDuration: 6, formCooldown: 18, formHp: 400, formSpeed: 6.0,
-    formRange: 16, formBeamDps: 80, formKillCooldownReduction: 6, abilityId: 'form'
+    formDuration: 6, formCooldown: 16, formHp: 450, formSpeed: 7.0,
+    formRange: 16, formBeamDps: 90, formKillCooldownReduction: 6, abilityId: 'form'
   }
 };
 
 // Dormant perk framework for a future balance version.
-// Alpha 1.4 intentionally keeps this feature OFF: no offers, no UI activation,
+// Alpha 1.5 intentionally keeps this feature OFF: no offers, no UI activation,
 // no gameplay effects and no live-snapshot fields are emitted while disabled.
 const PERK_SYSTEM = Object.freeze({
   enabled: false,
@@ -734,6 +747,10 @@ function reactorDamageForOutput(def, output) {
   return Number(band && band.damage) || Number(def && def.damage) || 0;
 }
 
+function isUltimateActive(player, now = Date.now()) {
+  return !!player && Number(player.ultimateUntil || 0) > now;
+}
+
 function currentAttackDef(player, now) {
   const def = CHARACTERS[player.character];
   if (isDiaForm(player, now)) {
@@ -741,6 +758,21 @@ function currentAttackDef(player, now) {
   }
   if (player.character === 'reactor') {
     return { ...def, damage: reactorDamageForOutput(def, player.reactorOutput) };
+  }
+  if (isUltimateActive(player, now)) {
+    if (player.character === 'shooter') {
+      return { ...def, damage: def.ultimateDamage, range: def.ultimateRange };
+    }
+    if (player.character === 'sniper') {
+      return {
+        ...def,
+        projectileRadius: def.ultimateProjectileRadius,
+        distanceDamageBands: [{ max: 16, damage: 45 }, { max: def.range, damage: def.ultimateLongRangeDamage }]
+      };
+    }
+    if (player.character === 'fire') {
+      return { ...def, projectileRadius: def.ultimateProjectileRadius, burnDuration: def.ultimateBurnDuration };
+    }
   }
   return def;
 }
@@ -755,6 +787,7 @@ function currentBaseSpeed(player, now) {
 function effectiveSpeed(player, now) {
   let delta = 0;
   if (player.character === 'runner' && player.sprintUntil > now) delta += 1;
+  if (player.character === 'shooter' && isUltimateActive(player, now)) delta += Number(CHARACTERS.shooter.ultimateSpeedTierDelta) || 0;
   const tailwind = getStatus(player, 'tailwind', now);
   const slow = getStatus(player, 'slow', now);
   if (tailwind) delta += Number(tailwind.data && tailwind.data.tierDelta) || 1;
@@ -897,7 +930,7 @@ function applyShield(room, source, target, amount, options = {}) {
   if (raw <= 0) return 0;
 
   // Alpha 1.3 unified shield rule:
-  // every temporary shield source shares one additive pool and the pool can never exceed 300.
+  // every temporary shield source shares one additive pool and the pool can never exceed 500.
   // The options argument is intentionally retained for backward-compatible callers/tests,
   // but per-source replace/cap behavior is no longer used.
   const before = Math.max(0, Number(target.shield) || 0);
@@ -1587,7 +1620,7 @@ function onMessage(conn, msg) {
   const player = room.players.get(conn.playerId);
   if (!player) return;
 
-  if (msg.type === 'select' && (room.state === 'lobby' || room.state === 'ended')) {
+  if (msg.type === 'select' && room.state === 'lobby') {
     const requested = validCharacter(msg.character);
     if (requested !== player.character && isCharacterTakenOnTeam(room, player.team, requested, player.id)) {
       conn.send({ type: 'pick_error', character: requested, message: '같은 팀에서 이미 사용 중인 캐릭터입니다.' });
@@ -1595,14 +1628,15 @@ function onMessage(conn, msg) {
       return;
     }
     player.character = requested;
+    player.respawnShieldAt = 0;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
+    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
     resetPerkState(player);
     broadcast(room);
     return;
   }
-  if (msg.type === 'start' && room.hostId === player.id && (room.state === 'lobby' || room.state === 'ended')) {
+  if (msg.type === 'start' && room.hostId === player.id && room.state === 'lobby') {
     pruneDisconnectedEndedPlayers(room);
     const unpicked = [...room.players.values()].filter(p => !p.character);
     if (unpicked.length) {
@@ -1614,7 +1648,7 @@ function onMessage(conn, msg) {
     startMatch(room);
     return;
   }
-  if (msg.type === 'competitive_start' && room.hostId === player.id && (room.state === 'lobby' || room.state === 'ended')) {
+  if (msg.type === 'competitive_start' && room.hostId === player.id && room.state === 'lobby') {
     pruneDisconnectedEndedPlayers(room);
     if (!isExactCompetitiveRoster(room)) {
       conn.send({ type: 'start_error', message: '경쟁게임은 A팀 4명 + B팀 4명, 총 8명이 모두 접속해 있어야 시작할 수 있습니다.' });
@@ -1669,6 +1703,10 @@ function onMessage(conn, msg) {
       player.abilityUseSeq = (player.abilityUseSeq || 0) + 1;
       player.lastAbilityTargetId = abilityTarget ? abilityTarget.id : null;
     }
+    return;
+  }
+  if (msg.type === 'ultimate' && room.state === 'playing') {
+    activateUltimate(room, player, Date.now());
     return;
   }
   if (msg.type === 'link_target' && room.state === 'playing') {
@@ -1732,6 +1770,10 @@ function joinSpectator(conn, msg) {
     conn.send({ type: 'error', message: '아직 만들어지지 않은 방입니다. 학생이 먼저 입장해야 합니다.' });
     return;
   }
+  if (room.state === 'ended') {
+    conn.send({ type: 'error', code: 'room_ending', message: '경기가 종료되어 이 방은 곧 자동으로 닫힙니다. 잠시 후 다시 입장해주세요.' });
+    return;
+  }
   const spectatorId = `S${spectatorCounter++}`;
   conn.spectatorId = spectatorId;
   conn.roomCode = code;
@@ -1752,7 +1794,7 @@ function joinRoom(conn, msg) {
     const sameRoom = existing.room.code === code;
     const canRecoverByNickname = sameRoom
       && existing.player.connected === false
-      && ['draft','ready','playing','ended'].includes(existing.room.state);
+      && ['draft','ready','playing'].includes(existing.room.state);
     if (canRecoverByNickname) {
       // Classroom-friendly fallback: if the browser lost its resume token, typing the
       // same nickname into the same room reclaims the disconnected authoritative seat.
@@ -1775,7 +1817,8 @@ function joinRoom(conn, msg) {
   let room = rooms.get(code);
   if (!room) { room = newRoom(code); rooms.set(code, room); }
   if (room.players.size >= 8) { conn.send({ type: 'error', message: '이 방은 이미 8명입니다.' }); return; }
-  if (room.state !== 'lobby' && room.state !== 'ended') { conn.send({ type: 'error', message: '이미 게임 준비 또는 경기가 진행 중입니다.' }); return; }
+  if (room.state === 'ended') { conn.send({ type: 'error', code: 'room_ending', message: '경기가 종료되어 이 방은 곧 자동으로 닫힙니다. 잠시 후 다시 입장해주세요.' }); return; }
+  if (room.state !== 'lobby') { conn.send({ type: 'error', message: '이미 게임 준비 또는 경기가 진행 중입니다.' }); return; }
 
   const team = msg.team === 'A' || msg.team === 'B' ? msg.team : null;
   if (!team) { conn.send({ type: 'error', message: 'A팀 또는 B팀을 선택하세요.' }); return; }
@@ -1786,7 +1829,7 @@ function joinRoom(conn, msg) {
     id, name: requestedName, team, character: null,
     resumeToken: newResumeToken(), connected: true, disconnectedAt: 0,
     x: 21, y: team === 'A' ? 5 : 63,
-    hp: 0, maxHp: 0, alive: true, respawnAt: 0, invulnerableUntil: 0,
+    hp: 0, maxHp: 0, alive: true, respawnAt: 0, invulnerableUntil: 0, respawnShieldAt: 0,
     aimX: 21, aimY: team === 'A' ? 20 : 48,
     input: { up: false, down: false, left: false, right: false, fire: false },
     nextFireAt: 0, lastPeriodicActionAt: 0,
@@ -1799,7 +1842,7 @@ function joinRoom(conn, msg) {
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
     jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
-    reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0,
+    reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0,
     perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
     shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
     stats: makeMatchStats(null)
@@ -1880,7 +1923,7 @@ function resumeRoom(conn, msg) {
     conn.send({ type: 'error', code: 'resume_invalid', message: '이 경기의 재접속 자리를 찾을 수 없습니다. 다시 입장해주세요.' });
     return;
   }
-  if (!['draft','ready','playing','ended'].includes(room.state)) {
+  if (!['draft','ready','playing'].includes(room.state)) {
     conn.send({ type: 'error', code: 'resume_unavailable', message: '현재는 재접속할 진행 상태가 아닙니다. 일반 입장을 이용해주세요.' });
     return;
   }
@@ -1892,7 +1935,7 @@ function publicCharacterDefs() {
   const displayFields = [
     'range', 'fireRate', 'projectileType', 'attackType', 'damage', 'heal',
     'projectileSpeed', 'projectileRadius', 'beamDps', 'healHps', 'maxHpDpsRatio',
-    'burnDps', 'burnDuration', 'poisonHealReduction', 'poisonDuration', 'radiationHealReduction', 'radiationDuration',
+    'burnDps', 'burnDuration', 'burnHealReduction', 'poisonHealReduction', 'poisonDuration', 'radiationHealReduction', 'radiationDuration',
     'slowTierDelta', 'slowDuration', 'tailwindDuration', 'tailwindCooldown',
     'solarFireRate', 'solarProjectileRange', 'solarProjectileSpeed',
     'solarProjectileRadius', 'solarProjectileDamage', 'solarSelfHeal',
@@ -1901,7 +1944,8 @@ function publicCharacterDefs() {
     'shieldAmount', 'shieldDuration', 'shieldCap', 'shieldMaxCharges', 'shieldRecharge',
     'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
     'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
-    'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction'
+    'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction',
+    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateLongRangeDamage', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration'
   ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
     const def = {
@@ -1983,13 +2027,13 @@ function startMatch(room, now = Date.now()) {
     const def = CHARACTERS[p.character];
     const sp = spawnPoint(room, p);
     Object.assign(p, {
-      x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0, invulnerableUntil: 0,
+      x: sp.x, y: sp.y, hp: def.hp, maxHp: def.hp, alive: true, respawnAt: 0, invulnerableUntil: 0, respawnShieldAt: 0,
       connected: p.connected !== false, disconnectedAt: p.connected === false ? (p.disconnectedAt || now) : 0,
       nextFireAt: 0, lastPeriodicActionAt: 0, bufferTargetId: null, statuses: Object.create(null), shield: 0, maxShield: 0, shieldUntil: 0, shieldCreditBySource: Object.create(null), shieldUncredited: 0,
       shieldAbilityCharges: p.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0, shieldRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
       jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
-      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, lastCombatAt: now,
+      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, lastCombatAt: now,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
       stats: makeMatchStats(p.character)
@@ -2152,7 +2196,7 @@ function registerKill(room, attackerId, now, direct = true) {
   if (attacker.alive && attacker.character === 'reactor') {
     const reactorDef = CHARACTERS.reactor;
     attacker.reactorOutput = clamp(
-      Number(attacker.reactorOutput || 0) + Number(reactorDef.reactorKillOutputGain || 25),
+      Number(attacker.reactorOutput || 0) + Number(reactorDef.reactorKillOutputGain || 10),
       0,
       100
     );
@@ -2169,11 +2213,13 @@ function registerDirectKill(room, attackerId, now) {
 }
 
 function die(room, player, now) {
+  player.ultimateUntil = 0;
   ensureMatchStats(player).deaths += 1;
   player.hp = 0;
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
   player.invulnerableUntil = 0;
+  player.respawnShieldAt = 0;
   clearAllStatuses(player); clearShield(player);
   if (player.character === 'dia') {
     player.diaFormUntil = 0;
@@ -2193,6 +2239,7 @@ function respawn(room, player, now) {
   player.x = sp.x; player.y = sp.y;
   player.hp = def.hp; player.maxHp = def.hp;
   player.alive = true; player.respawnAt = 0; player.invulnerableUntil = now + RESPAWN_INVULN_MS;
+  player.respawnShieldAt = player.invulnerableUntil;
   clearAllStatuses(player); clearShield(player);
   player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
@@ -2201,6 +2248,14 @@ function respawn(room, player, now) {
   if (player.character === 'reactor') { player.reactorOutput = 0; player.reactorLastDamageAt = 0; }
   if (player.character === 'buffer') player.bufferTargetId = null;
   player.lastPeriodicActionAt = 0;
+}
+
+function applyRespawnPostShield(room, player, now) {
+  if (!player || !player.alive || !player.respawnShieldAt || now < player.respawnShieldAt) return false;
+  player.respawnShieldAt = 0;
+  applyShield(room, null, player, RESPAWN_POST_SHIELD);
+  player.shieldUntil = Math.max(Number(player.shieldUntil) || 0, now + RESPAWN_POST_SHIELD_MS);
+  return true;
 }
 
 function collidesWall(x, y, r) {
@@ -2282,12 +2337,76 @@ function ensureMatchStats(player) {
   return player.stats;
 }
 
-function dealDamageDetailed(room, attackerId, target, amount, now) {
+function ultimateCostForPlayer(player) {
+  if (!player) return 0;
+  return Math.max(0, Number(CHARACTERS[player.character]?.ultimateCost) || 0);
+}
+
+function grantUltimateCharge(player, amount) {
+  const cost = ultimateCostForPlayer(player);
+  const gain = Math.max(0, Number(amount) || 0);
+  if (cost <= 0 || gain <= 0) return 0;
+  const before = clamp(Number(player.ultimateCharge) || 0, 0, cost);
+  const after = Math.min(cost, before + gain);
+  player.ultimateCharge = after;
+  return after - before;
+}
+
+function ultimateChargePercent(player) {
+  const cost = ultimateCostForPlayer(player);
+  if (cost <= 0) return 0;
+  return clamp((Number(player.ultimateCharge) || 0) / cost * 100, 0, 100);
+}
+
+function activateUltimate(room, player, now = Date.now()) {
+  if (!room || !player || !player.alive || isStunned(player, now)) return false;
+  const def = CHARACTERS[player.character];
+  const cost = ultimateCostForPlayer(player);
+  if (!def || cost <= 0 || (Number(player.ultimateCharge) || 0) + 1e-9 < cost) return false;
+
+  let activated = false;
+  if (player.character === 'iron') {
+    const radius = Number(def.ultimateRadius) || 12;
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team === player.team || target.id === player.id) continue;
+      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
+      const result = dealDamageDetailed(room, player.id, target, Number(def.ultimateDamage) || 50, now, { countsForUltimate: false });
+      if (target.hp <= 0) {
+        registerDirectKill(room, player.id, now);
+        die(room, target, now);
+        continue;
+      }
+      if (result.total > 0) applyStatus(room, player, target, 'stun', (Number(def.ultimateStunDuration) || 1.5) * 1000, now);
+    }
+    activated = true;
+  } else if (player.character === 'water') {
+    const radius = Number(def.ultimateRadius) || 16;
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team !== player.team) continue;
+      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
+      applyHealing(room, player, target, Number(def.ultimateHeal) || 200, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+      applyShield(room, player, target, Number(def.ultimateShield) || 200);
+      target.shieldUntil = Math.max(Number(target.shieldUntil) || 0, now + (Number(def.ultimateShieldDuration) || 3) * 1000);
+      if (target.character === 'jet') target.jetShieldUntil = target.shieldUntil;
+    }
+    activated = true;
+  } else if (player.character === 'shooter' || player.character === 'sniper' || player.character === 'fire') {
+    player.ultimateUntil = now + (Number(def.ultimateDuration) || 8) * 1000;
+    activated = true;
+  }
+
+  if (!activated) return false;
+  player.ultimateCharge = 0;
+  player.ultimateUseSeq = (player.ultimateUseSeq || 0) + 1;
+  return true;
+}
+
+function dealDamageDetailed(room, attackerId, target, amount, now, options = null) {
   const incoming = Math.max(0, Number(amount) || 0);
   if (incoming <= 0 || !target || !target.alive || target.invulnerableUntil > now) return { total: 0, hp: 0, shield: 0 };
-  // Alpha 1.4 defensive-role tuning: selected tanks take 10% less incoming damage from every
-  // damage path that reaches the authoritative damage resolver (projectiles, beams, DoT, etc.).
-  // Shield and Mecha remain stealth adjustments, as does the existing Iron reduction.
+  // Defensive-role tuning: selected tanks use authoritative incoming-damage multipliers for
+  // every damage path that reaches this resolver (projectiles, beams, DoT, etc.).
+  // These remain intentionally hidden from student-facing trait text.
   const damageTakenMultiplier = Number(DAMAGE_TAKEN_MULTIPLIERS[target.character]) || 1;
   const raw = incoming * damageTakenMultiplier;
   let remaining = raw;
@@ -2307,11 +2426,13 @@ function dealDamageDetailed(room, attackerId, target, amount, now) {
   const attacker = room.players.get(attackerId);
   if (attacker) {
     ensureMatchStats(attacker).damage += total;
+    const countsForUltimate = !options || options.countsForUltimate !== false;
+    if (countsForUltimate && attacker.team !== target.team) grantUltimateCharge(attacker, total);
   }
   markCombat(room, attackerId, target, now);
   return { total, hp: hpDamage, shield: shieldDamage };
 }
-function dealDamage(room, attackerId, target, amount, now) { return dealDamageDetailed(room, attackerId, target, amount, now).total; }
+function dealDamage(room, attackerId, target, amount, now, options = null) { return dealDamageDetailed(room, attackerId, target, amount, now, options).total; }
 
 function queueHealerNumberFeedback(healer, amount, now) {
   const value = Math.max(0, Number(amount) || 0);
@@ -2338,7 +2459,7 @@ function flushHealerNumberFeedback(room, now) {
   return sent;
 }
 
-function applyHealing(room, healer, target, amount, now) {
+function applyHealing(room, healer, target, amount, now, options = null) {
   const raw = Math.max(0, Number(amount) || 0);
   const before = Math.max(0, target.hp);
   const missing = Math.max(0, target.maxHp - before);
@@ -2347,12 +2468,14 @@ function applyHealing(room, healer, target, amount, now) {
   let effectiveRaw = raw;
   // Harmful anti-heal effects use simple additive reduction. Natural noncombat regen
   // and self-healing do not use this external-healing reduction path.
+  const burn = getStatus(target, 'burn', now);
   const poison = getStatus(target, 'poison', now);
   const radiation = getStatus(target, 'radiation', now);
-  if (healer && healer.id !== target.id && (poison || radiation)) {
+  if (healer && healer.id !== target.id && (burn || poison || radiation)) {
+    const burnReduction = burn ? clamp(Number(burn.data && burn.data.healReduction) || CHARACTERS.fire.burnHealReduction, 0, 1) : 0;
     const poisonReduction = poison ? clamp(Number(poison.data && poison.data.healReduction) || CHARACTERS.poison.poisonHealReduction, 0, 1) : 0;
     const radiationReduction = radiation ? clamp(Number(radiation.data && radiation.data.healReduction) || CHARACTERS.reactor.radiationHealReduction, 0, 1) : 0;
-    const nominalReduction = Math.max(0, poisonReduction + radiationReduction);
+    const nominalReduction = Math.max(0, burnReduction + poisonReduction + radiationReduction);
     const totalReduction = Math.min(MAX_EXTERNAL_HEAL_REDUCTION, nominalReduction);
     effectiveRaw = raw * (1 - totalReduction);
 
@@ -2375,16 +2498,19 @@ function applyHealing(room, healer, target, amount, now) {
   target.hp = before + actual;
   if (healer) {
     ensureMatchStats(healer).healing += actual;
+    const countsForUltimate = !options || options.countsForUltimate !== false;
+    const isSelfOrAlly = healer.id === target.id || healer.team === target.team;
+    if (countsForUltimate && isSelfOrAlly) grantUltimateCharge(healer, actual);
 
     const isOtherAlly = healer.id !== target.id && healer.team === target.team;
     const healerDef = CHARACTERS[healer.character];
 
     // Private healer HUD feedback: only effective healing delivered to another ally is
-    // accumulated. Generic 50% self-healing therefore never appears as a floating number.
+    // accumulated. Generic 25% self-healing therefore never appears as a floating number.
     if (isOtherAlly && healerDef?.role === '힐러') queueHealerNumberFeedback(healer, actual, now);
 
     // Generic effective-healing feedback. This intentionally fires only for healing another ally:
-    // self-healing (including the healer-role 50% sustain below) is silent. The existing compact
+    // self-healing (including the healer-role 25% sustain below) is silent. The existing compact
     // healHitSeq + lastHealTargetId fields are reused, so no new recurring WebSocket field is added.
     // Continuous beam/link heals are authority-throttled to avoid audio spam on 50 Hz healing ticks.
     if (isOtherAlly && now - (healer.lastHealFeedbackAt || 0) >= HEAL_FEEDBACK_INTERVAL_MS) {
@@ -2394,12 +2520,13 @@ function applyHealing(room, healer, target, amount, now) {
     }
 
     // Generic healer-role sustain rule: when a healer restores actual HP to a different
-    // living ally, the healer restores 50% of that effective healing to themselves.
+    // living ally, the healer restores 25% of that effective healing to themselves.
     // Overhealing does not count because `actual` is already capped by the ally's missing HP.
     // Calling applyHealing on self is safe: self-healing bypasses external anti-heal and the
     // target===healer guard below prevents recursive self-heal generation.
-    if (healer.alive && healerDef?.role === '힐러' && isOtherAlly && HEALER_ALLY_SELF_HEAL_RATIO > 0) {
-      applyHealing(room, healer, healer, actual * HEALER_ALLY_SELF_HEAL_RATIO, now);
+    const suppressHealerSelfHeal = !!(options && options.suppressHealerSelfHeal);
+    if (!suppressHealerSelfHeal && healer.alive && healerDef?.role === '힐러' && isOtherAlly && HEALER_ALLY_SELF_HEAL_RATIO > 0) {
+      applyHealing(room, healer, healer, actual * HEALER_ALLY_SELF_HEAL_RATIO, now, options);
     }
   }
   return actual;
@@ -2602,6 +2729,7 @@ function spawnProjectileFromDirection(room, player, def, now, dx, dy, options = 
     traveled: 0,
     burnDps: def.burnDps || 0,
     burnDuration: def.burnDuration || 0,
+    countsForUltimate: !isUltimateActive(player, now),
     reactorFxBand: player.character === 'reactor' ? reactorStageForOutput(CHARACTERS.reactor, player.reactorOutput) - 1 : null,
     bornAt: now
   });
@@ -2743,7 +2871,7 @@ function updateProjectiles(room, dt, now) {
           if (t.invulnerableUntil <= now) {
             const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
             const hitDamage = p.distanceDamage ? resolveDistanceDamage(p.distanceDamageBands, impactDistance, p.damage) : p.damage;
-            const damageResult = dealDamageDetailed(room, p.ownerId, t, hitDamage, now);
+            const damageResult = dealDamageDetailed(room, p.ownerId, t, hitDamage, now, { countsForUltimate: p.countsForUltimate !== false });
             if (damageResult.total > 0) {
               const owner = room.players.get(p.ownerId);
               if (owner) {
@@ -2777,7 +2905,11 @@ function updateProjectiles(room, dt, now) {
             }
             if (p.burnDps > 0) {
               const owner = room.players.get(p.ownerId);
-              applyStatus(room, owner, t, 'burn', p.burnDuration * 1000, now, { dps: p.burnDps });
+              applyStatus(room, owner, t, 'burn', p.burnDuration * 1000, now, {
+                dps: p.burnDps,
+                healReduction: Number(CHARACTERS[p.character]?.burnHealReduction) || 0,
+                countsForUltimate: p.countsForUltimate !== false
+              });
             }
             if (t.hp <= 0) {
               registerDirectKill(room, p.ownerId, now);
@@ -2813,17 +2945,46 @@ function updateProjectiles(room, dt, now) {
   }
 }
 
+function closeEndedRoom(room) {
+  if (!room || room.state !== 'ended') return false;
+  const connections = new Set([...room.clients.values(), ...room.spectators.values()]);
+  const notice = {
+    type: 'room_closed',
+    code: 'match_ended',
+    message: '경기가 종료되어 방이 자동으로 닫혔습니다.'
+  };
+
+  // Send an explicit final notice before closing sockets so clients can clear
+  // reconnect credentials and return to the join screen without a false
+  // "connection lost" warning.
+  for (const conn of connections) {
+    try { conn.send(notice, 'room_closed'); } catch (_) {}
+  }
+
+  clearProjectiles(room);
+  room.beams = [];
+  room.clients.clear();
+  room.spectators.clear();
+  room.players.clear();
+  room.hostId = null;
+  rooms.delete(room.code);
+
+  // Detach connection identity before transport close. The socket close handler
+  // can then call disconnect() safely without trying to mutate the deleted room.
+  for (const conn of connections) {
+    conn.playerId = null;
+    conn.spectatorId = null;
+    conn.roomCode = null;
+    try { conn.close(); } catch (_) {}
+  }
+  return true;
+}
+
 function updateRoom(room, dt, now) {
   const competitiveFlowChanged = updateCompetitiveFlow(room, now);
   if (competitiveFlowChanged) broadcast(room, now);
   if (room.state === 'ended') {
-    if (room.endedAt && now - room.endedAt >= 60000) {
-      for (const [pid, p] of [...room.players.entries()]) {
-        if (p.connected === false) { room.players.delete(pid); room.clients.delete(pid); }
-      }
-      if (room.hostId && !room.players.has(room.hostId)) room.hostId = [...room.players.values()].find(p => p.connected !== false)?.id || null;
-      if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code);
-    }
+    if (room.endedAt && now - room.endedAt >= POST_GAME_ROOM_CLOSE_MS) closeEndedRoom(room);
     return;
   }
   if (room.state !== 'playing') return;
@@ -2853,6 +3014,7 @@ function updateRoom(room, dt, now) {
       if (now >= player.respawnAt) respawn(room, player, now);
       continue;
     }
+    applyRespawnPostShield(room, player, now);
     if (player.character === 'dia' && player.diaFormUntil > 0 && now >= player.diaFormUntil) endDiaForm(player);
     if (player.character === 'reactor') {
       const reactorDef = CHARACTERS.reactor;
@@ -2867,7 +3029,7 @@ function updateRoom(room, dt, now) {
     const burn = getStatus(player, 'burn', now);
     if (burn && player.invulnerableUntil <= now) {
       const burnDps = Math.max(0, Number(burn.data && burn.data.dps) || 0);
-      const burnResult = dealDamageDetailed(room, burn.sourceId, player, burnDps * dt, now);
+      const burnResult = dealDamageDetailed(room, burn.sourceId, player, burnDps * dt, now, { countsForUltimate: burn.data?.countsForUltimate !== false });
       if (burnResult.total > 0) {
         const burnSource = room.players.get(burn.sourceId);
         if (burnSource && burnSource.character === 'fire') ensureMatchStats(burnSource).burnDamage += burnResult.total;
@@ -2984,7 +3146,7 @@ function snapshot(room, viewerId = null, spectator = false) {
         alive: p.alive,
         aimX: p.aimX, aimY: p.aimY,
         shotSeq: p.shotSeq || 0, projectileHitSeq: p.projectileHitSeq || 0,
-        healHitSeq: p.healHitSeq || 0, abilityUseSeq: p.abilityUseSeq || 0
+        healHitSeq: p.healHitSeq || 0, abilityUseSeq: p.abilityUseSeq || 0, ultimateUseSeq: p.ultimateUseSeq || 0
       };
 
       if (!playing || p.connected === false) row.connected = p.connected !== false;
@@ -3059,6 +3221,11 @@ function snapshot(room, viewerId = null, spectator = false) {
       if (!hideCharacter && p.character === 'reactor') {
         const output = clamp(Number(p.reactorOutput) || 0, 0, 100);
         if (output > 0) row.reactorOutput = output;
+      }
+      if (!hideCharacter && ultimateCostForPlayer(p) > 0) {
+        row.ultimateCharge = clamp(Number(p.ultimateCharge) || 0, 0, ultimateCostForPlayer(p));
+        row.ultimateUseSeq = p.ultimateUseSeq || 0;
+        if (isUltimateActive(p, now)) row.ultimateActiveMs = Math.max(0, Number(p.ultimateUntil) - now);
       }
       if (!hideCharacter && p.character === 'buffer') {
         const target = resolveBufferTarget(room, p);
@@ -3136,7 +3303,8 @@ function compactPlayerWireRow(p) {
     p.shieldAbilityCharges == null ? null : Math.max(0, Math.floor(Number(p.shieldAbilityCharges) || 0)), ms(p.shieldRechargeMs),
     ms(p.jetBoostMs), num(p.jetBoostStartX), num(p.jetBoostStartY), num(p.jetBoostEndX), num(p.jetBoostEndY), num(p.jetBoostDistance),
     ms(p.jetBoostCooldownMs), ms(p.jetShieldMs), p.reactorOutput == null ? null : num(p.reactorOutput, 2),
-    p.bufferTargetId || null, p.lastHealTargetId || null, p.lastAbilityTargetId || null
+    p.bufferTargetId || null, p.lastHealTargetId || null, p.lastAbilityTargetId || null,
+    p.ultimateCharge == null ? null : num(p.ultimateCharge, 2), p.ultimateUseSeq || 0, ms(p.ultimateActiveMs)
   ];
   while (row.length && row[row.length - 1] == null) row.pop();
   return row;
@@ -3172,7 +3340,8 @@ function compactPlayerWireRowV5(p, beamActive = false, beamDidDamage = false) {
     p.shieldAbilityCharges == null ? null : Math.max(0, Math.floor(Number(p.shieldAbilityCharges) || 0)), ms(p.shieldRechargeMs),
     ms(p.jetBoostMs), num(p.jetBoostStartX), num(p.jetBoostStartY), num(p.jetBoostEndX), num(p.jetBoostEndY), num(p.jetBoostDistance),
     ms(p.jetBoostCooldownMs), ms(p.jetShieldMs), p.reactorOutput == null ? null : num(p.reactorOutput, 2),
-    p.bufferTargetId || null, p.lastHealTargetId || null, p.lastAbilityTargetId || null
+    p.bufferTargetId || null, p.lastHealTargetId || null, p.lastAbilityTargetId || null,
+    p.ultimateCharge == null ? null : num(p.ultimateCharge, 2), p.ultimateUseSeq || 0, ms(p.ultimateActiveMs)
   ];
   while (row.length && row[row.length - 1] == null) row.pop();
   return row;
@@ -3234,6 +3403,9 @@ function compactPlayerWireRowV6(p, beamActive = false, beamDidDamage = false) {
   add(23, p.bufferTargetId || null);
   add(24, p.lastHealTargetId || null);
   add(25, p.lastAbilityTargetId || null);
+  add(26, p.ultimateCharge == null ? null : num(p.ultimateCharge, 2));
+  add(27, p.ultimateUseSeq ? Math.max(0, Math.floor(Number(p.ultimateUseSeq) || 0)) : null);
+  add(28, ms(p.ultimateActiveMs));
   if (ext.length) row.push(ext);
   return row;
 }
@@ -3388,17 +3560,18 @@ School Line Mobile ${GAME_VERSION} · Competitive Mode`);
 }
 
 module.exports = {
-  server, CHARACTERS, TARGET_RELATION, STATUS_DEFS, GLOBAL_SHIELD_CAP, PERK_SYSTEM, CHARACTER_PERKS,
+  server, CHARACTERS, TARGET_RELATION, STATUS_DEFS, GLOBAL_SHIELD_CAP, RESPAWN_INVULN_MS, RESPAWN_POST_SHIELD, RESPAWN_POST_SHIELD_MS, PERK_SYSTEM, CHARACTER_PERKS,
   resetPerkState, perkOptionsForCharacter, publicPerkOption, perkSelectionUnlocked, maybeSendPerkOffer, choosePerk, updatePerkSystem,
   getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget,
   applyStatus, getStatus, hasStatus, clearStatus, clearAllStatuses, isStunned,
   applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing, queueHealerNumberFeedback, flushHealerNumberFeedback,
-  reactorStageForOutput, reactorDamageForOutput,
+  ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate,
+  reactorStageForOutput, reactorDamageForOutput, currentAttackDef,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
-  updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
+  POST_GAME_ROOM_CLOSE_MS, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
-  registerDirectKill, die, respawn, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
+  registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, statsVersionFromMatch,
   teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate

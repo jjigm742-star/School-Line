@@ -40,9 +40,8 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">Mobile Alpha 1.6.1 · 일반게임 / 경쟁게임 · 22 캐릭터</p>
+      <p class="subtitle">Mobile Alpha 1.6.2 · 일반전 / 경쟁전 · 22 캐릭터</p>
       <label>닉네임<input id="nameInput" maxlength="12" placeholder="예: 1번" autocomplete="off" /></label>
-      <label>방 코드<input id="roomInput" maxlength="10" value="6-1" autocomplete="off" autocapitalize="characters" /></label>
 
       <button id="resumeButton" type="button" class="resume-game-button hidden">↩️ 진행 중인 게임으로 돌아가기</button>
       <div id="resumeHint" class="resume-game-hint hidden"></div>
@@ -53,19 +52,33 @@
           <button id="joinTeamA" type="button" class="team-select-button team-a-choice">🔵 A팀</button>
           <button id="joinTeamB" type="button" class="team-select-button team-b-choice">🔴 B팀</button>
         </div>
-        <p class="team-select-help">교실에서 정한 팀을 선택한 뒤 입장하세요. 각 팀 최대 4명입니다.</p>
+        <p class="team-select-help">교실에서 정한 팀을 선택하세요. 방 만들기와 입장 모두 이 팀으로 들어갑니다.</p>
       </div>
 
-      <button id="joinButton" class="accent big-button">선택한 팀으로 입장</button>
+      <div class="room-create-shell">
+        <div class="picker-heading">새 방 만들기</div>
+        <div class="room-create-buttons">
+          <button id="createCasualRoomButton" type="button" class="accent">🎮 일반전 방 만들기</button>
+          <button id="createCompetitiveRoomButton" type="button" class="competitive-start">🏆 경쟁전 방 만들기</button>
+        </div>
+        <p class="room-create-help">일반전은 자유 인원으로 연습할 수 있고, 경쟁전은 A 4명 / B 4명이 모여야 시작합니다.</p>
+      </div>
+
+      <section class="open-room-shell" aria-live="polite">
+        <div class="open-room-heading"><div><b>현재 열린 방</b><span id="openRoomRefreshStatus">불러오는 중...</span></div><button id="refreshRoomsButton" type="button">↻ 새로고침</button></div>
+        <div id="openRoomList" class="open-room-list"><div class="open-room-empty">열린 방을 불러오는 중입니다.</div></div>
+      </section>
+
       <button id="joinHelpButton" type="button" class="help-open-button">❓ 게임 방법</button>
 
       <div class="spectator-entry">
         <div class="spectator-entry-title">📺 교사용 관전자</div>
-        <div class="spectator-entry-row">
+        <div class="spectator-entry-row spectator-entry-row-select">
+          <select id="spectatorRoomSelect" aria-label="관전할 방"><option value="">관전할 방 선택</option></select>
           <input id="spectatorPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="4자리 PIN" autocomplete="off" />
           <button id="spectatorJoinButton" type="button">관전 입장</button>
         </div>
-        <div class="spectator-entry-help">플레이어 슬롯을 사용하지 않고 현재 방의 경기를 전체 화면으로 관전합니다.</div>
+        <div class="spectator-entry-help">방 번호를 선택해 기존 관전자 모드로 입장합니다. 플레이어 슬롯은 사용하지 않습니다.</div>
       </div>
 
       <p id="joinError" class="error"></p>
@@ -75,8 +88,13 @@
     <section id="lobbyScreen" class="hidden lobby-layout">
       <div class="panel lobby-main">
         <div class="row between lobby-title-row">
-          <div><h2>방 <span id="roomLabel"></span></h2><div id="hostLabel" class="muted"></div></div>
-          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="competitiveStatsButton" type="button">🔒 관리자 통계</button><button id="fullscreenButton">가로 전체화면</button><button id="normalStartButton" class="accent hidden">일반 시작</button><button id="competitiveStartButton" class="competitive-start hidden">경쟁 시작</button></div>
+          <div><h2><span id="roomLabel">방</span> <span id="roomModeBadge" class="room-mode-badge"></span></h2><div id="hostLabel" class="muted"></div></div>
+          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="competitiveStatsButton" type="button">🔒 관리자 통계</button><button id="fullscreenButton">가로 전체화면</button><button id="normalStartButton" class="accent hidden">일반전 시작</button><button id="competitiveStartButton" class="competitive-start hidden">경쟁전 시작</button></div>
+        </div>
+        <div id="roomModeControls" class="room-mode-controls hidden">
+          <span>방 모드</span>
+          <button id="setCasualModeButton" type="button">🎮 일반전</button>
+          <button id="setCompetitiveModeButton" type="button">🏆 경쟁전 4v4</button>
         </div>
         <div id="modeStartHint" class="mode-start-hint"></div>
         <div id="resultBanner" class="result hidden"></div>
@@ -93,7 +111,7 @@
         <div id="lobbyCharacterChoices" class="character-choices compact"></div>
         <div id="lobbyCharacterDetail" class="character-detail"></div>
         <p id="pickNotice" class="pick-notice"></p>
-        <p class="muted small">일반게임은 같은 팀 내 캐릭터 중복 선택 불가이며 상대 픽은 시작 전 비공개입니다. 경쟁게임은 4vs4에서 방장이 시작하며 밴·픽 화면으로 전환됩니다. 첫 입장자가 방장입니다.</p>
+        <p class="muted small">일반전은 같은 팀 내 캐릭터 중복 선택 불가이며 상대 픽은 시작 전 비공개입니다. 경쟁전은 정확히 4vs4가 모이면 방장이 시작하며 밴·픽 화면으로 전환됩니다. 첫 입장자가 방장입니다.</p>
       </aside>
     </section>
 
@@ -102,7 +120,7 @@
       <div class="panel draft-panel">
         <header class="draft-header">
           <div>
-            <div class="draft-kicker">🏆 경쟁게임 · 방 <span id="draftRoomLabel"></span></div>
+            <div class="draft-kicker">🏆 경쟁전 · <span id="draftRoomLabel"></span></div>
             <h2 id="draftPhaseTitle">밴 단계</h2>
             <div id="draftPhaseSubtitle" class="muted"></div>
           </div>
@@ -204,7 +222,7 @@
         <div class="stats-version-row"><label for="competitiveStatsVersion">통계 버전</label><select id="competitiveStatsVersion" aria-label="경쟁 통계 버전"></select></div>
         <div class="stats-note">같은 번호의 패치는 하나의 캐릭터 통계로 합산합니다. 밴률·픽률은 해당 캐릭터가 실제 선택 가능했던 경기만 분모로 계산합니다. 승률은 무승부를 제외한 승/패 경기 기준입니다.</div>
         <div class="stats-note stats-note-secondary">빌드 ID·로스터 ID는 기록용 메타데이터일 뿐 캐릭터 통계를 분리하지 않습니다.</div>
-        <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>사용가능 경기</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>W-L-D</th><th>승률</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
+        <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>사용가능 경기</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>W-L-D</th><th>승률</th><th>궁 사용</th><th>픽당 궁</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
         <h3 class="stats-recent-title">최근 경쟁 결과</h3>
         <div id="competitiveRecentMatches" class="stats-recent"></div>
         <div class="stats-actions"><button id="competitiveStatsExport" type="button">전체 기록 JSON 저장</button><button id="competitiveStatsCloseBottom" type="button" class="accent">확인</button></div>

@@ -51,12 +51,12 @@ const ADMIN_STATS_LOCK_MS = 30000;
 const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN hash; plaintext never leaves the browser request.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.6.1';
+const BALANCE_VERSION = '1.6.2';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
-const COMPETITIVE_STATS_SCHEMA_VERSION = 3;
+const COMPETITIVE_STATS_SCHEMA_VERSION = 4;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.6.1-r22-allultimates-uiwhite-topulthud1-charcardult1-portraitzoom1-darknames1-autoult3p4s1-cumulative-bwopt9c6sparse-c6projectilefix1-draftrolesui1-shooter42-spray14-4-4-healnumbers200-healerselfheal25-angelbless12-windhps60-bufferhps45-fireburnantiheal30-starhp200-diacd16-diabeam90-diaspeed7-autoroomclose10-iron85-shield75-shieldspeed14-shieldcap500-reactordmg5-kill10-reactorbands80-105-130-respawnshield100x3-windhp175-angelhp175-angelhps50-bufferhp200-irondr20-shieldgrant175-diaformhp450-homecover6x1p8-jethp350-ultcharge1-ultui1-ulteffects1-ult22fx1';
-const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.1-r22-allultimates';
+const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist1-ultstats1-diacrystalburst1-delayedultwarn1-whitefieldfx3-shortultdesc1-bwopt9c6sparse';
+const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.2-r22-allultimates';
 
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
@@ -103,13 +103,13 @@ const CHARACTERS = {
     name: '아이언', role: '탱커', hp: 600, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.32,
     projectileType: 'attack', damage: 17,
-    ultimateName: '분쇄', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해 + 1.5초 기절', ultimateRadius: 12, ultimateDamage: 50, ultimateStunDuration: 1.5
+    ultimateName: '분쇄', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해를 주고 1.5초 기절시킨다.', ultimateRadius: 12, ultimateDamage: 50, ultimateStunDuration: 1.5, ultimateDelay: 0.5
   },
   mecha: {
     name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13,
-    ultimateName: '자폭', ultimateCost: 1000, ultimateDescription: '1초 뒤 자신에게 200 피해 + 반경 16m 적 전원 200 피해', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 1
+    ultimateName: '자폭', ultimateCost: 1000, ultimateDescription: '1초 후 반경 16m 적에게 200 피해를 주고 자신도 200 피해를 받는다.', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 1
   },
   jet: {
     name: '제트', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
@@ -117,14 +117,14 @@ const CHARACTERS = {
     projectileType: 'attack', damage: 19,
     boostDistance: 12, boostDuration: 0.3, boostCooldown: 10,
     boostShield: 50, boostShieldDuration: 3, abilityId: 'boost',
-    ultimateName: '로켓 러시', ultimateCost: 1000, ultimateDescription: '부스터 즉시 재장전 + 8초간 부스터 쿨 2초', ultimateDuration: 8, ultimateBoostCooldown: 2
+    ultimateName: '로켓 러시', ultimateCost: 1000, ultimateDescription: '부스터를 즉시 재충전하고 8초간 재사용 대기시간이 2초가 된다.', ultimateDuration: 8, ultimateBoostCooldown: 2
   },
   solar: {
     name: '솔라', role: '탱커', hp: 375, speed: 5.0, radius: 1.00,
     attackType: 'beam', range: 16, beamDps: 55,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
     solarProjectileRadius: 0.32, solarProjectileDamage: 25, solarSelfHeal: 25,
-    ultimateName: '일출', ultimateCost: 1200, ultimateDescription: '4초간 반경 24m 적에게 15 DPS + 자신 30 HPS', ultimateDuration: 4, ultimateRadius: 24, ultimateAuraDps: 15, ultimateSelfHealHps: 30
+    ultimateName: '일출', ultimateCost: 1200, ultimateDescription: '4초간 반경 24m 적에게 초당 15 피해를 주고 자신은 초당 30 회복한다.', ultimateDuration: 4, ultimateRadius: 24, ultimateAuraDps: 15, ultimateSelfHealHps: 30
   },
   shield: {
     name: '쉴드', role: '탱커', hp: 450, speed: 5.0, radius: 1.00,
@@ -133,45 +133,45 @@ const CHARACTERS = {
     abilityId: 'shield', shieldAmount: 175, shieldDuration: 3, shieldCap: GLOBAL_SHIELD_CAP,
     shieldMaxCharges: 2, shieldRecharge: 8,
     abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false },
-    ultimateName: '보호막 홍수', ultimateCost: 600, ultimateDescription: '자신과 살아 있는 아군 전원에게 보호막 300(3초)', ultimateShield: 300, ultimateShieldDuration: 3
+    ultimateName: '보호막 홍수', ultimateCost: 600, ultimateDescription: '자신과 모든 아군에게 3초간 300 보호막을 부여한다.', ultimateShield: 300, ultimateShieldDuration: 3
   },
   runner: {
     name: '러너', role: '딜러', hp: 175, speed: 8.0, radius: 0.65,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 11,
     sprintDuration: 4, sprintCooldown: 8, abilityId: 'sprint',
-    ultimateName: '마지막 스퍼트', ultimateCost: 300, ultimateDescription: '8초간 이동속도 초고속 9.2', ultimateDuration: 8
+    ultimateName: '마지막 스퍼트', ultimateCost: 300, ultimateDescription: '8초간 이동속도가 9.2로 증가한다.', ultimateDuration: 8
   },
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'attack', damage: 20,
-    ultimateName: '자신감', ultimateCost: 1000, ultimateDescription: '8초간 이속 +2단계 · 125 DPS · 사거리 32m', ultimateDuration: 8, ultimateDamage: 25, ultimateRange: 32, ultimateSpeedTierDelta: 2
+    ultimateName: '자신감', ultimateCost: 1000, ultimateDescription: '8초간 이동속도가 2단계 증가하고 125 DPS, 사거리 32m가 된다.', ultimateDuration: 8, ultimateDamage: 25, ultimateRange: 32, ultimateSpeedTierDelta: 2
   },
   sniper: {
     name: '스나이퍼', role: '딜러', hp: 150, speed: 5.0, radius: 0.65,
     fireRate: 2, range: 36, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'attack', distanceDamage: true,
     distanceDamageBands: [{ max: 16, damage: 45 }, { max: 36, damage: 60 }],
-    ultimateName: '집중 사격', ultimateCost: 800, ultimateDescription: '8초간 16m 초과 200 DPS · 탄 크기 보통', ultimateDuration: 8, ultimateLongRangeDamage: 100, ultimateProjectileRadius: 0.32
+    ultimateName: '집중 사격', ultimateCost: 800, ultimateDescription: '8초간 16m 밖의 적에게 200 DPS로 공격하고 투사체 크기가 증가한다.', ultimateDuration: 8, ultimateLongRangeDamage: 100, ultimateProjectileRadius: 0.32
   },
   cannon: {
     name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
     fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
     projectileType: 'attack', damage: 13,
-    ultimateName: '초대형 포격', ultimateCost: 1300, ultimateDescription: '8초간 이동 불가, 기본 공격 DPS +50', ultimateDuration: 8, ultimateDamage: 18
+    ultimateName: '초대형 포격', ultimateCost: 1300, ultimateDescription: '8초간 이동할 수 없는 대신 기본 공격이 180 DPS가 된다.', ultimateDuration: 8, ultimateDamage: 18
   },
   fire: {
     name: '파이어', role: '딜러', hp: 200, speed: 7.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 16, burnDps: 10, burnDuration: 2, burnHealReduction: 0.30,
-    ultimateName: '대화재', ultimateCost: 800, ultimateDescription: '8초간 탄 크기 1단계 증가 · 화상 4초', ultimateDuration: 8, ultimateProjectileRadius: 0.32, ultimateBurnDuration: 4
+    ultimateName: '대화재', ultimateCost: 800, ultimateDescription: '8초간 투사체가 커지고 화상 지속시간이 4초로 증가한다.', ultimateDuration: 8, ultimateProjectileRadius: 0.32, ultimateBurnDuration: 4
   },
   poison: {
     name: '포이즌', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 75,
     poisonHealReduction: 0.50, poisonDuration: 1.5,
-    ultimateName: '맹독', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해 + 3초간 완전 치유 불가', ultimateRadius: 12, ultimateDamage: 50, ultimatePoisonDuration: 3
+    ultimateName: '맹독', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해를 주고 3초간 치유를 차단한다.', ultimateRadius: 12, ultimateDamage: 50, ultimatePoisonDuration: 3
   },
   reactor: {
     name: '리액터', role: '딜러', hp: 225, speed: 6.0, radius: 0.80,
@@ -188,7 +188,7 @@ const CHARACTERS = {
     reactorDamagePerOutput: 5, reactorKillOutputGain: 10, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
     reactorHighThreshold: 66, reactorHighSpeed: 7.0,
     radiationHealReduction: 0.25, radiationDuration: 1.5,
-    ultimateName: '원자로 폭주', ultimateCost: 1000, ultimateDescription: '8초간 이동속도 +1단계, 출력 감소 정지', ultimateDuration: 8, ultimateSpeedTierDelta: 1
+    ultimateName: '원자로 폭주', ultimateCost: 1000, ultimateDescription: '8초간 이동속도가 1단계 증가하고 출력 감소가 멈춘다.', ultimateDuration: 8, ultimateSpeedTierDelta: 1
   },
   spray: {
     name: '스프레이', role: '딜러', hp: 250, speed: 5.0, radius: 0.80,
@@ -196,26 +196,26 @@ const CHARACTERS = {
     projectileType: 'attack', damage: 14,
     spraySideProjectileRadius: 0.20, spraySideDamage: 4,
     spraySideAngleDeg: 10, spraySideOffset: 1.2,
-    ultimateName: '탄막', ultimateCost: 1400, ultimateDescription: '8초간 좌우 보조탄 피해가 중앙탄과 동일', ultimateDuration: 8, ultimateSideDamage: 14
+    ultimateName: '탄막', ultimateCost: 1400, ultimateDescription: '8초간 좌우 보조탄도 14 피해를 준다.', ultimateDuration: 8, ultimateSideDamage: 14
   },
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
     projectileType: 'heal', heal: 16, damage: 10,
-    ultimateName: '범람', ultimateCost: 1600, ultimateDescription: '반경 16m 자신·아군 200 회복 + 보호막 200(3초)', ultimateRadius: 16, ultimateHeal: 200, ultimateShield: 200, ultimateShieldDuration: 3
+    ultimateName: '범람', ultimateCost: 1600, ultimateDescription: '반경 16m 자신과 아군을 200 회복하고 3초간 200 보호막을 부여한다.', ultimateRadius: 16, ultimateHeal: 200, ultimateShield: 200, ultimateShieldDuration: 3
   },
   wind: {
     name: '윈드', role: '힐러', hp: 175, speed: 7.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
     projectileType: 'heal', heal: 12, damage: 10,
     tailwindDuration: 4, tailwindCooldown: 15, abilityId: 'tailwind',
-    ultimateName: '계절풍', ultimateCost: 1400, ultimateDescription: '8초간 반경 12m 자신·아군 30 HPS', ultimateDuration: 8, ultimateRadius: 12, ultimateHealHps: 30
+    ultimateName: '계절풍', ultimateCost: 1400, ultimateDescription: '8초간 반경 12m 자신과 아군을 초당 30 회복한다.', ultimateDuration: 8, ultimateRadius: 12, ultimateHealHps: 30
   },
   star: {
     name: '스타', role: '힐러', hp: 200, speed: 5.0, radius: 0.80,
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'heal', heal: 45, damage: 25,
-    ultimateName: '슈퍼노바', ultimateCost: 1400, ultimateDescription: '반경 30m 자신·아군 150 회복 + 적 전원 100 피해', ultimateRadius: 30, ultimateHeal: 150, ultimateDamage: 100
+    ultimateName: '슈퍼노바', ultimateCost: 1400, ultimateDescription: '반경 30m 자신과 아군을 150 회복하고 적에게 100 피해를 준다.', ultimateRadius: 30, ultimateHeal: 150, ultimateDamage: 100, ultimateDelay: 0.5
   },
   angel: {
     name: '엔젤', role: '힐러', hp: 175, speed: 6.0, radius: 0.65,
@@ -223,30 +223,30 @@ const CHARACTERS = {
     projectileType: 'heal', heal: 10, damage: 10,
     abilityId: 'blessing', abilityCooldown: 12, abilityHeal: 100,
     abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false },
-    ultimateName: '기적', ultimateCost: 1300, ultimateDescription: '대상 아군 또는 자신 3초 무적', ultimateDuration: 3
+    ultimateName: '기적', ultimateCost: 1300, ultimateDescription: '자신 또는 아군 1명을 3초간 무적으로 만든다.', ultimateDuration: 3
   },
   buffer: {
     name: '버퍼', role: '힐러', hp: 200, speed: 5.0, radius: 0.65,
     range: 16, noBasicAttack: true,
     linkHealHps: 45, actionSpeedBoost: 0.25,
     linkTargeting: { relations: [TARGET_RELATION.ALLY], range: 16, requireLos: false },
-    ultimateName: '업그레이드', ultimateCost: 1000, ultimateDescription: '8초간 버퍼 HPS +20, 링크 대상 이동속도 +1단계', ultimateDuration: 8, ultimateLinkHealHps: 65, ultimateLinkedSpeedTierDelta: 1
+    ultimateName: '업그레이드', ultimateCost: 1000, ultimateDescription: '8초간 링크 치유량이 초당 65로 증가하고 대상 이동속도가 1단계 증가한다.', ultimateDuration: 8, ultimateLinkHealHps: 65, ultimateLinkedSpeedTierDelta: 1
   },
   light: {
     name: '라이트', role: '힐러', hp: 225, speed: 6.0, radius: 0.65,
     attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 50,
-    ultimateName: '스포트라이트', ultimateCost: 1200, ultimateDescription: '8초간 사거리 24m, DPS/HPS +20', ultimateDuration: 8, ultimateRange: 24, ultimateBeamDps: 70, ultimateHealHps: 70
+    ultimateName: '스포트라이트', ultimateCost: 1200, ultimateDescription: '8초간 사거리 24m, 공격·치유량이 초당 70으로 증가한다.', ultimateDuration: 8, ultimateRange: 24, ultimateBeamDps: 70, ultimateHealHps: 70
   },
   laser: {
     name: '레이저', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 65, maxHpDpsRatio: 0.10,
-    ultimateName: '분해 광선', ultimateCost: 1400, ultimateDescription: '8초간 최대체력 비례 추가 DPS 15%', ultimateDuration: 8, ultimateMaxHpDpsRatio: 0.15
+    ultimateName: '분해 광선', ultimateCost: 1400, ultimateDescription: '8초간 광선이 적 최대 체력의 15%/초 추가 피해를 준다.', ultimateDuration: 8, ultimateMaxHpDpsRatio: 0.15
   },
   ice: {
     name: '아이스', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 70,
     slowTierDelta: -1, slowDuration: 1.5,
-    ultimateName: '절대영도', ultimateCost: 1000, ultimateDescription: '반경 16m 적 전원 1초 기절 + 자신 300 회복', ultimateRadius: 16, ultimateStunDuration: 1, ultimateHeal: 300
+    ultimateName: '절대영도', ultimateCost: 1000, ultimateDescription: '반경 16m 적을 1초 기절시키고 자신은 300 회복한다.', ultimateRadius: 16, ultimateStunDuration: 1, ultimateHeal: 300, ultimateDelay: 0.5
   },
   dia: {
     name: '다이아', role: '탱커', hp: 350, speed: 5.0, radius: 1.00,
@@ -254,7 +254,7 @@ const CHARACTERS = {
     projectileType: 'attack', damage: 13,
     formDuration: 6, formCooldown: 16, formHp: 450, formSpeed: 7.0,
     formRange: 16, formBeamDps: 90, formKillCooldownReduction: 6, abilityId: 'form',
-    ultimateName: '완전 변신', ultimateCost: 600, ultimateDescription: '즉시 다이아폼 변신 + 8초간 강제 유지', ultimateDuration: 8
+    ultimateName: '수정 폭발', ultimateCost: 800, ultimateDescription: '3번에 걸쳐 총 48개의 수정 투사체를 사방으로 발사해 24m 이내의 적에게 투사체당 40 피해를 준다.', ultimateDamage: 40, ultimateProjectileCount: 16, ultimateVolleyCount: 3, ultimateVolleyInterval: 1
   }
 };
 
@@ -463,7 +463,7 @@ function publicAdminStatsPayload(statsVersion) {
 }
 
 function emptyCompetitiveCharacterStats() {
-  return { availableMatches: 0, bans: 0, picks: 0, wins: 0, losses: 0, draws: 0 };
+  return { availableMatches: 0, bans: 0, picks: 0, wins: 0, losses: 0, draws: 0, totalUltimateUses: 0 };
 }
 
 function emptyCompetitiveVersionStats() {
@@ -507,10 +507,13 @@ function addRecordedMatchToVersionBucket(bucket, match) {
   for (const ban of Array.isArray(match?.bans) ? match.bans : []) {
     if (ban?.character) ensureVersionCharacterStats(bucket, ban.character).bans += 1;
   }
+  const recordedPlayers = new Map((Array.isArray(match?.players) ? match.players : []).map(p => [String(p?.playerId || ''), p]));
   for (const assignment of Array.isArray(match?.finalAssignments) ? match.finalAssignments : []) {
     if (!assignment?.character) continue;
     const stat = ensureVersionCharacterStats(bucket, assignment.character);
     stat.picks += 1;
+    const playerRecord = recordedPlayers.get(String(assignment.playerId || ''));
+    stat.totalUltimateUses += Math.max(0, Number(playerRecord?.stats?.ultimateUses) || 0);
     if (match.winner === 'DRAW') stat.draws += 1;
     else if (match.winner === assignment.team) stat.wins += 1;
     else stat.losses += 1;
@@ -525,7 +528,7 @@ function normalizeVersionBucket(raw) {
   for (const [id, srcRaw] of Object.entries(raw.characters || {})) {
     const src = srcRaw && typeof srcRaw === 'object' ? srcRaw : {};
     const stat = ensureVersionCharacterStats(bucket, id);
-    for (const key of ['availableMatches','bans','picks','wins','losses','draws']) stat[key] = Math.max(0, Number(src[key]) || 0);
+    for (const key of ['availableMatches','bans','picks','wins','losses','draws','totalUltimateUses']) stat[key] = Math.max(0, Number(src[key]) || 0);
   }
   return bucket;
 }
@@ -542,7 +545,7 @@ function normalizeCompetitiveStats(raw) {
   for (const [id, srcRaw] of Object.entries(raw.characters || {})) {
     if (!base.characters[id]) base.characters[id] = emptyCompetitiveCharacterStats();
     const src = srcRaw && typeof srcRaw === 'object' ? srcRaw : {};
-    for (const key of ['bans','picks','wins','losses','draws']) base.characters[id][key] = Math.max(0, Number(src[key]) || 0);
+    for (const key of ['bans','picks','wins','losses','draws','totalUltimateUses']) base.characters[id][key] = Math.max(0, Number(src[key]) || 0);
     if (sourceSchema >= 2 && Number.isFinite(Number(src.availableMatches))) base.characters[id].availableMatches = Math.max(0, Number(src.availableMatches) || 0);
     else base.characters[id].availableMatches = base.totalMatches;
   }
@@ -625,6 +628,8 @@ function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
     characters[id] = {
       availableMatches: available,
       bans: src.bans || 0, picks: src.picks || 0, wins: src.wins || 0, losses: src.losses || 0, draws: src.draws || 0,
+      totalUltimateUses: Math.max(0, Number(src.totalUltimateUses) || 0),
+      averageUltimateUsesPerPick: (src.picks || 0) > 0 ? Math.max(0, Number(src.totalUltimateUses) || 0) / (src.picks || 0) : 0,
       banRate: available > 0 ? (src.bans || 0) / available : 0,
       pickRate: available > 0 ? (src.picks || 0) / available : 0,
       winRate: decided > 0 ? (src.wins || 0) / decided : 0
@@ -1149,6 +1154,10 @@ const server = http.createServer((req, res) => {
     sendJson(res, 200, schoolLineAccessPayload());
     return;
   }
+  if (urlPath === '/rooms.json' && req.method === 'GET') {
+    sendJson(res, 200, { rooms: publicRoomList(), updatedAt: new Date().toISOString() });
+    return;
+  }
   if (urlPath === '/admin/access-control' && req.method === 'POST') {
     handleAccessControlRequest(req, res);
     return;
@@ -1326,11 +1335,49 @@ function parseWsData(conn, chunk) {
   }
 }
 
-function newRoom(code) {
+function normalizeRoomMode(value) { return value === 'competitive' ? 'competitive' : 'casual'; }
+function nextRoomDisplayNumber() {
+  const used = new Set([...rooms.values()].map(room => Math.max(0, Number(room.displayNumber) || 0)).filter(Boolean));
+  let n = 1;
+  while (used.has(n)) n += 1;
+  return n;
+}
+function newInternalRoomCode() {
+  let code;
+  do code = `R${crypto.randomBytes(4).toString('hex').toUpperCase()}`; while (rooms.has(code));
+  return code;
+}
+function roomDisplayName(room) {
+  const n = Math.max(0, Number(room?.displayNumber) || 0);
+  return n ? `방 ${n}` : '방';
+}
+function publicRoomList() {
+  const entries = [...rooms.values()].map(room => {
+    const connectedPlayers = [...room.players.values()].filter(p => p.connected !== false);
+    const countA = connectedPlayers.filter(p => p.team === 'A').length;
+    const countB = connectedPlayers.filter(p => p.team === 'B').length;
+    const count = connectedPlayers.length;
+    const hasTeamSlot = countA < 4 || countB < 4;
+    const joinable = room.state === 'lobby' && count < 8 && hasTeamSlot;
+    return {
+      id: room.code, number: Math.max(0, Number(room.displayNumber) || 0), name: roomDisplayName(room),
+      mode: normalizeRoomMode(room.mode), state: room.state, count, countA, countB, capacity: 8,
+      joinable, oneMore: normalizeRoomMode(room.mode) === 'competitive' && count === 7 && joinable
+    };
+  });
+  const stateRank = entry => entry.joinable ? 0 : 1;
+  const modeRank = entry => entry.mode === 'competitive' ? 0 : 1;
+  entries.sort((a, b) => stateRank(a) - stateRank(b) || (a.joinable && b.joinable ? modeRank(a) - modeRank(b) : 0) || a.number - b.number);
+  return entries;
+}
+
+function newRoom(code, options = {}) {
   return {
     code,
+    displayNumber: Math.max(1, Number(options.displayNumber) || nextRoomDisplayNumber()),
     state: 'lobby',
-    mode: 'normal',
+    mode: normalizeRoomMode(options.mode),
+    matchMode: null,
     competitive: null,
     players: new Map(),
     clients: new Map(),
@@ -1438,7 +1485,7 @@ function currentCompetitivePickerId(room) {
 }
 function startCompetitiveDraft(room, now = Date.now()) {
   if (!isExactCompetitiveRoster(room)) return false;
-  room.mode = 'competitive';
+  if (normalizeRoomMode(room.mode) !== 'competitive') return false;
   room.state = 'draft';
   room.winner = null;
   room.winnerReason = null;
@@ -1569,7 +1616,7 @@ function updateCompetitiveFlow(room, now = Date.now()) {
 }
 function recordCompetitiveResult(room, now = Date.now()) {
   const comp = room && room.competitive;
-  if (!comp || room.mode !== 'competitive' || comp.recorded) return false;
+  if (!comp || room.matchMode !== 'competitive' || comp.recorded) return false;
   comp.recorded = true;
   const players = [...room.players.values()].map(p => ({
     playerId: p.id, playerName: p.name, team: p.team, character: p.character,
@@ -1579,7 +1626,7 @@ function recordCompetitiveResult(room, now = Date.now()) {
     matchId: `${now}-${crypto.randomBytes(4).toString('hex')}`,
     statsVersion: COMPETITIVE_STATS_VERSION,
     gameVersion: GAME_VERSION, buildId: COMPETITIVE_BUILD_ID, rosterVersion: COMPETITIVE_ROSTER_VERSION,
-    availableCharacters: Object.keys(CHARACTERS), room: room.code,
+    availableCharacters: Object.keys(CHARACTERS), room: roomDisplayName(room), roomId: room.code, matchMode: room.matchMode,
     draftStartedAt: comp.draftStartedAt ? new Date(comp.draftStartedAt).toISOString() : null,
     matchStartedAt: comp.matchStartedAt ? new Date(comp.matchStartedAt).toISOString() : (room.matchStartedAt ? new Date(room.matchStartedAt).toISOString() : null),
     endedAt: new Date(now).toISOString(),
@@ -1606,6 +1653,8 @@ function recordCompetitiveResult(room, now = Date.now()) {
     const stat = competitiveStats.characters[p.character];
     if (!stat) continue;
     stat.picks += 1;
+    const playerRecord = players.find(record => record.playerId === p.playerId);
+    stat.totalUltimateUses += Math.max(0, Number(playerRecord?.stats?.ultimateUses) || 0);
     if (room.winner === 'DRAW') stat.draws += 1;
     else if (room.winner === p.team) stat.wins += 1;
     else stat.losses += 1;
@@ -1677,12 +1726,24 @@ function onMessage(conn, msg) {
   if (msg.type === 'admin_stats_request') return sendAdminCompetitiveStats(conn, msg);
   if (msg.type === 'spectator_join') return joinSpectator(conn, msg);
   if (msg.type === 'resume') return resumeRoom(conn, msg);
-  if (msg.type === 'join') return joinRoom(conn, msg);
+  if (msg.type === 'create_room') return createRoomAndJoin(conn, msg);
+  if (msg.type === 'join_room') return joinRoom(conn, { ...msg, room: msg.roomId }, { allowCreate: false });
+  // Backward-compatible protocol path for older cached clients. New 1.6.2 UI never exposes room codes.
+  if (msg.type === 'join') return joinRoom(conn, msg, { allowCreate: true });
   const room = rooms.get(conn.roomCode);
   if (!room || !conn.playerId) return;
   const player = room.players.get(conn.playerId);
   if (!player) return;
 
+  if (msg.type === 'set_room_mode') {
+    if (room.hostId !== player.id) { conn.send({ type: 'room_mode_error', message: '방장만 게임 모드를 변경할 수 있습니다.' }); return; }
+    if (room.state !== 'lobby') { conn.send({ type: 'room_mode_error', message: '경기 시작 후에는 게임 모드를 변경할 수 없습니다.' }); return; }
+    const nextMode = normalizeRoomMode(msg.mode);
+    room.mode = nextMode;
+    room.competitive = null;
+    broadcast(room);
+    return;
+  }
   if (msg.type === 'select' && room.state === 'lobby') {
     const requested = validCharacter(msg.character);
     if (requested !== player.character && isCharacterTakenOnTeam(room, player.team, requested, player.id)) {
@@ -1694,27 +1755,28 @@ function onMessage(conn, msg) {
     player.respawnShieldAt = 0;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
+    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.pendingUltimateId = null; player.pendingUltimateAt = 0; player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
     resetPerkState(player);
     broadcast(room);
     return;
   }
   if (msg.type === 'start' && room.hostId === player.id && room.state === 'lobby') {
+    if (normalizeRoomMode(room.mode) !== 'casual') { conn.send({ type: 'start_error', message: '현재 방은 경쟁전 모드입니다.' }); return; }
     pruneDisconnectedEndedPlayers(room);
     const unpicked = [...room.players.values()].filter(p => !p.character);
     if (unpicked.length) {
       conn.send({ type: 'start_error', message: `아직 캐릭터를 선택하지 않은 참가자가 ${unpicked.length}명 있습니다.` });
       return;
     }
-    room.mode = 'normal';
     room.competitive = null;
     startMatch(room);
     return;
   }
   if (msg.type === 'competitive_start' && room.hostId === player.id && room.state === 'lobby') {
+    if (normalizeRoomMode(room.mode) !== 'competitive') { conn.send({ type: 'start_error', message: '현재 방은 일반전 모드입니다.' }); return; }
     pruneDisconnectedEndedPlayers(room);
     if (!isExactCompetitiveRoster(room)) {
-      conn.send({ type: 'start_error', message: '경쟁게임은 A팀 4명 + B팀 4명, 총 8명이 모두 접속해 있어야 시작할 수 있습니다.' });
+      conn.send({ type: 'start_error', message: '경쟁전은 A팀 4명 + B팀 4명, 총 8명이 모두 접속해 있어야 시작할 수 있습니다.' });
       return;
     }
     startCompetitiveDraft(room);
@@ -1842,15 +1904,15 @@ function joinSpectator(conn, msg) {
   conn.roomCode = code;
   room.spectators.set(spectatorId, conn);
   conn.send({
-    type: 'spectator_joined', id: spectatorId, room: code,
+    type: 'spectator_joined', id: spectatorId, room: roomDisplayName(room), roomId: code, roomNumber: room.displayNumber, mode: room.mode,
     config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
   });
   if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.send(snapshot(room, null, true));
 }
 
-function joinRoom(conn, msg) {
-  if (conn.playerId) return;
-  const code = safeRoom(msg.room);
+function joinRoom(conn, msg, options = {}) {
+  if (conn.playerId) return false;
+  const code = safeRoom(msg.roomId || msg.room);
   const requestedName = safeName(msg.name);
   const existing = findNicknameReservation(requestedName);
   if (existing) {
@@ -1878,7 +1940,8 @@ function joinRoom(conn, msg) {
   }
 
   let room = rooms.get(code);
-  if (!room) { room = newRoom(code); rooms.set(code, room); }
+  if (!room && options.allowCreate === true) { room = newRoom(code, { mode: 'casual' }); rooms.set(code, room); }
+  if (!room) { conn.send({ type: 'error', code: 'room_missing', message: '이 방은 더 이상 열려 있지 않습니다. 방 목록을 새로고침해주세요.' }); return false; }
   if (room.players.size >= 8) { conn.send({ type: 'error', message: '이 방은 이미 8명입니다.' }); return; }
   if (room.state === 'ended') { conn.send({ type: 'error', code: 'room_ending', message: '경기가 종료되어 이 방은 곧 자동으로 닫힙니다. 잠시 후 다시 입장해주세요.' }); return; }
   if (room.state !== 'lobby') { conn.send({ type: 'error', message: '이미 게임 준비 또는 경기가 진행 중입니다.' }); return; }
@@ -1905,7 +1968,7 @@ function joinRoom(conn, msg) {
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
     jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
-    reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0,
+    reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(),
     perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
     shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
     stats: makeMatchStats(null)
@@ -1916,10 +1979,28 @@ function joinRoom(conn, msg) {
   conn.playerId = id; conn.roomCode = code;
   const sp = spawnPoint(room, player); player.x = sp.x; player.y = sp.y;
   conn.send({
-    type: 'joined', id, room: code, team, resumeToken: player.resumeToken,
+    type: 'joined', id, room: roomDisplayName(room), roomId: code, roomNumber: room.displayNumber, mode: room.mode, team, resumeToken: player.resumeToken,
     config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
   });
   broadcast(room);
+  return true;
+}
+
+function createRoomAndJoin(conn, msg) {
+  if (conn.playerId || conn.spectatorId) return false;
+  const requestedName = safeName(msg.name);
+  if (findNicknameReservation(requestedName)) {
+    conn.send({ type: 'error', code: 'nickname_in_use', message: '이 닉네임은 이미 다른 게임에 참가 중입니다. 기존 게임을 먼저 종료하거나 기존 화면으로 돌아가세요.' });
+    return false;
+  }
+  const team = msg.team === 'A' || msg.team === 'B' ? msg.team : null;
+  if (!team) { conn.send({ type: 'error', message: 'A팀 또는 B팀을 선택하세요.' }); return false; }
+  const code = newInternalRoomCode();
+  const room = newRoom(code, { mode: normalizeRoomMode(msg.mode), displayNumber: nextRoomDisplayNumber() });
+  rooms.set(code, room);
+  const joined = joinRoom(conn, { name: requestedName, room: code, team }, { allowCreate: false });
+  if (!joined && room.players.size === 0 && room.spectators.size === 0) rooms.delete(code);
+  return joined;
 }
 
 
@@ -1950,7 +2031,7 @@ function attachExistingPlayerConnection(conn, room, player, options = {}) {
   if (!room.hostId || !room.players.get(room.hostId)?.connected) room.hostId = player.id;
 
   conn.send({
-    type: 'resumed', id: player.id, room: room.code, team: player.team,
+    type: 'resumed', id: player.id, room: roomDisplayName(room), roomId: room.code, roomNumber: room.displayNumber, mode: room.mode, team: player.team,
     resumeToken: player.resumeToken, recoveredByNickname,
     config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
   });
@@ -2008,7 +2089,7 @@ function publicCharacterDefs() {
     'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
     'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction',
-    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateLongRangeDamage', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedTierDelta'
+    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateLongRangeDamage', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedTierDelta', 'ultimateProjectileCount', 'ultimateVolleyCount', 'ultimateVolleyInterval'
   ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
     const def = {
@@ -2078,6 +2159,7 @@ function disconnect(conn) {
 }
 
 function startMatch(room, now = Date.now()) {
+  room.matchMode = normalizeRoomMode(room.mode);
   room.state = 'playing';
   room.scoreA = 0; room.scoreB = 0; room.winner = null; room.winnerReason = null; room.endedAt = 0;
   room.matchStartedAt = now;
@@ -2097,7 +2179,7 @@ function startMatch(room, now = Date.now()) {
       shieldAbilityCharges: p.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0, shieldRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
       jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
-      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, lastCombatAt: now,
+      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), lastCombatAt: now,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
       stats: makeMatchStats(p.character)
@@ -2308,6 +2390,8 @@ function die(room, player, now) {
   }
   if (player.character === 'runner') player.sprintUntil = 0;
   if (player.character === 'mecha') player.mechaSelfDestructAt = 0;
+  player.pendingUltimateId = null; player.pendingUltimateAt = 0;
+  player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0;
   if (player.character === 'jet') { player.jetBoostUntil = 0; player.jetBoostStartAt = 0; player.jetShieldUntil = 0; clearShield(player); }
   if (player.character === 'reactor') { player.reactorOutput = 0; player.reactorLastDamageAt = 0; }
   if (player.character === 'buffer') player.bufferTargetId = null;
@@ -2327,6 +2411,8 @@ function respawn(room, player, now) {
   if (player.character === 'dia') player.diaFormUntil = 0;
   if (player.character === 'runner') player.sprintUntil = 0;
   if (player.character === 'mecha') player.mechaSelfDestructAt = 0;
+  player.pendingUltimateId = null; player.pendingUltimateAt = 0;
+  player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0;
   if (player.character === 'jet') { player.jetBoostUntil = 0; player.jetBoostStartAt = 0; player.jetShieldUntil = 0; }
   if (player.character === 'reactor') { player.reactorOutput = 0; player.reactorLastDamageAt = 0; }
   if (player.character === 'buffer') player.bufferTargetId = null;
@@ -2400,6 +2486,7 @@ function makeMatchStats(character = null) {
     character,
     kills: 0,
     deaths: 0,
+    ultimateUses: 0,
     damage: 0,
     healing: 0,
     tailwindApplications: 0,
@@ -2441,18 +2528,23 @@ function ultimateChargePercent(player) {
   return clamp((Number(player.ultimateCharge) || 0) / cost * 100, 0, 100);
 }
 
-function activateUltimate(room, player, now = Date.now(), targetId = null) {
-  if (!room || !player || !player.alive || isStunned(player, now)) return false;
-  const def = CHARACTERS[player.character];
-  const cost = ultimateCostForPlayer(player);
-  if (!def || cost <= 0 || (Number(player.ultimateCharge) || 0) + 1e-9 < cost) return false;
+function scheduleDelayedUltimate(player, character, now, delaySeconds) {
+  const delayMs = Math.max(0, Number(delaySeconds) || 0) * 1000;
+  player.pendingUltimateId = character;
+  player.pendingUltimateAt = now + delayMs;
+  // The charge remains locked at 0 during the telegraph window. The effect itself
+  // is still a one-shot ultimate rather than a sustained buff.
+  player.ultimateUntil = player.pendingUltimateAt;
+}
 
-  let activated = false;
-  if (player.character === 'iron') {
+function resolveDelayedUltimate(room, player, character, now, centerX = player.x, centerY = player.y) {
+  const def = CHARACTERS[character];
+  if (!def) return false;
+  if (character === 'iron') {
     const radius = Number(def.ultimateRadius) || 12;
     for (const target of room.players.values()) {
       if (!target.alive || target.team === player.team || target.id === player.id) continue;
-      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
+      if (distance(centerX, centerY, target.x, target.y) > radius + 1e-9) continue;
       const result = dealDamageDetailed(room, player.id, target, Number(def.ultimateDamage) || 50, now, { countsForUltimate: false });
       if (target.hp <= 0) {
         registerDirectKill(room, player.id, now);
@@ -2461,6 +2553,69 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
       }
       if (result.total > 0) applyStatus(room, player, target, 'stun', (Number(def.ultimateStunDuration) || 1.5) * 1000, now);
     }
+    return true;
+  }
+  if (character === 'star') {
+    const radius = Number(def.ultimateRadius) || 30;
+    for (const target of room.players.values()) {
+      if (!target.alive) continue;
+      if (distance(centerX, centerY, target.x, target.y) > radius + 1e-9) continue;
+      if (target.team === player.team) {
+        applyHealing(room, player, target, Number(def.ultimateHeal) || 150, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+      } else {
+        dealDamageDetailed(room, player.id, target, Number(def.ultimateDamage) || 100, now, { countsForUltimate: false });
+        if (target.hp <= 0) {
+          registerDirectKill(room, player.id, now);
+          die(room, target, now);
+        }
+      }
+    }
+    return true;
+  }
+  if (character === 'ice') {
+    const radius = Number(def.ultimateRadius) || 16;
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team === player.team || target.id === player.id) continue;
+      if (distance(centerX, centerY, target.x, target.y) > radius + 1e-9) continue;
+      applyStatus(room, player, target, 'stun', (Number(def.ultimateStunDuration) || 1) * 1000, now);
+    }
+    applyHealing(room, player, player, Number(def.ultimateHeal) || 300, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+    return true;
+  }
+  return false;
+}
+
+function spawnDiaUltimateVolley(room, player, now) {
+  if (!room || !player || !player.alive || player.character !== 'dia') return 0;
+  const def = CHARACTERS.dia;
+  const projectileCount = Math.max(1, Math.floor(Number(def.ultimateProjectileCount) || 16));
+  const volleySeq = Math.max(0, Number(player.diaUltimateVolleySeq) || 0) + 1;
+  player.diaUltimateVolleySeq = volleySeq;
+  const volleyId = `${player.id}:diaU:${player.ultimateUseSeq || 0}:${volleySeq}:${Math.floor(now)}`;
+  let spawned = 0;
+  for (let i = 0; i < projectileCount; i++) {
+    const angle = (Math.PI * 2 * i) / projectileCount;
+    const id = spawnProjectileFromDirection(room, player, def, now, Math.cos(angle), Math.sin(angle), {
+      projectileType: 'attack',
+      damage: Number(def.ultimateDamage) || 40,
+      countsForUltimate: false,
+      diaUltimateVolleyId: volleyId,
+      ultimateProjectile: true
+    });
+    if (id) spawned += 1;
+  }
+  return spawned;
+}
+
+function activateUltimate(room, player, now = Date.now(), targetId = null) {
+  if (!room || !player || !player.alive || isStunned(player, now)) return false;
+  const def = CHARACTERS[player.character];
+  const cost = ultimateCostForPlayer(player);
+  if (!def || cost <= 0 || (Number(player.ultimateCharge) || 0) + 1e-9 < cost) return false;
+
+  let activated = false;
+  if (player.character === 'iron') {
+    scheduleDelayedUltimate(player, 'iron', now, Number(def.ultimateDelay) || 0.5);
     activated = true;
   } else if (player.character === 'water') {
     const radius = Number(def.ultimateRadius) || 16;
@@ -2507,19 +2662,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
     }
     activated = true;
   } else if (player.character === 'star') {
-    const radius = Number(def.ultimateRadius) || 30;
-    for (const target of room.players.values()) {
-      if (!target.alive) continue;
-      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
-      if (target.team === player.team) applyHealing(room, player, target, Number(def.ultimateHeal) || 150, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
-      else {
-        dealDamageDetailed(room, player.id, target, Number(def.ultimateDamage) || 100, now, { countsForUltimate: false });
-        if (target.hp <= 0) {
-          registerDirectKill(room, player.id, now);
-          die(room, target, now);
-        }
-      }
-    }
+    scheduleDelayedUltimate(player, 'star', now, Number(def.ultimateDelay) || 0.5);
     activated = true;
   } else if (player.character === 'angel') {
     const target = (targetId && room.players.get(String(targetId)) && room.players.get(String(targetId)).alive && room.players.get(String(targetId)).team === player.team)
@@ -2529,27 +2672,25 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
     target.invulnerableUntil = Math.max(Number(target.invulnerableUntil) || 0, player.ultimateUntil);
     activated = true;
   } else if (player.character === 'ice') {
-    const radius = Number(def.ultimateRadius) || 16;
-    for (const target of room.players.values()) {
-      if (!target.alive || target.team === player.team || target.id === player.id) continue;
-      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
-      applyStatus(room, player, target, 'stun', (Number(def.ultimateStunDuration) || 1) * 1000, now);
-    }
-    applyHealing(room, player, player, Number(def.ultimateHeal) || 300, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+    scheduleDelayedUltimate(player, 'ice', now, Number(def.ultimateDelay) || 0.5);
     activated = true;
   } else if (player.character === 'dia') {
-    if (player.diaFormUntil <= now) {
-      player.maxHp = def.formHp;
-      player.hp = Math.min(def.formHp, player.hp + (def.formHp - def.hp));
-    }
-    player.ultimateUntil = now + (Number(def.ultimateDuration) || 8) * 1000;
-    player.diaFormUntil = player.ultimateUntil;
+    // Crystal Burst is independent from Dia's normal form-change ability.
+    // The first radial volley is immediate; the next two are emitted from Dia's
+    // then-current position at one-second intervals.
+    player.diaUltimateVolleySeq = 0;
+    spawnDiaUltimateVolley(room, player, now);
+    player.diaUltimateBurstsRemaining = Math.max(0, (Number(def.ultimateVolleyCount) || 3) - 1);
+    player.diaUltimateNextBurstAt = player.diaUltimateBurstsRemaining > 0
+      ? now + (Number(def.ultimateVolleyInterval) || 1) * 1000
+      : 0;
     activated = true;
   }
 
   if (!activated) return false;
   player.ultimateCharge = 0;
   player.ultimateUseSeq = (player.ultimateUseSeq || 0) + 1;
+  ensureMatchStats(player).ultimateUses += 1;
   return true;
 }
 
@@ -2867,7 +3008,9 @@ function projectileWireRow(p) {
     p.type === 'heal' ? 1 : 0,
     p.team === 'B' ? 1 : 0,
     p.character || null,
-    p.reactorFxBand == null ? null : p.reactorFxBand
+    p.reactorFxBand == null ? null : p.reactorFxBand,
+    p.ultimateProjectile ? 1 : 0,
+    p.diaUltimateVolleyId || null
   ];
 }
 
@@ -2893,7 +3036,9 @@ function spawnProjectileFromDirection(room, player, def, now, dx, dy, options = 
     traveled: 0,
     burnDps: def.burnDps || 0,
     burnDuration: def.burnDuration || 0,
-    countsForUltimate: !isUltimateActive(player, now),
+    countsForUltimate: options.countsForUltimate === undefined ? !isUltimateActive(player, now) : options.countsForUltimate !== false,
+    ultimateProjectile: !!options.ultimateProjectile,
+    diaUltimateVolleyId: options.diaUltimateVolleyId || null,
     reactorFxBand: player.character === 'reactor' ? reactorStageForOutput(CHARACTERS.reactor, player.reactorOutput) - 1 : null,
     bornAt: now
   });
@@ -3031,6 +3176,17 @@ function updateProjectiles(room, dt, now) {
       p.x += dx * Math.min(bestT, 1); p.y += dy * Math.min(bestT, 1);
       if (hit.kind === 'player') {
         const t = hit.target;
+        if (p.diaUltimateVolleyId) {
+          if (!(t.diaUltimateVolleyHits instanceof Map)) t.diaUltimateVolleyHits = new Map();
+          for (const [key, expiry] of t.diaUltimateVolleyHits) if (Number(expiry) <= now) t.diaUltimateVolleyHits.delete(key);
+          if (t.diaUltimateVolleyHits.has(p.diaUltimateVolleyId)) {
+            // A body still physically absorbs the duplicate shard, but each target can
+            // take damage only once from a single 16-projectile radial volley.
+            removeProjectile(room, id);
+            continue;
+          }
+          t.diaUltimateVolleyHits.set(p.diaUltimateVolleyId, now + 3000);
+        }
         if (p.type === 'attack') {
           if (t.invulnerableUntil <= now) {
             const impactDistance = p.traveled + moveLen * Math.min(bestT, 1);
@@ -3161,7 +3317,7 @@ function updateRoom(room, dt, now) {
     clearProjectiles(room);
     room.beams = [];
     for (const p of room.players.values()) p.input.fire = false;
-    if (room.mode === 'competitive') recordCompetitiveResult(room, now);
+    if (room.matchMode === 'competitive') recordCompetitiveResult(room, now);
     // Idle/ended heartbeat is disabled, so every mode receives one explicit final state.
     // The client shows the winner announcement locally and then opens the result screen.
     broadcast(room, now);
@@ -3220,6 +3376,26 @@ function updateRoom(room, dt, now) {
         registerKill(room, burn.sourceId, now, false);
         die(room, player, now);
         continue;
+      }
+    }
+
+    if (player.pendingUltimateAt > 0 && now >= player.pendingUltimateAt) {
+      const pendingId = player.pendingUltimateId;
+      const centerX = player.x, centerY = player.y;
+      player.pendingUltimateId = null;
+      player.pendingUltimateAt = 0;
+      player.ultimateUntil = 0;
+      // Reaching this branch means the caster survived the full 0.5 s warning.
+      resolveDelayedUltimate(room, player, pendingId, now, centerX, centerY);
+      if (!player.alive) continue;
+    }
+
+    if (player.character === 'dia' && player.diaUltimateBurstsRemaining > 0 && player.diaUltimateNextBurstAt > 0 && now >= player.diaUltimateNextBurstAt) {
+      const intervalMs = (Number(CHARACTERS.dia.ultimateVolleyInterval) || 1) * 1000;
+      while (player.alive && player.diaUltimateBurstsRemaining > 0 && now >= player.diaUltimateNextBurstAt) {
+        spawnDiaUltimateVolley(room, player, player.diaUltimateNextBurstAt);
+        player.diaUltimateBurstsRemaining -= 1;
+        player.diaUltimateNextBurstAt = player.diaUltimateBurstsRemaining > 0 ? player.diaUltimateNextBurstAt + intervalMs : 0;
       }
     }
 
@@ -3339,7 +3515,7 @@ function updateRoom(room, dt, now) {
 function competitivePhaseWireSnapshot(room, viewerId = null, spectator = false, now = Date.now()) {
   const viewer = viewerId ? room.players.get(viewerId) : null;
   return {
-    type: 'state', wireFormat: 'd1', state: room.state, mode: room.mode || 'competitive', room: room.code,
+    type: 'state', wireFormat: 'd1', state: room.state, mode: normalizeRoomMode(room.mode), matchMode: room.matchMode, room: roomDisplayName(room), roomNumber: room.displayNumber,
     scoreA: roundWireNumber(room.scoreA, 3), scoreB: roundWireNumber(room.scoreB, 3), timeLeft: 0,
     players: [...room.players.values()].map(p => [p.id, p.name, p.team, p.character || null, p.connected === false ? 0 : 1]),
     projectiles: [], beams: [],
@@ -3358,7 +3534,7 @@ function snapshot(room, viewerId = null, spectator = false) {
   const ended = room.state === 'ended';
 
   const out = {
-    type: 'state', state: room.state, mode: room.mode || 'normal', room: room.code,
+    type: 'state', state: room.state, mode: playing ? (room.matchMode || normalizeRoomMode(room.mode)) : normalizeRoomMode(room.mode), matchMode: room.matchMode, room: roomDisplayName(room), roomNumber: room.displayNumber,
     scoreA: room.scoreA, scoreB: room.scoreB,
     timeLeft: playing ? Math.max(0, (room.matchEndAt - now) / 1000) : 0,
     players: [...room.players.values()].map(p => {
@@ -3452,6 +3628,10 @@ function snapshot(room, viewerId = null, spectator = false) {
         row.ultimateCharge = clamp(Number(p.ultimateCharge) || 0, 0, ultimateCostForPlayer(p));
         row.ultimateUseSeq = p.ultimateUseSeq || 0;
         if (isUltimateActive(p, now)) row.ultimateActiveMs = Math.max(0, Number(p.ultimateUntil) - now);
+        if (p.pendingUltimateAt > now && p.pendingUltimateId) {
+          row.pendingUltimateMs = Math.max(0, Number(p.pendingUltimateAt) - now);
+          row.pendingUltimateId = p.pendingUltimateId;
+        }
       }
       if (!hideCharacter && p.character === 'buffer') {
         const target = resolveBufferTarget(room, p);
@@ -3469,6 +3649,8 @@ function snapshot(room, viewerId = null, spectator = false) {
     projectiles: [...room.projectiles.values()].map(p => {
       const row = { id: p.id, x: p.x, y: p.y, radius: p.radius, type: p.type, team: p.team, character: p.character };
       if (p.reactorFxBand != null) row.reactorFxBand = p.reactorFxBand;
+      if (p.ultimateProjectile) row.ultimateProjectile = true;
+      if (p.diaUltimateVolleyId) row.diaUltimateVolleyId = p.diaUltimateVolleyId;
       if (p.character === 'spray') {
         if (p.sprayLane) row.sprayLane = p.sprayLane;
         if (p.sprayVolleyId) row.sprayVolleyId = p.sprayVolleyId;
@@ -3632,6 +3814,8 @@ function compactPlayerWireRowV6(p, beamActive = false, beamDidDamage = false) {
   add(26, p.ultimateCharge == null || Number(p.ultimateCharge) <= 0 ? null : num(p.ultimateCharge, 2));
   add(27, p.ultimateUseSeq ? Math.max(0, Math.floor(Number(p.ultimateUseSeq) || 0)) : null);
   add(28, ms(p.ultimateActiveMs));
+  add(29, ms(p.pendingUltimateMs));
+  add(30, p.pendingUltimateId || null);
   if (ext.length) row.push(ext);
   return row;
 }
@@ -3677,7 +3861,9 @@ function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), for
     type: state.type,
     state: state.state,
     mode: state.mode,
+    matchMode: state.matchMode || state.mode,
     room: state.room,
+    roomNumber: state.roomNumber || 0,
     wireFormat: 'c6',
     scoreA: roundWireNumber(state.scoreA, 3),
     scoreB: roundWireNumber(state.scoreB, 3),
@@ -3791,7 +3977,7 @@ module.exports = {
   getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget,
   applyStatus, getStatus, hasStatus, clearStatus, clearAllStatuses, isStunned,
   applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing, queueHealerNumberFeedback, flushHealerNumberFeedback,
-  ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate,
+  ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate, scheduleDelayedUltimate, resolveDelayedUltimate, spawnDiaUltimateVolley,
   reactorStageForOutput, reactorDamageForOutput, currentAttackDef,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
   POST_GAME_ROOM_CLOSE_MS, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
@@ -3800,5 +3986,6 @@ module.exports = {
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, statsVersionFromMatch,
-  teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate
+  teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate,
+  normalizeRoomMode, roomDisplayName, publicRoomList, nextRoomDisplayNumber, createRoomAndJoin, joinRoom, startMatch, rooms
 };

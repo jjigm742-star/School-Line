@@ -46,15 +46,6 @@
       <button id="resumeButton" type="button" class="resume-game-button hidden">↩️ 진행 중인 게임으로 돌아가기</button>
       <div id="resumeHint" class="resume-game-hint hidden"></div>
 
-      <div class="team-select-shell">
-        <div class="picker-heading">팀 선택</div>
-        <div class="team-select-buttons">
-          <button id="joinTeamA" type="button" class="team-select-button team-a-choice">🔵 A팀</button>
-          <button id="joinTeamB" type="button" class="team-select-button team-b-choice">🔴 B팀</button>
-        </div>
-        <p class="team-select-help">교실에서 정한 팀을 선택하세요. 방 만들기와 입장 모두 이 팀으로 들어갑니다.</p>
-      </div>
-
       <div class="room-create-shell">
         <div class="picker-heading">새 방 만들기</div>
         <div class="room-create-buttons">
@@ -89,7 +80,7 @@
       <div class="panel lobby-main">
         <div class="row between lobby-title-row">
           <div><h2><span id="roomLabel">방</span> <span id="roomModeBadge" class="room-mode-badge"></span></h2><div id="hostLabel" class="muted"></div></div>
-          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="competitiveStatsButton" type="button">🔒 관리자 통계</button><button id="fullscreenButton">가로 전체화면</button><button id="normalStartButton" class="accent hidden">일반전 시작</button><button id="competitiveStartButton" class="competitive-start hidden">경쟁전 시작</button></div>
+          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="competitiveStatsButton" type="button">🔒 관리자 통계</button><button id="fullscreenButton">가로 전체화면</button><button id="rematchPrepareButton" class="hidden">↻ 다시 게임 준비</button><button id="normalStartButton" class="accent hidden">일반전 시작</button><button id="competitiveStartButton" class="competitive-start hidden">경쟁전 시작</button></div>
         </div>
         <div id="roomModeControls" class="room-mode-controls hidden">
           <span>방 모드</span>
@@ -97,6 +88,14 @@
           <button id="setCompetitiveModeButton" type="button">🏆 경쟁전 4v4</button>
         </div>
         <div id="modeStartHint" class="mode-start-hint"></div>
+        <div id="lobbyTeamControls" class="lobby-team-controls">
+          <div class="lobby-team-switch-title"><b>내 팀</b><span id="lobbyTeamSwitchStatus"></span></div>
+          <div class="lobby-team-switch-buttons">
+            <button id="switchTeamAButton" type="button" class="team-select-button team-a-choice">🔵 A팀</button>
+            <button id="switchTeamBButton" type="button" class="team-select-button team-b-choice">🔴 B팀</button>
+          </div>
+          <p class="lobby-team-switch-help">경기 시작 전에는 자유롭게 팀을 옮길 수 있습니다. 이동할 팀이 4명이면 선택할 수 없습니다.</p>
+        </div>
         <div id="resultBanner" class="result hidden"></div>
         <div id="resultStats" class="result-stats hidden"></div>
         <button id="storyButton" type="button" class="story-button hidden">📖 내가 플레이한 캐릭터 이야기</button>

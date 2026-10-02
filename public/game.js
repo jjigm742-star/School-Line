@@ -184,7 +184,6 @@ const initialRole = CHARACTER_META[savedCharacter]?.role || '딜러';
 const pickerState = {
   lobby: { selected: null, role: initialRole }
 };
-let selectedJoinTeam = ['A','B'].includes(localStorage.getItem('schoolLineTeam')) ? localStorage.getItem('schoolLineTeam') : null;
 let roomDirectory = [];
 let roomDirectoryRequestInFlight = false;
 let lastLobbyPickerAvailabilityKey = null;
@@ -1440,7 +1439,7 @@ function updateAccessUi(open, message='') {
   }
   if ($('accessOpenButton')) $('accessOpenButton').disabled = schoolLineAccessOpen;
   if ($('accessLockButton')) $('accessLockButton').disabled = !schoolLineAccessOpen;
-  for (const id of ['resumeButton','spectatorJoinButton','joinTeamA','joinTeamB','createCasualRoomButton','createCompetitiveRoomButton','refreshRoomsButton']) {
+  for (const id of ['resumeButton','spectatorJoinButton','createCasualRoomButton','createCompetitiveRoomButton','refreshRoomsButton']) {
     const el = $(id);
     if (el) el.disabled = !schoolLineAccessOpen;
   }
@@ -1578,16 +1577,9 @@ function refreshResumeButton() {
 }
 refreshResumeButton();
 
-function selectJoinTeam(team) {
-  selectedJoinTeam = team;
-  if (team) localStorage.setItem('schoolLineTeam', team);
-  $('joinTeamA').classList.toggle('selected', team === 'A');
-  $('joinTeamB').classList.toggle('selected', team === 'B');
-  renderRoomDirectory();
+function rememberJoinedTeam(team) {
+  if (team === 'A' || team === 'B') localStorage.setItem('schoolLineTeam', team);
 }
-$('joinTeamA').onclick = () => selectJoinTeam('A');
-$('joinTeamB').onclick = () => selectJoinTeam('B');
-selectJoinTeam(selectedJoinTeam);
 
 function roomStateLabel(entry) {
   if (!entry) return '';
@@ -1595,7 +1587,10 @@ function roomStateLabel(entry) {
   if (entry.state === 'draft') return '밴·픽 중';
   if (entry.state === 'ready') return '경쟁전 준비 중';
   if (entry.state === 'playing') return '게임 중';
-  if (entry.state === 'ended') return '종료 중';
+  if (entry.state === 'ended') {
+    const seconds = Math.max(0, Math.ceil(Number(entry.closeTimeLeft || 0)));
+    return seconds > 0 ? `종료 · ${seconds}초 후 삭제` : '종료 중';
+  }
   return String(entry.state || '');
 }
 function roomModeLabel(mode) { return mode === 'competitive' ? '🏆 경쟁전' : '🎮 일반전'; }
@@ -1616,14 +1611,20 @@ function renderRoomDirectory() {
       const meta = document.createElement('div');
       meta.className = 'open-room-meta';
       meta.innerHTML = `<div class="open-room-title"><b>${escapeHtml(entry.name || `방 ${entry.number||''}`)}</b><span class="open-room-mode">${roomModeLabel(entry.mode)}</span></div><div class="open-room-sub">${countText} · ${teamCount} · ${escapeHtml(roomStateLabel(entry))}</div>${fire}`;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'open-room-join';
-      const teamFull = selectedJoinTeam === 'A' ? Number(entry.countA||0) >= 4 : selectedJoinTeam === 'B' ? Number(entry.countB||0) >= 4 : false;
-      btn.disabled = !schoolLineAccessOpen || !entry.joinable || !selectedJoinTeam || teamFull;
-      btn.textContent = !entry.joinable ? '입장 불가' : !selectedJoinTeam ? '팀 선택 필요' : teamFull ? `${selectedJoinTeam}팀 가득 참` : `${selectedJoinTeam}팀 입장`;
-      btn.onclick = () => joinExistingRoom(entry.id);
-      card.append(meta, btn);
+      const actions = document.createElement('div');
+      actions.className = 'open-room-team-actions';
+      for (const team of ['A','B']) {
+        const count = team === 'A' ? Number(entry.countA||0) : Number(entry.countB||0);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `open-room-join ${team === 'A' ? 'team-a-choice' : 'team-b-choice'}`;
+        const teamFull = count >= 4;
+        btn.disabled = !schoolLineAccessOpen || !entry.joinable || teamFull;
+        btn.textContent = !entry.joinable ? '입장 불가' : teamFull ? `${team}팀 4/4` : `${team === 'A' ? '🔵' : '🔴'} ${team}팀 입장 ${count}/4`;
+        btn.onclick = () => joinExistingRoom(entry.id, team);
+        actions.appendChild(btn);
+      }
+      card.append(meta, actions);
       root.appendChild(card);
     }
   }
@@ -1660,7 +1661,6 @@ async function refreshRoomDirectory() {
 function validateJoinIdentity() {
   const name = String($('nameInput')?.value || '').trim();
   if (!name) { $('joinError').textContent = '닉네임을 입력하세요.'; return false; }
-  if (!selectedJoinTeam) { $('joinError').textContent = 'A팀 또는 B팀을 먼저 선택하세요.'; return false; }
   localStorage.setItem('schoolLineName', name);
   return true;
 }
@@ -1669,16 +1669,20 @@ function createRoom(mode) {
   updateSoundButton();
   $('joinError').textContent = '';
   if (!validateJoinIdentity()) return;
-  openConnection(() => ws.send(JSON.stringify({ type:'create_room', name:$('nameInput').value, team:selectedJoinTeam, mode })));
+  openConnection(() => ws.send(JSON.stringify({ type:'create_room', name:$('nameInput').value, team:'A', mode })));
 }
-function joinExistingRoom(roomId) {
+function joinExistingRoom(roomId, team) {
   ensureAudio();
   updateSoundButton();
   $('joinError').textContent = '';
   if (!validateJoinIdentity()) return;
+  if (team !== 'A' && team !== 'B') { $('joinError').textContent = '입장할 팀을 선택하세요.'; return; }
   const entry = roomDirectory.find(room => room.id === roomId);
   if (!entry || !entry.joinable) { $('joinError').textContent = '이 방은 더 이상 입장할 수 없습니다. 방 목록을 새로고침해주세요.'; refreshRoomDirectory(); return; }
-  openConnection(() => ws.send(JSON.stringify({ type:'join_room', name:$('nameInput').value, roomId, team:selectedJoinTeam })));
+  const count = team === 'A' ? Number(entry.countA||0) : Number(entry.countB||0);
+  if (count >= 4) { $('joinError').textContent = `${team}팀은 이미 4명입니다.`; refreshRoomDirectory(); return; }
+  rememberJoinedTeam(team);
+  openConnection(() => ws.send(JSON.stringify({ type:'join_room', name:$('nameInput').value, roomId, team })));
 }
 $('createCasualRoomButton').onclick = () => createRoom('casual');
 $('createCompetitiveRoomButton').onclick = () => createRoom('competitive');
@@ -2039,6 +2043,23 @@ function handleMessage(msg) {
     alert(msg.message || '관리자 통계를 열 수 없습니다.');
     return;
   }
+  if (msg.type === 'rematch_error') {
+    const hint = $('modeStartHint');
+    if (hint) hint.textContent = `⚠️ ${msg.message || '다시 게임 준비를 시작하지 못했습니다.'}`;
+    return;
+  }
+  if (msg.type === 'team_changed') {
+    rememberJoinedTeam(msg.team);
+    lastLobbyPickerAvailabilityKey = null;
+    const notice = $('pickNotice');
+    if (notice) notice.textContent = msg.message || `${msg.team}팀으로 이동했습니다.`;
+    return;
+  }
+  if (msg.type === 'team_change_error') {
+    const notice = $('pickNotice');
+    if (notice) notice.textContent = `⚠️ ${msg.message || '팀을 변경하지 못했습니다.'}`;
+    return;
+  }
   if (msg.type === 'room_mode_error') {
     $('modeStartHint').textContent = `⚠️ ${msg.message || '방 모드를 변경하지 못했습니다.'}`;
     return;
@@ -2159,10 +2180,21 @@ window.addEventListener('keydown', e => {
   }
 });
 
+$('rematchPrepareButton').onclick = () => ws && ws.send(JSON.stringify({ type:'rematch_prepare' }));
 $('normalStartButton').onclick = () => ws && ws.send(JSON.stringify({ type:'start' }));
 $('competitiveStartButton').onclick = () => ws && ws.send(JSON.stringify({ type:'competitive_start' }));
 $('setCasualModeButton').onclick = () => ws && ws.send(JSON.stringify({ type:'set_room_mode', mode:'casual' }));
 $('setCompetitiveModeButton').onclick = () => ws && ws.send(JSON.stringify({ type:'set_room_mode', mode:'competitive' }));
+
+function requestLobbyTeamChange(team) {
+  if (spectatorMode || !myId || !state || state.state !== 'lobby') return;
+  if (team !== 'A' && team !== 'B') return;
+  const me = state.players.find(p => p.id === myId);
+  if (!me || me.team === team) return;
+  ws?.send(JSON.stringify({ type:'set_team', team }));
+}
+$('switchTeamAButton').onclick = () => requestLobbyTeamChange('A');
+$('switchTeamBButton').onclick = () => requestLobbyTeamChange('B');
 $('fullscreenButton').onclick = enterGameDisplayMode;
 $('gameFullscreenButton').onclick = enterGameDisplayMode;
 $('soundButton').onclick = toggleSound;
@@ -2630,6 +2662,29 @@ $('competitiveStatsCloseBottom').onclick = closeCompetitiveStats;
 $('competitiveStatsExport').onclick = exportCompetitiveStatsJson;
 $('competitiveStatsOverlay').onclick = e => { if (e.target === $('competitiveStatsOverlay')) closeCompetitiveStats(); };
 
+function postGameCountdownSeconds() {
+  if (!state || state.state !== 'ended') return 0;
+  const closeAt = Number(state.roomCloseAt || 0);
+  if (closeAt > 0) return Math.max(0, Math.ceil((closeAt - Date.now()) / 1000));
+  return Math.max(0, Math.ceil(Number(state.roomCloseTimeLeft || 0)));
+}
+
+function updatePostGameCountdownUi() {
+  if (!state || state.state !== 'ended') return;
+  const seconds = postGameCountdownSeconds();
+  const isHost = !spectatorMode && state.hostId === myId;
+  const label = $('hostLabel');
+  const hint = $('modeStartHint');
+  const rematch = $('rematchPrepareButton');
+  if (label) label.textContent = `🏁 경기가 종료되었습니다. 방 자동 삭제까지 ${seconds}초`;
+  if (hint) hint.textContent = isHost
+    ? '↻ 다시 게임 준비를 누르면 삭제 예약이 즉시 취소되고 같은 방에서 다음 경기를 준비할 수 있습니다.'
+    : '방장이 다시 게임 준비를 누르면 이 방을 유지하고 다음 경기를 준비할 수 있습니다.';
+  if (rematch) rematch.textContent = `↻ 다시 게임 준비 (${seconds}초)`;
+}
+
+setInterval(updatePostGameCountdownUi, 250);
+
 function renderLobby() {
   if (!state) return;
   const me = state.players.find(p => p.id === myId);
@@ -2664,16 +2719,31 @@ function renderLobby() {
   const countA = state.players.filter(p => p.team === 'A' && p.connected !== false).length;
   const countB = state.players.filter(p => p.team === 'B' && p.connected !== false).length;
   const competitiveReady = state.players.length === 8 && countA === 4 && countB === 4 && state.players.every(p => p.connected !== false);
+  const teamControls = $('lobbyTeamControls');
+  if (teamControls) teamControls.classList.toggle('hidden', spectatorMode || roomEnding || state.state !== 'lobby' || !me);
+  if (me) {
+    const switchA = $('switchTeamAButton');
+    const switchB = $('switchTeamBButton');
+    switchA.classList.toggle('selected', me.team === 'A');
+    switchB.classList.toggle('selected', me.team === 'B');
+    switchA.disabled = me.team === 'A' || countA >= 4;
+    switchB.disabled = me.team === 'B' || countB >= 4;
+    switchA.textContent = me.team === 'A' ? `🔵 A팀 ✓ (${countA}/4)` : `🔵 A팀으로 이동 (${countA}/4)`;
+    switchB.textContent = me.team === 'B' ? `🔴 B팀 ✓ (${countB}/4)` : `🔴 B팀으로 이동 (${countB}/4)`;
+    const status = $('lobbyTeamSwitchStatus');
+    if (status) status.textContent = `현재 ${me.team}팀`;
+  }
   const modeControls = $('roomModeControls');
   if (modeControls) modeControls.classList.toggle('hidden', !isHost || roomEnding || state.state !== 'lobby');
   $('setCasualModeButton').classList.toggle('active', roomMode === 'casual');
   $('setCompetitiveModeButton').classList.toggle('active', roomMode === 'competitive');
+  const rematchPrepareButton = $('rematchPrepareButton');
+  if (rematchPrepareButton) rematchPrepareButton.classList.toggle('hidden', !isHost || !roomEnding);
   $('normalStartButton').classList.toggle('hidden', !isHost || roomEnding || roomMode !== 'casual');
   $('competitiveStartButton').classList.toggle('hidden', !isHost || roomEnding || roomMode !== 'competitive');
   $('competitiveStartButton').disabled = roomEnding || !competitiveReady;
   if (roomEnding) {
-    $('hostLabel').textContent = '🏁 경기가 종료되었습니다. 이 방은 경기 종료 10초 후 자동으로 닫힙니다.';
-    $('modeStartHint').textContent = '결과를 확인한 뒤 모든 참가자와 관전자가 자동으로 퇴장합니다.';
+    updatePostGameCountdownUi();
   } else if (roomMode === 'competitive') {
     $('hostLabel').textContent = spectatorMode ? '📺 관전자 모드 · 경쟁전 시작 대기 중' : (isHost ? '내가 방장입니다. 필요하면 위에서 일반전으로 바꿀 수 있습니다.' : '🏆 경쟁전 방 · 방장만 모드를 변경할 수 있습니다.');
     $('modeStartHint').textContent = competitiveReady

@@ -28,7 +28,7 @@ const WS_PING_INTERVAL_MS = Math.max(5000, Number(process.env.SCHOOL_LINE_WS_PIN
 const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS + 5000, Number(process.env.SCHOOL_LINE_WS_STALE_TIMEOUT_MS || 15000));
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
-const POST_GAME_ROOM_CLOSE_MS = 10000;
+const POST_GAME_ROOM_CLOSE_MS = 30000;
 const COMPETITIVE_BAN_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_BAN_MS || 10000));
 const COMPETITIVE_PICK_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_PICK_MS || 10000));
 const COMPETITIVE_READY_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_READY_MS || 20000));
@@ -55,7 +55,7 @@ const BALANCE_VERSION = '1.6.2';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 4;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist1-ultstats1-diacrystalburst1-delayedultwarn1-whitefieldfx3-shortultdesc1-bwopt9c6sparse';
+const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-postgame30rematch1-ultstats1-diacrystalburst1-delayedultwarn1-whitefieldfx3-shortultdesc1-bwopt9c6sparse';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.2-r22-allultimates';
 
 
@@ -1362,7 +1362,10 @@ function publicRoomList() {
     return {
       id: room.code, number: Math.max(0, Number(room.displayNumber) || 0), name: roomDisplayName(room),
       mode: normalizeRoomMode(room.mode), state: room.state, count, countA, countB, capacity: 8,
-      joinable, oneMore: normalizeRoomMode(room.mode) === 'competitive' && count === 7 && joinable
+      joinable, oneMore: normalizeRoomMode(room.mode) === 'competitive' && count === 7 && joinable,
+      closeTimeLeft: room.state === 'ended' && room.postGameDeleteAt
+        ? Math.max(0, (room.postGameDeleteAt - Date.now()) / 1000)
+        : 0
     };
   });
   const stateRank = entry => entry.joinable ? 0 : 1;
@@ -1390,6 +1393,7 @@ function newRoom(code, options = {}) {
     matchEndAt: 0,
     matchStartedAt: 0,
     endedAt: 0,
+    postGameDeleteAt: 0,
     winner: null,
     winnerReason: null,
     projectileCounter: 1,
@@ -1454,6 +1458,33 @@ function shuffled(items) {
   }
   return out;
 }
+function cancelPostGameRoomClose(room) {
+  if (!room) return;
+  room.postGameDeleteAt = 0;
+  room.endedAt = 0;
+}
+
+function reopenEndedRoomForRematch(room, requester, now = Date.now()) {
+  if (!room || room.state !== 'ended' || !requester || room.hostId !== requester.id) return false;
+  // Remove seats that disconnected after the previous result before reopening the room.
+  pruneDisconnectedEndedPlayers(room);
+  cancelPostGameRoomClose(room);
+  room.state = 'lobby';
+  room.matchMode = null;
+  room.competitive = null;
+  room.matchStartedAt = 0;
+  room.matchEndAt = 0;
+  room.nextUltimateAutoChargeAt = 0;
+  room.scoreA = 0;
+  room.scoreB = 0;
+  room.winner = null;
+  room.winnerReason = null;
+  clearProjectiles(room);
+  room.beams = [];
+  for (const p of room.players.values()) neutralizePlayerInput(p);
+  return true;
+}
+
 function pruneDisconnectedEndedPlayers(room) {
   if (!room || room.state !== 'ended') return;
   for (const [pid, p] of [...room.players.entries()]) {
@@ -1486,6 +1517,7 @@ function currentCompetitivePickerId(room) {
 function startCompetitiveDraft(room, now = Date.now()) {
   if (!isExactCompetitiveRoster(room)) return false;
   if (normalizeRoomMode(room.mode) !== 'competitive') return false;
+  cancelPostGameRoomClose(room);
   room.state = 'draft';
   room.winner = null;
   room.winnerReason = null;
@@ -1734,6 +1766,44 @@ function onMessage(conn, msg) {
   if (!room || !conn.playerId) return;
   const player = room.players.get(conn.playerId);
   if (!player) return;
+
+  if (msg.type === 'rematch_prepare') {
+    if (room.hostId !== player.id) { conn.send({ type: 'rematch_error', message: '방장만 다시 게임 준비를 시작할 수 있습니다.' }); return; }
+    if (room.state !== 'ended') { conn.send({ type: 'rematch_error', message: '경기가 종료된 뒤에만 다시 게임 준비를 할 수 있습니다.' }); return; }
+    if (!reopenEndedRoomForRematch(room, player, Date.now())) { conn.send({ type: 'rematch_error', message: '다시 게임 준비를 시작하지 못했습니다.' }); return; }
+    broadcast(room);
+    return;
+  }
+
+  if (msg.type === 'set_team') {
+    if (room.state !== 'lobby') { conn.send({ type: 'team_change_error', message: '경기 준비 또는 시작 후에는 팀을 변경할 수 없습니다.' }); return; }
+    const nextTeam = msg.team === 'A' || msg.team === 'B' ? msg.team : null;
+    if (!nextTeam) { conn.send({ type: 'team_change_error', message: 'A팀 또는 B팀을 선택하세요.' }); return; }
+    if (nextTeam === player.team) { conn.send({ type: 'team_changed', team: player.team, characterReset: false, message: `이미 ${player.team}팀입니다.` }); return; }
+    if (countTeam(room, nextTeam) >= 4) { conn.send({ type: 'team_change_error', message: `${nextTeam}팀은 이미 4명입니다.` }); return; }
+
+    let characterReset = false;
+    const previousCharacter = player.character;
+    if (previousCharacter && isCharacterTakenOnTeam(room, nextTeam, previousCharacter, player.id)) {
+      player.character = null;
+      player.hp = 0;
+      player.maxHp = 0;
+      characterReset = true;
+    }
+    player.team = nextTeam;
+    const sp = spawnPoint(room, player);
+    player.x = sp.x; player.y = sp.y;
+    player.aimX = sp.x; player.aimY = nextTeam === 'A' ? Math.min(WORLD.height, sp.y + 15) : Math.max(0, sp.y - 15);
+    neutralizePlayerInput(player);
+    conn.send({
+      type: 'team_changed', team: nextTeam, characterReset,
+      message: characterReset
+        ? `${nextTeam}팀으로 이동했습니다. 같은 팀에 이미 같은 캐릭터가 있어 캐릭터 선택이 초기화되었습니다.`
+        : `${nextTeam}팀으로 이동했습니다.`
+    });
+    broadcast(room);
+    return;
+  }
 
   if (msg.type === 'set_room_mode') {
     if (room.hostId !== player.id) { conn.send({ type: 'room_mode_error', message: '방장만 게임 모드를 변경할 수 있습니다.' }); return; }
@@ -1993,8 +2063,8 @@ function createRoomAndJoin(conn, msg) {
     conn.send({ type: 'error', code: 'nickname_in_use', message: '이 닉네임은 이미 다른 게임에 참가 중입니다. 기존 게임을 먼저 종료하거나 기존 화면으로 돌아가세요.' });
     return false;
   }
-  const team = msg.team === 'A' || msg.team === 'B' ? msg.team : null;
-  if (!team) { conn.send({ type: 'error', message: 'A팀 또는 B팀을 선택하세요.' }); return false; }
+  // New-room creators always start on A. They can freely switch teams in the waiting room.
+  const team = 'A';
   const code = newInternalRoomCode();
   const room = newRoom(code, { mode: normalizeRoomMode(msg.mode), displayNumber: nextRoomDisplayNumber() });
   rooms.set(code, room);
@@ -2159,9 +2229,11 @@ function disconnect(conn) {
 }
 
 function startMatch(room, now = Date.now()) {
+  // Starting any new game is an authoritative cancellation of a pending post-game room deletion.
+  cancelPostGameRoomClose(room);
   room.matchMode = normalizeRoomMode(room.mode);
   room.state = 'playing';
-  room.scoreA = 0; room.scoreB = 0; room.winner = null; room.winnerReason = null; room.endedAt = 0;
+  room.scoreA = 0; room.scoreB = 0; room.winner = null; room.winnerReason = null;
   room.matchStartedAt = now;
   room.matchEndAt = now + MATCH_SECONDS * 1000;
   room.nextUltimateAutoChargeAt = now + ULTIMATE_AUTO_CHARGE_INTERVAL_MS;
@@ -3283,6 +3355,7 @@ function closeEndedRoom(room) {
 
   clearProjectiles(room);
   room.beams = [];
+  room.postGameDeleteAt = 0;
   room.clients.clear();
   room.spectators.clear();
   room.players.clear();
@@ -3304,13 +3377,15 @@ function updateRoom(room, dt, now) {
   const competitiveFlowChanged = updateCompetitiveFlow(room, now);
   if (competitiveFlowChanged) broadcast(room, now);
   if (room.state === 'ended') {
-    if (room.endedAt && now - room.endedAt >= POST_GAME_ROOM_CLOSE_MS) closeEndedRoom(room);
+    const closeAt = Number(room.postGameDeleteAt) || (room.endedAt ? room.endedAt + POST_GAME_ROOM_CLOSE_MS : 0);
+    if (closeAt && now >= closeAt) closeEndedRoom(room);
     return;
   }
   if (room.state !== 'playing') return;
   if (now >= room.matchEndAt) {
     room.state = 'ended';
     room.endedAt = now;
+    room.postGameDeleteAt = now + POST_GAME_ROOM_CLOSE_MS;
     const resolved = resolveMatchWinner(room);
     room.winner = resolved.winner;
     room.winnerReason = resolved.reason;
@@ -3673,6 +3748,9 @@ function snapshot(room, viewerId = null, spectator = false) {
     out.winner = room.winner;
     out.winnerReason = room.winnerReason || null;
     out.teamKills = teamKillTotals(room);
+    const closeAt = Number(room.postGameDeleteAt) || (room.endedAt ? room.endedAt + POST_GAME_ROOM_CLOSE_MS : 0);
+    out.roomCloseAt = closeAt || 0;
+    out.roomCloseTimeLeft = closeAt ? Math.max(0, (closeAt - now) / 1000) : 0;
   }
   return out;
 }
@@ -3980,7 +4058,7 @@ module.exports = {
   ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate, scheduleDelayedUltimate, resolveDelayedUltimate, spawnDiaUltimateVolley,
   reactorStageForOutput, reactorDamageForOutput, currentAttackDef,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
-  POST_GAME_ROOM_CLOSE_MS, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
+  POST_GAME_ROOM_CLOSE_MS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,

@@ -544,7 +544,10 @@ body.access-locked .access-admin-floating { display: none; }
 .open-room-card.competitive .open-room-mode { background:#3c285f; color:#eadcff; }
 .open-room-sub { margin-top:4px; color:#9fb0c6; font-size:11px; line-height:1.4; }
 .open-room-hot { margin-top:5px; color:#ffd36f; font-size:12px; font-weight:1000; }
-.open-room-join { min-width:104px; font-weight:950; }
+.open-room-team-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; min-width:250px; }
+.open-room-join { min-width:118px; font-weight:950; }
+.open-room-join.team-a-choice { background:rgba(47,119,255,.30); border-color:rgba(80,145,255,.58); }
+.open-room-join.team-b-choice { background:rgba(255,69,69,.26); border-color:rgba(255,96,96,.56); }
 .open-room-join:disabled { opacity:.45; cursor:not-allowed; }
 .room-mode-badge { color:#aebfd3; font-size:.58em; font-weight:850; white-space:nowrap; }
 .room-mode-badge.competitive { color:#d9c0ff; }
@@ -560,7 +563,21 @@ body.access-locked .access-admin-floating { display: none; }
 @media (max-width:640px) {
   .room-create-buttons { grid-template-columns:1fr; }
   .open-room-card { grid-template-columns:1fr; }
-  .open-room-join { width:100%; }
+  .open-room-team-actions { width:100%; min-width:0; }
+  .open-room-join { width:100%; min-width:0; }
   .spectator-entry-row-select { grid-template-columns:1fr; }
   .spectator-entry-row-select button { width:100%; }
+}
+
+/* Alpha 1.6.2: explicit per-room team entry + free lobby team switching. */
+.lobby-team-controls { margin:10px 0 14px; padding:12px; border-radius:13px; background:#0f1722; border:1px solid #2d3b4e; }
+.lobby-team-switch-title { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+.lobby-team-switch-title span { color:#9fb0c6; font-size:12px; font-weight:850; }
+.lobby-team-switch-buttons { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.lobby-team-switch-buttons .team-select-button { min-height:46px; font-size:14px; }
+.lobby-team-switch-buttons .team-select-button:disabled { opacity:.72; cursor:default; }
+.lobby-team-switch-help { margin:8px 0 0; color:#9fb0c6; font-size:11px; line-height:1.4; text-align:center; }
+@media (max-width:560px) {
+  .open-room-team-actions { grid-template-columns:1fr 1fr; }
+  .open-room-join { font-size:12px; padding-left:7px; padding-right:7px; }
 }

@@ -55,7 +55,7 @@ const BALANCE_VERSION = '1.6.2';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 4;
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-postgame30rematch1-ultstats1-diacrystalburst1-delayedultwarn1-whitefieldfx3-shortultdesc1-bwopt9c6sparse';
+const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-postgame30rematch1-ultstats1-diacrystalburst1-delayedult2s-mechafuse4s-sustainradius1-whitefieldfx3-shortultdesc1-bwopt9c6sparse';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.2-r22-allultimates';
 
 
@@ -103,13 +103,13 @@ const CHARACTERS = {
     name: '아이언', role: '탱커', hp: 600, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.32,
     projectileType: 'attack', damage: 17,
-    ultimateName: '분쇄', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해를 주고 1.5초 기절시킨다.', ultimateRadius: 12, ultimateDamage: 50, ultimateStunDuration: 1.5, ultimateDelay: 0.5
+    ultimateName: '분쇄', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해를 주고 1.5초 기절시킨다.', ultimateRadius: 12, ultimateDamage: 50, ultimateStunDuration: 1.5, ultimateDelay: 2
   },
   mecha: {
     name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13,
-    ultimateName: '자폭', ultimateCost: 1000, ultimateDescription: '1초 후 반경 16m 적에게 200 피해를 주고 자신도 200 피해를 받는다.', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 1
+    ultimateName: '자폭', ultimateCost: 1000, ultimateDescription: '4초 후 반경 16m 적에게 200 피해를 주고 자신도 200 피해를 받는다.', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 4
   },
   jet: {
     name: '제트', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
@@ -215,7 +215,7 @@ const CHARACTERS = {
     name: '스타', role: '힐러', hp: 200, speed: 5.0, radius: 0.80,
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'heal', heal: 45, damage: 25,
-    ultimateName: '슈퍼노바', ultimateCost: 1400, ultimateDescription: '반경 30m 자신과 아군을 150 회복하고 적에게 100 피해를 준다.', ultimateRadius: 30, ultimateHeal: 150, ultimateDamage: 100, ultimateDelay: 0.5
+    ultimateName: '슈퍼노바', ultimateCost: 1400, ultimateDescription: '반경 30m 자신과 아군을 150 회복하고 적에게 100 피해를 준다.', ultimateRadius: 30, ultimateHeal: 150, ultimateDamage: 100, ultimateDelay: 2
   },
   angel: {
     name: '엔젤', role: '힐러', hp: 175, speed: 6.0, radius: 0.65,
@@ -246,7 +246,7 @@ const CHARACTERS = {
     name: '아이스', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 70,
     slowTierDelta: -1, slowDuration: 1.5,
-    ultimateName: '절대영도', ultimateCost: 1000, ultimateDescription: '반경 16m 적을 1초 기절시키고 자신은 300 회복한다.', ultimateRadius: 16, ultimateStunDuration: 1, ultimateHeal: 300, ultimateDelay: 0.5
+    ultimateName: '절대영도', ultimateCost: 1000, ultimateDescription: '반경 16m 적을 1초 기절시키고 자신은 300 회복한다.', ultimateRadius: 16, ultimateStunDuration: 1, ultimateHeal: 300, ultimateDelay: 2
   },
   dia: {
     name: '다이아', role: '탱커', hp: 350, speed: 5.0, radius: 1.00,
@@ -2687,7 +2687,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
 
   let activated = false;
   if (player.character === 'iron') {
-    scheduleDelayedUltimate(player, 'iron', now, Number(def.ultimateDelay) || 0.5);
+    scheduleDelayedUltimate(player, 'iron', now, Number(def.ultimateDelay) || 2);
     activated = true;
   } else if (player.character === 'water') {
     const radius = Number(def.ultimateRadius) || 16;
@@ -2705,7 +2705,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
     if (player.character === 'jet') player.jetBoostCooldownUntil = now;
     activated = true;
   } else if (player.character === 'mecha') {
-    player.mechaSelfDestructAt = now + (Number(def.ultimateDelay) || 1) * 1000;
+    player.mechaSelfDestructAt = now + (Number(def.ultimateDelay) || 4) * 1000;
     player.ultimateUntil = player.mechaSelfDestructAt;
     activated = true;
   } else if (player.character === 'jet') {
@@ -2734,7 +2734,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
     }
     activated = true;
   } else if (player.character === 'star') {
-    scheduleDelayedUltimate(player, 'star', now, Number(def.ultimateDelay) || 0.5);
+    scheduleDelayedUltimate(player, 'star', now, Number(def.ultimateDelay) || 2);
     activated = true;
   } else if (player.character === 'angel') {
     const target = (targetId && room.players.get(String(targetId)) && room.players.get(String(targetId)).alive && room.players.get(String(targetId)).team === player.team)
@@ -2744,7 +2744,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
     target.invulnerableUntil = Math.max(Number(target.invulnerableUntil) || 0, player.ultimateUntil);
     activated = true;
   } else if (player.character === 'ice') {
-    scheduleDelayedUltimate(player, 'ice', now, Number(def.ultimateDelay) || 0.5);
+    scheduleDelayedUltimate(player, 'ice', now, Number(def.ultimateDelay) || 2);
     activated = true;
   } else if (player.character === 'dia') {
     // Crystal Burst is independent from Dia's normal form-change ability.
@@ -3460,7 +3460,7 @@ function updateRoom(room, dt, now) {
       player.pendingUltimateId = null;
       player.pendingUltimateAt = 0;
       player.ultimateUntil = 0;
-      // Reaching this branch means the caster survived the full 0.5 s warning.
+      // Reaching this branch means the caster survived the full server-authoritative warning delay.
       resolveDelayedUltimate(room, player, pendingId, now, centerX, centerY);
       if (!player.alive) continue;
     }

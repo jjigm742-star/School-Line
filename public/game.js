@@ -3544,6 +3544,30 @@ function renderGame() {
   for (const w of config.walls) ctx.fillRect(w.y*SCALE,w.x*SCALE,w.h*SCALE,w.w*SCALE);
 
   const beamFxNow = performance.now();
+
+  // Solar/Wind are moving area ultimates. Keep the exact gameplay radius visible
+  // for the whole active duration, underneath character art and combat effects.
+  for (const p of viewState.players) {
+    if (!p.alive || Number(p.ultimateActiveMs||0) <= 0 || (p.character !== 'solar' && p.character !== 'wind')) continue;
+    const activeDef=characterPublicDef(p.character) || {};
+    const activeRadius=Math.max(0,Number(activeDef.ultimateRadius)||0)*SCALE;
+    if (!(activeRadius > 0)) continue;
+    const rw=renderedPlayerWorldPosition(p,beamFxNow);
+    const rs=worldToScreen(rw.x,rw.y);
+    const ustyle=ULTIMATE_FX_STYLE[p.character] || {color:fxCharacterColor(p.character),dark:'#24303d'};
+    const phase=beamFxNow*.006;
+    const rangePulse=.88+.12*Math.sin(phase*.85 + rs.x*.006);
+    ctx.save();
+    ctx.setLineDash([10,7]);
+    ctx.globalAlpha=.66+.10*rangePulse; ctx.strokeStyle=ustyle.dark; ctx.lineWidth=5.2;
+    ctx.beginPath(); ctx.arc(rs.x,rs.y,activeRadius,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=.88+.08*rangePulse; ctx.strokeStyle=ustyle.color; ctx.lineWidth=2.7;
+    ctx.beginPath(); ctx.arc(rs.x,rs.y,activeRadius,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha=p.character==='solar' ? .045 : .035; ctx.fillStyle=ustyle.color;
+    ctx.beginPath(); ctx.arc(rs.x,rs.y,activeRadius,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
   const renderBeams = liveVisualBeams(viewState, beamFxNow);
   for (const b of renderBeams) drawBeamFx(b, beamFxNow);
   for (const p of viewState.players) if (p.alive && p.character==='jet' && p.jetBoost) drawJetBoostTrail(p, beamFxNow);

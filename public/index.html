@@ -52,7 +52,7 @@
           <button id="createCasualRoomButton" type="button" class="accent">🎮 일반전 방 만들기</button>
           <button id="createCompetitiveRoomButton" type="button" class="competitive-start">🏆 경쟁전 방 만들기</button>
         </div>
-        <p class="room-create-help">일반전은 자유 인원으로 연습할 수 있고, 경쟁전은 A 4명 / B 4명이 모여야 시작합니다.</p>
+        <p id="roomCreateHelp" class="room-create-help">최대 5개 방까지 만들 수 있습니다. 일반전은 자유 인원, 경쟁전은 A 4명 / B 4명이 필요합니다.</p>
       </div>
 
       <section class="open-room-shell" aria-live="polite">
@@ -80,7 +80,7 @@
       <div class="panel lobby-main">
         <div class="row between lobby-title-row">
           <div><h2><span id="roomLabel">방</span> <span id="roomModeBadge" class="room-mode-badge"></span></h2><div id="hostLabel" class="muted"></div></div>
-          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="competitiveStatsButton" type="button">🔒 관리자 통계</button><button id="fullscreenButton">가로 전체화면</button><button id="rematchPrepareButton" class="hidden">↻ 다시 게임 준비</button><button id="normalStartButton" class="accent hidden">일반전 시작</button><button id="competitiveStartButton" class="competitive-start hidden">경쟁전 시작</button></div>
+          <div class="row compact-actions"><button id="lobbyHelpButton" type="button">❓ 도움말</button><button id="competitiveStatsButton" type="button">🔒 관리자 통계</button><button id="fullscreenButton">가로 전체화면</button><button id="leaveRoomButton" type="button" class="leave-room-button">↩ 방 나가기</button><button id="rematchPrepareButton" class="hidden">↻ 다시 게임 준비</button><button id="normalStartButton" class="accent hidden">일반전 시작</button><button id="competitiveStartButton" class="competitive-start hidden">경쟁전 시작</button></div>
         </div>
         <div id="roomModeControls" class="room-mode-controls hidden">
           <span>방 모드</span>
@@ -219,11 +219,20 @@
         </header>
         <div id="competitiveStatsSummary" class="stats-summary"></div>
         <div class="stats-version-row"><label for="competitiveStatsVersion">통계 버전</label><select id="competitiveStatsVersion" aria-label="경쟁 통계 버전"></select></div>
-        <div class="stats-note">같은 번호의 패치는 하나의 캐릭터 통계로 합산합니다. 밴률·픽률은 해당 캐릭터가 실제 선택 가능했던 경기만 분모로 계산합니다. 승률은 무승부를 제외한 승/패 경기 기준입니다.</div>
-        <div class="stats-note stats-note-secondary">빌드 ID·로스터 ID는 기록용 메타데이터일 뿐 캐릭터 통계를 분리하지 않습니다.</div>
-        <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>사용가능 경기</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>W-L-D</th><th>승률</th><th>궁 사용</th><th>픽당 궁</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
+        <div class="stats-note">같은 번호의 패치는 하나의 캐릭터 통계로 합산합니다. 이제 경기별 원본 기록을 함께 저장하여 닉네임·밴픽 순서·밴 투표·조합 시너지·상대전적·개인 전투/점유 통계를 사후 분석할 수 있습니다.</div>
+        <div class="stats-note stats-note-secondary">승률 옆 95% CI는 표본 불확실성을 나타냅니다. 기존 aggregate-only 경기에는 과거에 저장하지 않았던 고급 통계를 소급 복원할 수 없습니다.</div>
+        <div id="competitiveStatsDataQuality" class="stats-quality"></div>
+        <h3 class="stats-recent-title">캐릭터 종합</h3>
+        <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>가능</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>관여율</th><th>풀렸을 때 픽</th><th>W-L-D</th><th>승률</th><th>95% CI</th><th>K-D-A/판</th><th>피해/판</th><th>받피/판</th><th>치유/판</th><th>점유초/판</th><th>궁</th><th>픽당 궁</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
+        <div class="stats-analysis-grid">
+          <section><h3 class="stats-recent-title">플레이어 / 닉네임</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>닉네임</th><th>경기</th><th>W-L-D</th><th>승률</th><th>K-D-A</th><th>피해/판</th><th>받피/판</th><th>치유/판</th><th>점유초/판</th><th>연결끊김</th><th>최다 픽</th></tr></thead><tbody id="competitivePlayerStatsBody"></tbody></table></div></section>
+          <section><h3 class="stats-recent-title">2인 시너지</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>조합</th><th>경기</th><th>W-L-D</th><th>승률</th><th>시너지 Lift</th></tr></thead><tbody id="competitiveSynergyBody"></tbody></table></div></section>
+          <section><h3 class="stats-recent-title">캐릭터 상대전적</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>매치업</th><th>경기</th><th>전적</th><th>왼쪽 승률</th><th>95% CI</th></tr></thead><tbody id="competitiveMatchupBody"></tbody></table></div></section>
+          <section><h3 class="stats-recent-title">4인 조합</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>조합</th><th>경기</th><th>W-L-D</th><th>승률</th></tr></thead><tbody id="competitiveCompositionBody"></tbody></table></div></section>
+          <section class="stats-wide-section"><h3 class="stats-recent-title">드래프트 세부</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>캐릭터</th><th>밴</th><th>최종 밴투표</th><th>밴 순서</th><th>픽</th><th>픽 순서</th><th>자동픽</th><th>관여율</th><th>풀렸을 때 픽</th></tr></thead><tbody id="competitiveDraftStatsBody"></tbody></table></div><div id="competitiveDraftSummary" class="stats-note"></div></section>
+        </div>
         <h3 class="stats-recent-title">최근 경쟁 결과</h3>
-        <div id="competitiveRecentMatches" class="stats-recent"></div>
+        <div id="competitiveRecentMatches" class="stats-recent stats-recent-expanded"></div>
         <div class="stats-actions"><button id="competitiveStatsExport" type="button">전체 기록 JSON 저장</button><button id="competitiveStatsCloseBottom" type="button" class="accent">확인</button></div>
       </article>
     </div>

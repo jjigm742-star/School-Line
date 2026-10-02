@@ -29,6 +29,7 @@ const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS + 5000, Number(process.
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
 const POST_GAME_ROOM_CLOSE_MS = 30000;
+const MAX_ROOMS = 5;
 const COMPETITIVE_BAN_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_BAN_MS || 10000));
 const COMPETITIVE_PICK_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_PICK_MS || 10000));
 const COMPETITIVE_READY_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_READY_MS || 20000));
@@ -53,9 +54,12 @@ const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
 const BALANCE_VERSION = '1.6.2';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
-const COMPETITIVE_STATS_SCHEMA_VERSION = 4;
-const COMPETITIVE_STATS_VERSION = BALANCE_VERSION;
-const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-postgame30rematch1-ultstats1-diacrystalburst1-delayedult2s-mechafuse4s-sustainradius1-whitefieldfx3-shortultdesc1-bwopt9c6sparse';
+const COMPETITIVE_STATS_SCHEMA_VERSION = 6;
+// Competitive statistics use a stable major.minor series (1.4 / 1.5 / 1.6).
+// Patch/build revisions such as 1.6.2 remain recorded separately and never split the statistics bucket.
+const COMPETITIVE_STATS_VERSION = BALANCE_VERSION.split('.').slice(0, 2).join('.');
+const KNOWN_COMPETITIVE_STATS_VERSIONS = Object.freeze(['1.4', '1.5', '1.6']);
+const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-roomcap5-leave1-postgame30rematch1-ultstats1-compstats6-seriesstable1-backup1-historymerge1-waterflood2-diacrystalburst1-delayedult2s-mechafuse4s-sustainradius1-whitefieldfx3-shortultdesc1-bwopt9c6sparse';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.2-r22-allultimates';
 
 
@@ -202,7 +206,8 @@ const CHARACTERS = {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
     projectileType: 'heal', heal: 16, damage: 10,
-    ultimateName: '범람', ultimateCost: 1600, ultimateDescription: '반경 16m 자신과 아군을 200 회복하고 3초간 200 보호막을 부여한다.', ultimateRadius: 16, ultimateHeal: 200, ultimateShield: 200, ultimateShieldDuration: 3
+    ultimateName: '범람', ultimateCost: 1200, ultimateDescription: '반경 16m의 아군을 150 회복하고, 적에게 25 피해와 1초 기절을 즉시 부여한다.',
+    ultimateRadius: 16, ultimateHeal: 150, ultimateDamage: 25, ultimateStunDuration: 1
   },
   wind: {
     name: '윈드', role: '힐러', hp: 175, speed: 7.0, radius: 0.65,
@@ -462,12 +467,28 @@ function publicAdminStatsPayload(statsVersion) {
   return { ...publicCompetitiveStats(statsVersion), network: publicNetworkStats() };
 }
 
+function competitiveStatsBackupPayload() {
+  return {
+    ...JSON.parse(JSON.stringify(competitiveStats)),
+    schemaVersion: COMPETITIVE_STATS_SCHEMA_VERSION,
+    statsSeriesMode: 'major.minor',
+    backupMeta: {
+      exportedAt: new Date().toISOString(),
+      currentStatsVersion: COMPETITIVE_STATS_VERSION,
+      currentBalanceVersion: BALANCE_VERSION,
+      gameVersion: GAME_VERSION,
+      buildId: COMPETITIVE_BUILD_ID,
+      rosterVersion: COMPETITIVE_ROSTER_VERSION
+    }
+  };
+}
+
 function emptyCompetitiveCharacterStats() {
   return { availableMatches: 0, bans: 0, picks: 0, wins: 0, losses: 0, draws: 0, totalUltimateUses: 0 };
 }
 
 function emptyCompetitiveVersionStats() {
-  return { totalMatches: 0, updatedAt: null, characters: {} };
+  return { totalMatches: 0, updatedAt: null, characters: {}, legacySegments: [] };
 }
 
 function emptyCompetitiveStats() {
@@ -475,6 +496,7 @@ function emptyCompetitiveStats() {
   for (const id of Object.keys(CHARACTERS)) characters[id] = emptyCompetitiveCharacterStats();
   return {
     schemaVersion: COMPETITIVE_STATS_SCHEMA_VERSION,
+    statsSeriesMode: 'major.minor',
     totalMatches: 0,
     updatedAt: null,
     characters,
@@ -483,14 +505,21 @@ function emptyCompetitiveStats() {
   };
 }
 
-function normalizeStatsVersion(value) {
+function fullBalanceVersion(value) {
   const text = String(value || '').trim();
-  const match = text.match(/(?:^|\b)(\d+\.\d+)(?:\b|$)/);
+  const match = text.match(/(?:^|\b)(\d+\.\d+(?:\.\d+)?)(?:\b|$)/);
   return match ? match[1] : '';
 }
 
+function normalizeStatsVersion(value) {
+  const full = fullBalanceVersion(value);
+  if (!full) return '';
+  const parts = full.split('.');
+  return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : full;
+}
+
 function statsVersionFromMatch(match) {
-  return normalizeStatsVersion(match?.statsVersion) || normalizeStatsVersion(match?.gameVersion) || '';
+  return normalizeStatsVersion(match?.statsVersion) || normalizeStatsVersion(match?.balanceVersion) || normalizeStatsVersion(match?.gameVersion) || '';
 }
 
 function ensureVersionCharacterStats(bucket, id) {
@@ -520,11 +549,26 @@ function addRecordedMatchToVersionBucket(bucket, match) {
   }
 }
 
+function mergeCharacterStatInto(target, source) {
+  for (const key of ['availableMatches','bans','picks','wins','losses','draws','totalUltimateUses']) {
+    target[key] = Math.max(0, Number(target[key]) || 0) + Math.max(0, Number(source?.[key]) || 0);
+  }
+}
+
+function mergeVersionBucketInto(target, source) {
+  target.totalMatches += Math.max(0, Number(source?.totalMatches) || 0);
+  if (typeof source?.updatedAt === 'string' && (!target.updatedAt || source.updatedAt > target.updatedAt)) target.updatedAt = source.updatedAt;
+  for (const [id, stat] of Object.entries(source?.characters || {})) mergeCharacterStatInto(ensureVersionCharacterStats(target, id), stat);
+  if (Array.isArray(source?.legacySegments)) target.legacySegments.push(...source.legacySegments.map(seg => ({ ...seg })));
+  return target;
+}
+
 function normalizeVersionBucket(raw) {
   const bucket = emptyCompetitiveVersionStats();
   if (!raw || typeof raw !== 'object') return bucket;
   bucket.totalMatches = Math.max(0, Number(raw.totalMatches) || 0);
   bucket.updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : null;
+  bucket.legacySegments = Array.isArray(raw.legacySegments) ? raw.legacySegments.map(seg => ({ ...seg })) : [];
   for (const [id, srcRaw] of Object.entries(raw.characters || {})) {
     const src = srcRaw && typeof srcRaw === 'object' ? srcRaw : {};
     const stat = ensureVersionCharacterStats(bucket, id);
@@ -553,26 +597,47 @@ function normalizeCompetitiveStats(raw) {
   // v3 stores explicit balance-version buckets. When upgrading v1/v2, reconstruct them
   // from saved match records. A match's version number, not its build/roster id, defines
   // which character-stat bucket it belongs to.
+  let loadedVersionBuckets = false;
   if (sourceSchema >= 3 && raw.versions && typeof raw.versions === 'object') {
     for (const [version, bucketRaw] of Object.entries(raw.versions)) {
       const key = normalizeStatsVersion(version);
-      if (key) base.versions[key] = normalizeVersionBucket(bucketRaw);
+      if (!key) continue;
+      if (!base.versions[key]) base.versions[key] = emptyCompetitiveVersionStats();
+      mergeVersionBucketInto(base.versions[key], normalizeVersionBucket(bucketRaw));
+      loadedVersionBuckets = true;
     }
-  } else if (base.matches.length) {
+  }
+  if (!loadedVersionBuckets && base.matches.length) {
     for (const match of base.matches) {
       const version = statsVersionFromMatch(match) || COMPETITIVE_STATS_VERSION;
       if (!match.statsVersion) match.statsVersion = version;
       if (!base.versions[version]) base.versions[version] = emptyCompetitiveVersionStats();
       addRecordedMatchToVersionBucket(base.versions[version], match);
     }
-  } else if (base.totalMatches > 0) {
-    // Aggregate-only legacy fallback. At the moment of this migration the live balance
-    // number is current at migration time; aggregate-only legacy counters are assigned to the current stats version.
+  } else if (!loadedVersionBuckets && base.totalMatches > 0) {
+    // Aggregate-only exports do not carry the internal versions map. Recover the bucket
+    // from the export's own statsVersion/gameVersion instead of silently assigning it to
+    // whatever build happens to be running now. This is what keeps 1.4/1.5 backups intact.
+    const legacyVersion = normalizeStatsVersion(raw.statsVersion) || normalizeStatsVersion(raw.currentBuild?.statsVersion) || normalizeStatsVersion(raw.currentBuild?.gameVersion) || COMPETITIVE_STATS_VERSION;
     const bucket = emptyCompetitiveVersionStats();
     bucket.totalMatches = base.totalMatches;
     bucket.updatedAt = base.updatedAt;
     for (const [id, stat] of Object.entries(base.characters)) bucket.characters[id] = { ...stat };
-    base.versions[COMPETITIVE_STATS_VERSION] = bucket;
+    bucket.legacySegments.push({
+      source: 'aggregate-import',
+      statsVersion: legacyVersion,
+      balanceVersion: fullBalanceVersion(raw.currentBuild?.gameVersion || raw.statsVersion),
+      buildId: raw.currentBuild?.buildId || null,
+      totalMatches: base.totalMatches,
+      updatedAt: base.updatedAt
+    });
+    base.versions[legacyVersion] = bucket;
+  }
+
+  // Preserve visible version selectors even for a zero-match historical bucket (notably 1.5).
+  for (const version of Array.isArray(raw.availableStatsVersions) ? raw.availableStatsVersions : []) {
+    const key = normalizeStatsVersion(version);
+    if (key && !base.versions[key]) base.versions[key] = emptyCompetitiveVersionStats();
   }
 
   // Ensure every stored match has an explicit statsVersion for future migrations.
@@ -580,15 +645,34 @@ function normalizeCompetitiveStats(raw) {
     if (!match.statsVersion) match.statsVersion = statsVersionFromMatch(match) || COMPETITIVE_STATS_VERSION;
   }
   base.schemaVersion = COMPETITIVE_STATS_SCHEMA_VERSION;
+  base.statsSeriesMode = 'major.minor';
   return base;
 }
 
 function loadCompetitiveStats() {
+  const backup = `${COMPETITIVE_STATS_FILE}.bak`;
+  const tryRead = file => {
+    if (!fs.existsSync(file)) return null;
+    return normalizeCompetitiveStats(JSON.parse(fs.readFileSync(file, 'utf8')));
+  };
   try {
-    if (!fs.existsSync(COMPETITIVE_STATS_FILE)) return emptyCompetitiveStats();
-    return normalizeCompetitiveStats(JSON.parse(fs.readFileSync(COMPETITIVE_STATS_FILE, 'utf8')));
+    const main = tryRead(COMPETITIVE_STATS_FILE);
+    if (main) return main;
+    const recovered = tryRead(backup);
+    if (recovered) {
+      console.warn('[competitive] primary stats file missing; recovered from .bak');
+      return recovered;
+    }
+    return emptyCompetitiveStats();
   } catch (err) {
     console.error('[competitive] stats load failed:', err && err.message ? err.message : err);
+    try {
+      const recovered = tryRead(backup);
+      if (recovered) {
+        console.warn('[competitive] recovered statistics from .bak after primary read failure');
+        return recovered;
+      }
+    } catch (_) {}
     return emptyCompetitiveStats();
   }
 }
@@ -599,6 +683,10 @@ function saveCompetitiveStats() {
   try {
     fs.mkdirSync(COMPETITIVE_DATA_DIR, { recursive: true });
     const tmp = `${COMPETITIVE_STATS_FILE}.tmp`;
+    const backup = `${COMPETITIVE_STATS_FILE}.bak`;
+    if (fs.existsSync(COMPETITIVE_STATS_FILE)) {
+      try { fs.copyFileSync(COMPETITIVE_STATS_FILE, backup); } catch (_) {}
+    }
     fs.writeFileSync(tmp, JSON.stringify(competitiveStats, null, 2), 'utf8');
     fs.renameSync(tmp, COMPETITIVE_STATS_FILE);
     return true;
@@ -612,8 +700,213 @@ function versionSort(a, b) {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
 }
 
+function nicknameStatKey(value) {
+  const normalized = String(value || '').normalize('NFKC').trim().toLowerCase();
+  return crypto.createHash('sha256').update(normalized || 'unknown').digest('hex').slice(0, 20);
+}
+
+function combinations(items, size) {
+  const out = [];
+  const src = [...items];
+  function walk(start, chosen) {
+    if (chosen.length === size) { out.push([...chosen]); return; }
+    for (let i = start; i <= src.length - (size - chosen.length); i++) {
+      chosen.push(src[i]); walk(i + 1, chosen); chosen.pop();
+    }
+  }
+  walk(0, []);
+  return out;
+}
+
+function wilsonInterval(wins, losses) {
+  const w = Math.max(0, Number(wins) || 0), l = Math.max(0, Number(losses) || 0);
+  const n = w + l;
+  if (!n) return { low: 0, high: 0 };
+  const z = 1.959963984540054;
+  const p = w / n, z2 = z * z;
+  const denom = 1 + z2 / n;
+  const center = (p + z2 / (2 * n)) / denom;
+  const margin = z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n) / denom;
+  return { low: Math.max(0, center - margin), high: Math.min(1, center + margin) };
+}
+
+function matchAssignments(match) {
+  if (Array.isArray(match?.finalAssignments) && match.finalAssignments.length) return match.finalAssignments;
+  return (Array.isArray(match?.players) ? match.players : []).map(p => ({
+    playerId: p.playerId, playerName: p.playerName || p.nickname, team: p.team, character: p.character
+  })).filter(p => p.character && (p.team === 'A' || p.team === 'B'));
+}
+
+function buildAdvancedCompetitiveStats(matches, aggregateCharacters = {}) {
+  const safeMatches = Array.isArray(matches) ? matches : [];
+  const playerMap = new Map(), pairMap = new Map(), trioMap = new Map(), compMap = new Map(), matchupMap = new Map();
+  const draftChars = Object.create(null);
+  const advancedChar = Object.create(null);
+  const side = { A: { wins: 0, losses: 0, draws: 0 }, B: { wins: 0, losses: 0, draws: 0 } };
+  let firstPickWins = 0, firstPickLosses = 0, firstPickDraws = 0, completeMatches = 0, partialMatches = 0, disconnectMatches = 0;
+
+  const wl = (rec, outcome) => {
+    if (outcome === 'W') rec.wins = (rec.wins || 0) + 1;
+    else if (outcome === 'L') rec.losses = (rec.losses || 0) + 1;
+    else rec.draws = (rec.draws || 0) + 1;
+    rec.games = (rec.games || 0) + 1;
+  };
+  const outcomeForTeam = (match, team) => match.winner === 'DRAW' ? 'D' : (match.winner === team ? 'W' : 'L');
+
+  for (const match of safeMatches) {
+    const assignments = matchAssignments(match);
+    const byTeam = {
+      A: assignments.filter(a => a.team === 'A'),
+      B: assignments.filter(a => a.team === 'B')
+    };
+    const qualityComplete = match?.dataQuality?.complete !== false && assignments.length === 8;
+    if (qualityComplete) completeMatches += 1; else partialMatches += 1;
+    if ((Array.isArray(match?.players) ? match.players : []).some(p => Number(p.disconnectCount || 0) > 0 || p.connectedAtEnd === false)) disconnectMatches += 1;
+
+    if (match.winner === 'DRAW') { side.A.draws++; side.B.draws++; }
+    else if (match.winner === 'A') { side.A.wins++; side.B.losses++; }
+    else if (match.winner === 'B') { side.B.wins++; side.A.losses++; }
+
+    if (match.firstPickTeam === 'A' || match.firstPickTeam === 'B') {
+      const fpOutcome = outcomeForTeam(match, match.firstPickTeam);
+      if (fpOutcome === 'W') firstPickWins++; else if (fpOutcome === 'L') firstPickLosses++; else firstPickDraws++;
+    }
+
+    const playerRecords = new Map((Array.isArray(match?.players) ? match.players : []).map(p => [String(p.playerId || ''), p]));
+    for (const a of assignments) {
+      const pr = playerRecords.get(String(a.playerId || '')) || {};
+      const name = String(pr.playerName || pr.nickname || a.playerName || '학생');
+      const key = String(pr.playerKey || nicknameStatKey(name));
+      if (!playerMap.has(key)) playerMap.set(key, { playerKey: key, nickname: name, games: 0, wins: 0, losses: 0, draws: 0, kills: 0, deaths: 0, assists: 0, damage: 0, damageTaken: 0, healing: 0, ultimateUses: 0, objectiveSeconds: 0, disconnects: 0, characters: {} });
+      const ps = playerMap.get(key); ps.nickname = name;
+      wl(ps, outcomeForTeam(match, a.team));
+      const st = pr.stats || {};
+      for (const k of ['kills','deaths','assists','damage','damageTaken','healing','ultimateUses','objectiveSeconds']) ps[k] += Math.max(0, Number(st[k]) || 0);
+      ps.disconnects += Math.max(0, Number(pr.disconnectCount) || 0);
+      if (!ps.characters[a.character]) ps.characters[a.character] = { games: 0, wins: 0, losses: 0, draws: 0 };
+      wl(ps.characters[a.character], outcomeForTeam(match, a.team));
+      if (!advancedChar[a.character]) advancedChar[a.character] = { games: 0, wins: 0, losses: 0, draws: 0, kills:0, deaths:0, assists:0, damage:0, damageTaken:0, healing:0, ultimateUses:0, objectiveSeconds:0 };
+      const ac = advancedChar[a.character];
+      wl(ac, outcomeForTeam(match, a.team));
+      for (const k of ['kills','deaths','assists','damage','damageTaken','healing','ultimateUses','objectiveSeconds']) ac[k] += Math.max(0, Number(st[k]) || 0);
+    }
+
+    for (const team of ['A','B']) {
+      const ids = byTeam[team].map(a => a.character).filter(Boolean).sort();
+      const outcome = outcomeForTeam(match, team);
+      for (const [a,b] of combinations(ids, 2)) {
+        const key = `${a}|${b}`;
+        if (!pairMap.has(key)) pairMap.set(key, { characters:[a,b], games:0,wins:0,losses:0,draws:0 });
+        wl(pairMap.get(key), outcome);
+      }
+      for (const trio of combinations(ids, 3)) {
+        const key = trio.join('|');
+        if (!trioMap.has(key)) trioMap.set(key, { characters:trio, games:0,wins:0,losses:0,draws:0 });
+        wl(trioMap.get(key), outcome);
+      }
+      if (ids.length) {
+        const key = ids.join('|');
+        if (!compMap.has(key)) compMap.set(key, { characters:ids, games:0,wins:0,losses:0,draws:0 });
+        wl(compMap.get(key), outcome);
+      }
+    }
+
+    for (const aa of byTeam.A) for (const bb of byTeam.B) {
+      if (!aa.character || !bb.character) continue;
+      const chars = [aa.character, bb.character].sort();
+      const key = chars.join('|');
+      if (!matchupMap.has(key)) matchupMap.set(key, { characters:chars, games:0, firstWins:0, secondWins:0, draws:0 });
+      const rec = matchupMap.get(key); rec.games += 1;
+      if (match.winner === 'DRAW') rec.draws += 1;
+      else {
+        const firstTeam = aa.character === chars[0] ? 'A' : 'B';
+        if (match.winner === firstTeam) rec.firstWins += 1; else rec.secondWins += 1;
+      }
+    }
+
+    for (const ban of Array.isArray(match?.bans) ? match.bans : []) {
+      if (!ban?.character) continue;
+      const d = draftChars[ban.character] ||= { bans:0,picks:0,autoPicks:0,banVotes:0,banOrders:{},pickOrders:{} };
+      d.bans += 1;
+      const order = Math.max(1, Number(ban.order) || 1);
+      d.banOrders[order] = (d.banOrders[order] || 0) + 1;
+      if (Array.isArray(ban.votes)) d.banVotes += ban.votes.length;
+    }
+    for (const pick of Array.isArray(match?.picks) ? match.picks : []) {
+      if (!pick?.character) continue;
+      const d = draftChars[pick.character] ||= { bans:0,picks:0,autoPicks:0,banVotes:0,banOrders:{},pickOrders:{} };
+      d.picks += 1;
+      if (pick.auto) d.autoPicks += 1;
+      const order = Math.max(1, Number(pick.order) || 1);
+      d.pickOrders[order] = (d.pickOrders[order] || 0) + 1;
+    }
+  }
+
+  const finalizeWL = rec => {
+    const decided = (rec.wins || 0) + (rec.losses || 0);
+    rec.winRate = decided ? (rec.wins || 0) / decided : 0;
+    rec.winRateCI = wilsonInterval(rec.wins || 0, rec.losses || 0);
+    return rec;
+  };
+  const charRates = {};
+  for (const [id, rec] of Object.entries(advancedChar)) {
+    finalizeWL(rec);
+    charRates[id] = rec.winRate;
+    const g = Math.max(1, Number(rec.games)||0);
+    rec.perGame = { kills:rec.kills/g, deaths:rec.deaths/g, assists:rec.assists/g, damage:rec.damage/g, damageTaken:rec.damageTaken/g, healing:rec.healing/g, ultimateUses:rec.ultimateUses/g, objectiveSeconds:rec.objectiveSeconds/g };
+  }
+  const pairs = [...pairMap.values()].map(rec => {
+    finalizeWL(rec);
+    const baseline = ((charRates[rec.characters[0]] ?? 0.5) + (charRates[rec.characters[1]] ?? 0.5)) / 2;
+    rec.expectedBaseline = baseline;
+    rec.synergyLift = rec.winRate - baseline;
+    return rec;
+  }).sort((a,b) => b.games-a.games || b.synergyLift-a.synergyLift);
+  const trios = [...trioMap.values()].map(finalizeWL).sort((a,b) => b.games-a.games || b.winRate-a.winRate);
+  const compositions = [...compMap.values()].map(finalizeWL).sort((a,b) => b.games-a.games || b.winRate-a.winRate);
+  const matchups = [...matchupMap.values()].map(rec => {
+    const decided = rec.firstWins + rec.secondWins;
+    rec.firstWinRate = decided ? rec.firstWins / decided : 0;
+    rec.firstWinRateCI = wilsonInterval(rec.firstWins, rec.secondWins);
+    return rec;
+  }).sort((a,b) => b.games-a.games || Math.abs(b.firstWinRate-.5)-Math.abs(a.firstWinRate-.5));
+  const players = [...playerMap.values()].map(rec => {
+    finalizeWL(rec);
+    rec.kd = rec.deaths > 0 ? rec.kills / rec.deaths : rec.kills;
+    rec.characters = Object.fromEntries(Object.entries(rec.characters).map(([id, cr]) => [id, finalizeWL(cr)]));
+    return rec;
+  }).sort((a,b) => b.games-a.games || b.winRate-a.winRate || b.kills-a.kills);
+
+  for (const [id, rec] of Object.entries(draftChars)) {
+    const agg = aggregateCharacters[id] || {};
+    const available = Math.max(0, Number(agg.availableMatches) || 0);
+    const unbanned = Math.max(0, available - (Number(agg.bans) || 0));
+    rec.presenceRate = available ? ((Number(agg.bans)||0) + (Number(agg.picks)||0)) / available : 0;
+    rec.unbannedPickRate = unbanned ? (Number(agg.picks)||0) / unbanned : 0;
+  }
+
+  const firstDecided = firstPickWins + firstPickLosses;
+  return {
+    recordedMatches: safeMatches.length,
+    completeMatches,
+    partialMatches,
+    disconnectMatches,
+    legacyAggregateOnlyMatches: Math.max(0, Math.max(...Object.values(aggregateCharacters).map(s => Number(s.availableMatches)||0), 0) - safeMatches.length),
+    players,
+    characters: advancedChar,
+    synergy: { pairs, trios, compositions },
+    matchups,
+    draft: {
+      characters: draftChars,
+      firstPick: { wins:firstPickWins, losses:firstPickLosses, draws:firstPickDraws, winRate:firstDecided ? firstPickWins/firstDecided : 0, winRateCI:wilsonInterval(firstPickWins, firstPickLosses) }
+    },
+    side
+  };
+}
+
 function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
   const availableStatsVersions = Object.keys(competitiveStats.versions || {}).sort(versionSort);
+  for (const known of KNOWN_COMPETITIVE_STATS_VERSIONS) if (!availableStatsVersions.includes(known)) availableStatsVersions.push(known);
   if (!availableStatsVersions.includes(COMPETITIVE_STATS_VERSION)) availableStatsVersions.push(COMPETITIVE_STATS_VERSION);
   availableStatsVersions.sort(versionSort);
   const requested = normalizeStatsVersion(requestedVersion);
@@ -632,10 +925,15 @@ function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
       averageUltimateUsesPerPick: (src.picks || 0) > 0 ? Math.max(0, Number(src.totalUltimateUses) || 0) / (src.picks || 0) : 0,
       banRate: available > 0 ? (src.bans || 0) / available : 0,
       pickRate: available > 0 ? (src.picks || 0) / available : 0,
-      winRate: decided > 0 ? (src.wins || 0) / decided : 0
+      presenceRate: available > 0 ? ((src.bans || 0) + (src.picks || 0)) / available : 0,
+      unbannedMatches: Math.max(0, available - (src.bans || 0)),
+      unbannedPickRate: Math.max(0, available - (src.bans || 0)) > 0 ? (src.picks || 0) / Math.max(1, available - (src.bans || 0)) : 0,
+      winRate: decided > 0 ? (src.wins || 0) / decided : 0,
+      winRateCI: wilsonInterval(src.wins || 0, src.losses || 0)
     };
   }
   const versionMatches = (Array.isArray(competitiveStats.matches) ? competitiveStats.matches : []).filter(m => (statsVersionFromMatch(m) || COMPETITIVE_STATS_VERSION) === statsVersion);
+  const advanced = buildAdvancedCompetitiveStats(versionMatches, characters);
   return {
     schemaVersion: competitiveStats.schemaVersion || COMPETITIVE_STATS_SCHEMA_VERSION,
     statsVersion,
@@ -645,11 +943,12 @@ function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
     updatedAt: bucket.updatedAt || null,
     allTimeUpdatedAt: competitiveStats.updatedAt || null,
     currentBuild: {
-      gameVersion: GAME_VERSION, statsVersion: COMPETITIVE_STATS_VERSION,
+      gameVersion: GAME_VERSION, balanceVersion: BALANCE_VERSION, statsVersion: COMPETITIVE_STATS_VERSION,
       buildId: COMPETITIVE_BUILD_ID, rosterVersion: COMPETITIVE_ROSTER_VERSION,
       availableCharacters: Object.keys(CHARACTERS)
     },
     characters,
+    advanced,
     matches: versionMatches
   };
 }
@@ -1155,7 +1454,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (urlPath === '/rooms.json' && req.method === 'GET') {
-    sendJson(res, 200, { rooms: publicRoomList(), updatedAt: new Date().toISOString() });
+    sendJson(res, 200, { rooms: publicRoomList(), maxRooms: MAX_ROOMS, updatedAt: new Date().toISOString() });
     return;
   }
   if (urlPath === '/admin/access-control' && req.method === 'POST') {
@@ -1338,9 +1637,8 @@ function parseWsData(conn, chunk) {
 function normalizeRoomMode(value) { return value === 'competitive' ? 'competitive' : 'casual'; }
 function nextRoomDisplayNumber() {
   const used = new Set([...rooms.values()].map(room => Math.max(0, Number(room.displayNumber) || 0)).filter(Boolean));
-  let n = 1;
-  while (used.has(n)) n += 1;
-  return n;
+  for (let n = 1; n <= MAX_ROOMS; n++) if (!used.has(n)) return n;
+  return null;
 }
 function newInternalRoomCode() {
   let code;
@@ -1375,9 +1673,13 @@ function publicRoomList() {
 }
 
 function newRoom(code, options = {}) {
+  const requestedDisplayNumber = Number(options.displayNumber) || nextRoomDisplayNumber();
+  if (!Number.isInteger(requestedDisplayNumber) || requestedDisplayNumber < 1 || requestedDisplayNumber > MAX_ROOMS) {
+    throw new Error('room_limit_reached');
+  }
   return {
     code,
-    displayNumber: Math.max(1, Number(options.displayNumber) || nextRoomDisplayNumber()),
+    displayNumber: requestedDisplayNumber,
     state: 'lobby',
     mode: normalizeRoomMode(options.mode),
     matchMode: null,
@@ -1545,9 +1847,11 @@ function startCompetitiveDraft(room, now = Date.now()) {
     phaseEndAt: now + COMPETITIVE_BAN_MS,
     banVotes: { A: Object.create(null), B: Object.create(null) },
     bans: [], teamOrders, pickSequence, pickIndex: 0, picks: [],
+    draftEvents: [], readySwaps: [], matchEvents: [],
     readyEndAt: 0, draftStartedAt: now, matchStartedAt: 0,
     finalAssignments: [], recorded: false
   };
+  for (const p of room.players.values()) p.competitiveDisconnects = 0;
   return true;
 }
 function resolveCompetitiveBan(room, now = Date.now()) {
@@ -1568,7 +1872,15 @@ function resolveCompetitiveBan(room, now = Date.now()) {
     candidates = [...counts.entries()].filter(([, n]) => n === max).map(([id]) => id);
   } else candidates = available;
   const character = randomChoice(candidates) || available[0];
-  comp.bans.push({ team, character });
+  const voteCounts = Object.fromEntries([...counts.entries()]);
+  const voteSnapshot = Object.entries(votes).map(([playerId, votedCharacter]) => {
+    const voter = room.players.get(playerId);
+    return { playerId, playerName: voter ? voter.name : null, character: votedCharacter };
+  });
+  const resolution = counts.size === 0 ? 'random_no_vote' : (candidates.length > 1 ? 'random_tie' : 'vote_winner');
+  const banRecord = { order: comp.bans.length + 1, team, character, resolution, voteCounts, votes: voteSnapshot, resolvedAt: new Date(now).toISOString() };
+  comp.bans.push(banRecord);
+  comp.draftEvents.push({ type:'ban_resolved', atSec: Math.max(0, (now - comp.draftStartedAt) / 1000), ...banRecord });
   if (comp.banStep === 0) {
     comp.banStep = 1;
     comp.activeBanTeam = comp.secondTeam;
@@ -1601,7 +1913,9 @@ function commitCompetitivePick(room, playerId, character, auto = false, now = Da
   player.character = character;
   const def = CHARACTERS[character];
   player.maxHp = def.hp; player.hp = def.hp;
-  comp.picks.push({ order: comp.picks.length + 1, playerId, team: player.team, character, auto: !!auto });
+  const pickRecord = { order: comp.picks.length + 1, playerId, team: player.team, character, auto: !!auto, pickedAt: new Date(now).toISOString() };
+  comp.picks.push(pickRecord);
+  comp.draftEvents.push({ type:'pick', atSec: Math.max(0, (now - comp.draftStartedAt) / 1000), ...pickRecord, playerName: player.name });
   comp.pickIndex += 1;
   if (comp.pickIndex >= comp.pickSequence.length) enterCompetitiveReady(room, now);
   else comp.phaseEndAt = now + COMPETITIVE_PICK_MS;
@@ -1622,7 +1936,10 @@ function swapCompetitiveReadyAssignments(room, requester, sourcePlayerId, target
   const target = room.players.get(String(targetPlayerId || ''));
   if (!source || !target || source.team !== requester.team || target.team !== requester.team || source.team !== target.team) return false;
   if (!source.character || !target.character) return false;
+  const sourceBefore = source.character, targetBefore = target.character;
   [source.character, target.character] = [target.character, source.character];
+  comp.readySwaps.push({ at: new Date().toISOString(), requesterId: requester.id, requesterName: requester.name, team: requester.team, sourcePlayerId: source.id, sourcePlayerName: source.name, targetPlayerId: target.id, targetPlayerName: target.name, sourceBefore, targetBefore, sourceAfter: source.character, targetAfter: target.character });
+  comp.draftEvents.push({ type:'ready_swap', atSec: Math.max(0, (Date.now() - comp.draftStartedAt) / 1000), team: requester.team, sourcePlayerId: source.id, targetPlayerId: target.id, sourceBefore, targetBefore, sourceAfter: source.character, targetAfter: target.character });
   return true;
 }
 function finalizeCompetitiveReady(room, now = Date.now()) {
@@ -1646,35 +1963,80 @@ function updateCompetitiveFlow(room, now = Date.now()) {
   }
   return false;
 }
+function competitiveTeamStats(players, team) {
+  const rows = players.filter(p => p.team === team);
+  const sum = key => rows.reduce((acc, p) => acc + Math.max(0, Number(p.stats?.[key]) || 0), 0);
+  return {
+    kills: sum('kills'), deaths: sum('deaths'), assists: sum('assists'), damage: sum('damage'), damageTaken: sum('damageTaken'), healing: sum('healing'),
+    ultimateUses: sum('ultimateUses'), objectiveSeconds: sum('objectiveSeconds'), contestSeconds: sum('contestSeconds')
+  };
+}
+
+function validateCompetitiveMatchRecord(result) {
+  const errors = [], warnings = [];
+  const assignments = Array.isArray(result.finalAssignments) ? result.finalAssignments : [];
+  const bans = Array.isArray(result.bans) ? result.bans : [];
+  if (assignments.length !== 8) errors.push(`assignment_count_${assignments.length}`);
+  const teamA = assignments.filter(p => p.team === 'A').length, teamB = assignments.filter(p => p.team === 'B').length;
+  if (teamA !== 4 || teamB !== 4) errors.push(`team_size_A${teamA}_B${teamB}`);
+  const picked = assignments.map(p => p.character).filter(Boolean);
+  if (new Set(picked).size !== picked.length) errors.push('duplicate_character_pick');
+  if (bans.length !== 2) errors.push(`ban_count_${bans.length}`);
+  const banned = new Set(bans.map(b => b.character).filter(Boolean));
+  if (picked.some(id => banned.has(id))) errors.push('banned_character_picked');
+  if (!['A','B','DRAW'].includes(result.winner)) errors.push('invalid_winner');
+  if (!Number.isFinite(Number(result.score?.A)) || !Number.isFinite(Number(result.score?.B))) errors.push('invalid_score');
+  const disconnects = (Array.isArray(result.players) ? result.players : []).reduce((n,p) => n + Math.max(0, Number(p.disconnectCount)||0), 0);
+  if (disconnects > 0) warnings.push(`disconnects_${disconnects}`);
+  for (const p of Array.isArray(result.players) ? result.players : []) {
+    for (const [key, value] of Object.entries(p.stats || {})) {
+      if (typeof value === 'number' && (!Number.isFinite(value) || value < -1e-9)) errors.push(`invalid_stat_${p.playerId}_${key}`);
+    }
+  }
+  return { complete: errors.length === 0, errors, warnings, disconnects };
+}
+
 function recordCompetitiveResult(room, now = Date.now()) {
   const comp = room && room.competitive;
   if (!comp || room.matchMode !== 'competitive' || comp.recorded) return false;
   comp.recorded = true;
   const players = [...room.players.values()].map(p => ({
-    playerId: p.id, playerName: p.name, team: p.team, character: p.character,
-    connectedAtEnd: p.connected !== false, stats: { ...ensureMatchStats(p) }
+    playerId: p.id, playerKey: nicknameStatKey(p.name), playerName: p.name, nickname: p.name, team: p.team, character: p.character,
+    connectedAtEnd: p.connected !== false, disconnectCount: Math.max(0, Number(p.competitiveDisconnects) || 0),
+    stats: { ...ensureMatchStats(p), shotsFired: Math.max(0, Number(p.shotSeq)||0), projectileHits: Math.max(0, Number(p.projectileHitSeq)||0), healFeedbackHits: Math.max(0, Number(p.healHitSeq)||0), abilityUses: Math.max(0, Number(p.abilityUseSeq)||0) }
   }));
   const result = {
+    recordSchemaVersion: 2,
     matchId: `${now}-${crypto.randomBytes(4).toString('hex')}`,
     statsVersion: COMPETITIVE_STATS_VERSION,
+    balanceVersion: BALANCE_VERSION,
     gameVersion: GAME_VERSION, buildId: COMPETITIVE_BUILD_ID, rosterVersion: COMPETITIVE_ROSTER_VERSION,
     availableCharacters: Object.keys(CHARACTERS), room: roomDisplayName(room), roomId: room.code, matchMode: room.matchMode,
     draftStartedAt: comp.draftStartedAt ? new Date(comp.draftStartedAt).toISOString() : null,
     matchStartedAt: comp.matchStartedAt ? new Date(comp.matchStartedAt).toISOString() : (room.matchStartedAt ? new Date(room.matchStartedAt).toISOString() : null),
     endedAt: new Date(now).toISOString(),
+    durationSec: Math.max(0, (now - (comp.matchStartedAt || room.matchStartedAt || now)) / 1000),
     firstPickTeam: comp.firstTeam,
     bans: (comp.bans || []).map(b => ({ ...b })),
     picks: (comp.picks || []).map(pick => {
       const player = room.players.get(pick.playerId);
-      return { ...pick, playerName: player ? player.name : null };
+      return { ...pick, playerName: player ? player.name : null, playerKey: player ? nicknameStatKey(player.name) : null };
     }),
+    draft: {
+      firstTeam: comp.firstTeam, secondTeam: comp.secondTeam,
+      events: (comp.draftEvents || []).map(e => ({ ...e })),
+      readySwaps: (comp.readySwaps || []).map(e => ({ ...e }))
+    },
+    events: (comp.matchEvents || []).map(e => ({ ...e })),
     finalAssignments: players.map(p => ({ playerId: p.playerId, playerName: p.playerName, team: p.team, character: p.character })),
     score: { A: Number(room.scoreA.toFixed(3)), B: Number(room.scoreB.toFixed(3)) },
     teamKills: teamKillTotals(room),
     winner: room.winner,
     winnerReason: room.winnerReason || (room.winner === 'DRAW' ? 'draw' : 'score'),
-    players
+    players,
+    teamStats: { A: competitiveTeamStats(players, 'A'), B: competitiveTeamStats(players, 'B') }
   };
+  result.dataQuality = validateCompetitiveMatchRecord(result);
   competitiveStats.totalMatches = (competitiveStats.totalMatches || 0) + 1;
   for (const id of result.availableCharacters) {
     if (!competitiveStats.characters[id]) competitiveStats.characters[id] = emptyCompetitiveCharacterStats();
@@ -1756,10 +2118,12 @@ function onMessage(conn, msg) {
     return;
   }
   if (msg.type === 'admin_stats_request') return sendAdminCompetitiveStats(conn, msg);
+  if (msg.type === 'admin_stats_export_request') return sendAdminCompetitiveStatsBackup(conn);
   if (msg.type === 'spectator_join') return joinSpectator(conn, msg);
   if (msg.type === 'resume') return resumeRoom(conn, msg);
   if (msg.type === 'create_room') return createRoomAndJoin(conn, msg);
   if (msg.type === 'join_room') return joinRoom(conn, { ...msg, room: msg.roomId }, { allowCreate: false });
+  if (msg.type === 'leave_room') return leaveRoomExplicit(conn);
   // Backward-compatible protocol path for older cached clients. New 1.6.2 UI never exposes room codes.
   if (msg.type === 'join') return joinRoom(conn, msg, { allowCreate: true });
   const room = rooms.get(conn.roomCode);
@@ -1859,6 +2223,7 @@ function onMessage(conn, msg) {
     const requested = validCharacter(msg.character);
     if (!competitiveAvailableCharacters(room).includes(requested)) return;
     comp.banVotes[player.team][player.id] = requested;
+    comp.draftEvents.push({ type:'ban_vote', atSec: Math.max(0, (Date.now() - comp.draftStartedAt) / 1000), team: player.team, playerId: player.id, playerName: player.name, character: requested });
     sendCompetitiveBanVoteUpdate(room, player.team);
     return;
   }
@@ -1945,6 +2310,18 @@ function sendAdminCompetitiveStats(conn, msg) {
   conn.send({ type: 'admin_stats_data', data: publicAdminStatsPayload(msg.statsVersion) });
 }
 
+function sendAdminCompetitiveStatsBackup(conn) {
+  if (!conn.roomCode || (!conn.playerId && !conn.spectatorId)) {
+    conn.send({ type: 'admin_stats_error', message: '먼저 방에 입장한 뒤 관리자 통계를 열어주세요.' });
+    return;
+  }
+  if (!conn.adminStatsAuthorized) {
+    conn.send({ type: 'admin_stats_error', message: '관리자 통계를 먼저 인증해 주세요.' });
+    return;
+  }
+  conn.send({ type: 'admin_stats_export_data', data: competitiveStatsBackupPayload() });
+}
+
 function joinSpectator(conn, msg) {
   if (conn.playerId || conn.spectatorId) return;
   const now = Date.now();
@@ -2010,7 +2387,15 @@ function joinRoom(conn, msg, options = {}) {
   }
 
   let room = rooms.get(code);
-  if (!room && options.allowCreate === true) { room = newRoom(code, { mode: 'casual' }); rooms.set(code, room); }
+  if (!room && options.allowCreate === true) {
+    const displayNumber = nextRoomDisplayNumber();
+    if (!displayNumber || rooms.size >= MAX_ROOMS) {
+      conn.send({ type: 'error', code: 'room_limit', message: `현재 방이 ${MAX_ROOMS}개 모두 열려 있어 새 방을 만들 수 없습니다.` });
+      return false;
+    }
+    room = newRoom(code, { mode: 'casual', displayNumber });
+    rooms.set(code, room);
+  }
   if (!room) { conn.send({ type: 'error', code: 'room_missing', message: '이 방은 더 이상 열려 있지 않습니다. 방 목록을 새로고침해주세요.' }); return false; }
   if (room.players.size >= 8) { conn.send({ type: 'error', message: '이 방은 이미 8명입니다.' }); return; }
   if (room.state === 'ended') { conn.send({ type: 'error', code: 'room_ending', message: '경기가 종료되어 이 방은 곧 자동으로 닫힙니다. 잠시 후 다시 입장해주세요.' }); return; }
@@ -2033,7 +2418,7 @@ function joinRoom(conn, msg, options = {}) {
     statuses: Object.create(null),
     shield: 0, maxShield: 0, shieldUntil: 0, shieldCreditBySource: Object.create(null), shieldUncredited: 0,
     shieldAbilityCharges: 0, shieldRechargeAt: 0,
-    lastCombatAt: 0,
+    lastCombatAt: 0, damageContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
     diaFormUntil: 0, diaCooldownUntil: 0,
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
@@ -2063,16 +2448,68 @@ function createRoomAndJoin(conn, msg) {
     conn.send({ type: 'error', code: 'nickname_in_use', message: '이 닉네임은 이미 다른 게임에 참가 중입니다. 기존 게임을 먼저 종료하거나 기존 화면으로 돌아가세요.' });
     return false;
   }
+  const displayNumber = nextRoomDisplayNumber();
+  if (!displayNumber || rooms.size >= MAX_ROOMS) {
+    conn.send({ type: 'error', code: 'room_limit', message: `현재 방이 ${MAX_ROOMS}개 모두 열려 있어 새 방을 만들 수 없습니다.` });
+    return false;
+  }
   // New-room creators always start on A. They can freely switch teams in the waiting room.
   const team = 'A';
   const code = newInternalRoomCode();
-  const room = newRoom(code, { mode: normalizeRoomMode(msg.mode), displayNumber: nextRoomDisplayNumber() });
+  const room = newRoom(code, { mode: normalizeRoomMode(msg.mode), displayNumber });
   rooms.set(code, room);
   const joined = joinRoom(conn, { name: requestedName, room: code, team }, { allowCreate: false });
   if (!joined && room.players.size === 0 && room.spectators.size === 0) rooms.delete(code);
   return joined;
 }
 
+
+function leaveRoomExplicit(conn) {
+  const room = rooms.get(conn.roomCode);
+  if (!room) {
+    conn.playerId = null;
+    conn.spectatorId = null;
+    conn.roomCode = null;
+    conn.send({ type: 'left_room', message: '방에서 나왔습니다.' });
+    return true;
+  }
+
+  if (conn.spectatorId) {
+    room.spectators.delete(conn.spectatorId);
+    conn.spectatorId = null;
+    conn.roomCode = null;
+    conn.send({ type: 'left_room', message: '관전을 종료하고 방에서 나왔습니다.' });
+    if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code);
+    else broadcast(room);
+    return true;
+  }
+
+  if (!conn.playerId) return false;
+  const playerId = conn.playerId;
+  const player = room.players.get(playerId);
+  if (!player) {
+    conn.playerId = null;
+    conn.roomCode = null;
+    conn.send({ type: 'left_room', message: '방에서 나왔습니다.' });
+    return true;
+  }
+  if (!['lobby', 'ended'].includes(room.state)) {
+    conn.send({ type: 'leave_room_error', message: '경기 준비 또는 진행 중에는 방을 나갈 수 없습니다.' });
+    return false;
+  }
+
+  room.clients.delete(playerId);
+  room.players.delete(playerId);
+  for (const [pid, proj] of [...room.projectiles]) if (proj.ownerId === playerId) removeProjectile(room, pid);
+  if (room.hostId === playerId) room.hostId = [...room.players.values()].find(p => p.connected !== false)?.id || null;
+
+  conn.playerId = null;
+  conn.roomCode = null;
+  conn.send({ type: 'left_room', message: '방에서 나왔습니다.' });
+  if (room.players.size === 0 && room.spectators.size === 0) rooms.delete(room.code);
+  else broadcast(room);
+  return true;
+}
 
 function neutralizePlayerInput(player) {
   if (!player) return;
@@ -2212,6 +2649,10 @@ function disconnect(conn) {
     // The body stays in-world and can take damage, but cannot move/fire or contest objectives.
     player.connected = false;
     player.disconnectedAt = Date.now();
+    if (room.matchMode === 'competitive' || room.competitive) {
+      player.competitiveDisconnects = Math.max(0, Number(player.competitiveDisconnects) || 0) + 1;
+      appendCompetitiveMatchEvent(room, 'disconnect', { playerId: player.id, playerName: player.name, team: player.team, character: player.character }, Date.now());
+    }
     neutralizePlayerInput(player);
     if (room.hostId === playerId) {
       room.hostId = [...room.players.values()].find(p => p.id !== playerId && p.connected)?.id || null;
@@ -2251,7 +2692,7 @@ function startMatch(room, now = Date.now()) {
       shieldAbilityCharges: p.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0, shieldRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
       jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
-      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), lastCombatAt: now,
+      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), lastCombatAt: now, damageContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
       stats: makeMatchStats(p.character)
@@ -2423,6 +2864,14 @@ function endDiaForm(player) {
   player.hp = Math.min(player.hp, def.hp);
 }
 
+function appendCompetitiveMatchEvent(room, type, payload = {}, now = Date.now()) {
+  const comp = room && room.competitive;
+  if (!comp || room.matchMode !== 'competitive') return;
+  if (!Array.isArray(comp.matchEvents)) comp.matchEvents = [];
+  if (comp.matchEvents.length >= 2000) return;
+  comp.matchEvents.push({ type, atSec: Math.max(0, (now - (comp.matchStartedAt || room.matchStartedAt || now)) / 1000), ...payload });
+}
+
 function registerKill(room, attackerId, now, direct = true) {
   const attacker = room.players.get(attackerId);
   if (!attacker) return;
@@ -2450,6 +2899,21 @@ function registerDirectKill(room, attackerId, now) {
 function die(room, player, now) {
   player.ultimateUntil = 0;
   ensureMatchStats(player).deaths += 1;
+  const recentWindowMs = 8000;
+  const killerId = player.lastDamageAttackerId && now - Number(player.lastDamageAt || 0) <= recentWindowMs ? player.lastDamageAttackerId : null;
+  const contributors = player.damageContributors && typeof player.damageContributors === 'object' ? player.damageContributors : {};
+  for (const [sourceId, hitAt] of Object.entries(contributors)) {
+    if (sourceId === killerId || now - Number(hitAt || 0) > recentWindowMs) continue;
+    const source = room.players.get(sourceId);
+    if (source && source.team !== player.team) ensureMatchStats(source).assists += 1;
+  }
+  const killer = killerId ? room.players.get(killerId) : null;
+  appendCompetitiveMatchEvent(room, 'death', {
+    victimId: player.id, victimName: player.name, victimTeam: player.team, victimCharacter: player.character,
+    killerId: killer ? killer.id : null, killerName: killer ? killer.name : null, killerTeam: killer ? killer.team : null, killerCharacter: killer ? killer.character : null,
+    x: Number(player.x.toFixed(2)), y: Number(player.y.toFixed(2))
+  }, now);
+  player.damageContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
   player.hp = 0;
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
@@ -2478,6 +2942,7 @@ function respawn(room, player, now) {
   player.hp = def.hp; player.maxHp = def.hp;
   player.alive = true; player.respawnAt = 0; player.invulnerableUntil = now + RESPAWN_INVULN_MS;
   player.respawnShieldAt = player.invulnerableUntil;
+  player.damageContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
   clearAllStatuses(player); clearShield(player);
   player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
@@ -2558,9 +3023,25 @@ function makeMatchStats(character = null) {
     character,
     kills: 0,
     deaths: 0,
+    assists: 0,
     ultimateUses: 0,
     damage: 0,
+    hpDamage: 0,
+    shieldDamage: 0,
+    damageTaken: 0,
+    hpDamageTaken: 0,
+    shieldDamageTaken: 0,
     healing: 0,
+    allyHealing: 0,
+    selfHealing: 0,
+    healingReceived: 0,
+    aliveSeconds: 0,
+    deadSeconds: 0,
+    disconnectedSeconds: 0,
+    enemyZoneSeconds: 0,
+    ownZoneDefenseSeconds: 0,
+    objectiveSeconds: 0,
+    contestSeconds: 0,
     tailwindApplications: 0,
     diaFormKills: 0,
     healingPrevented: 0,
@@ -2690,14 +3171,31 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
     scheduleDelayedUltimate(player, 'iron', now, Number(def.ultimateDelay) || 2);
     activated = true;
   } else if (player.character === 'water') {
+    // Flood is an instantaneous radial pulse. Snapshot the caster position at the exact
+    // activation moment so movement after the cast cannot change who was inside the 16 m area.
+    const centerX = player.x, centerY = player.y;
     const radius = Number(def.ultimateRadius) || 16;
+    const heal = Number(def.ultimateHeal) || 150;
+    const damage = Number(def.ultimateDamage) || 25;
+    const stunMs = (Number(def.ultimateStunDuration) || 1) * 1000;
     for (const target of room.players.values()) {
-      if (!target.alive || target.team !== player.team) continue;
-      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
-      applyHealing(room, player, target, Number(def.ultimateHeal) || 200, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
-      applyShield(room, player, target, Number(def.ultimateShield) || 200);
-      target.shieldUntil = Math.max(Number(target.shieldUntil) || 0, now + (Number(def.ultimateShieldDuration) || 3) * 1000);
-      if (target.character === 'jet') target.jetShieldUntil = target.shieldUntil;
+      if (!target.alive) continue;
+      if (distance(centerX, centerY, target.x, target.y) > radius + 1e-9) continue;
+      if (target.team === player.team) {
+        // Includes Water herself. Ultimate healing never charges the next ultimate and does
+        // not trigger the healer-role bonus self-sustain a second time.
+        applyHealing(room, player, target, heal, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+        continue;
+      }
+      dealDamageDetailed(room, player.id, target, damage, now, { countsForUltimate: false });
+      if (target.hp <= 0) {
+        registerDirectKill(room, player.id, now);
+        die(room, target, now);
+        continue;
+      }
+      // Reuse the normal stun status: movement, attacks and new actions are blocked, while
+      // persistent effects such as already-active ultimates and Buffer links are not cleared.
+      applyStatus(room, player, target, 'stun', stunMs, now);
     }
     activated = true;
   } else if (player.character === 'shooter' || player.character === 'sniper' || player.character === 'fire' || player.character === 'runner' || player.character === 'cannon' || player.character === 'reactor' || player.character === 'spray' || player.character === 'wind' || player.character === 'buffer' || player.character === 'light' || player.character === 'laser' || player.character === 'solar') {
@@ -2763,6 +3261,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
   player.ultimateCharge = 0;
   player.ultimateUseSeq = (player.ultimateUseSeq || 0) + 1;
   ensureMatchStats(player).ultimateUses += 1;
+  appendCompetitiveMatchEvent(room, 'ultimate', { playerId: player.id, playerName: player.name, team: player.team, character: player.character, targetId: targetId || null }, now);
   return true;
 }
 
@@ -2790,8 +3289,21 @@ function dealDamageDetailed(room, attackerId, target, amount, now, options = nul
   const total = shieldDamage + hpDamage;
   if (total <= 0) return { total: 0, hp: 0, shield: 0 };
   const attacker = room.players.get(attackerId);
+  if (attacker && attacker.team !== target.team) {
+    if (!target.damageContributors || typeof target.damageContributors !== 'object') target.damageContributors = Object.create(null);
+    target.damageContributors[attacker.id] = now;
+    target.lastDamageAttackerId = attacker.id;
+    target.lastDamageAt = now;
+  }
+  const targetStats = ensureMatchStats(target);
+  targetStats.damageTaken += total;
+  targetStats.hpDamageTaken += hpDamage;
+  targetStats.shieldDamageTaken += shieldDamage;
   if (attacker) {
-    ensureMatchStats(attacker).damage += total;
+    const attackerStats = ensureMatchStats(attacker);
+    attackerStats.damage += total;
+    attackerStats.hpDamage += hpDamage;
+    attackerStats.shieldDamage += shieldDamage;
     const countsForUltimate = !options || options.countsForUltimate !== false;
     if (countsForUltimate && attacker.team !== target.team) grantUltimateCharge(attacker, total, now);
   }
@@ -2873,8 +3385,12 @@ function applyHealing(room, healer, target, amount, now, options = null) {
   const actual = Math.min(missing, effectiveRaw);
   if (actual <= 0) return 0;
   target.hp = before + actual;
+  ensureMatchStats(target).healingReceived += actual;
   if (healer) {
-    ensureMatchStats(healer).healing += actual;
+    const healerStats = ensureMatchStats(healer);
+    healerStats.healing += actual;
+    if (healer.id === target.id) healerStats.selfHealing += actual;
+    else healerStats.allyHealing += actual;
     const countsForUltimate = !options || options.countsForUltimate !== false;
     const isSelfOrAlly = healer.id === target.id || healer.team === target.team;
     if (countsForUltimate && isSelfOrAlly) grantUltimateCharge(healer, actual, now);
@@ -3422,6 +3938,9 @@ function updateRoom(room, dt, now) {
   room.beams = [];
   for (const player of room.players.values()) {
     const def = CHARACTERS[player.character];
+    const timeStats = ensureMatchStats(player);
+    if (player.connected === false) timeStats.disconnectedSeconds += dt;
+    if (player.alive) timeStats.aliveSeconds += dt; else timeStats.deadSeconds += dt;
     if (player.character === 'shield') updateShieldAbilityCharges(player, now);
     if (!player.alive) {
       if (now >= player.respawnAt) respawn(room, player, now);
@@ -3582,6 +4101,21 @@ function updateRoom(room, dt, now) {
   }
   const aScoring = aAttackers.length > 0 && bDefenders.length === 0;
   const bScoring = bAttackers.length > 0 && aDefenders.length === 0;
+
+  for (const p of aAttackers) ensureMatchStats(p).enemyZoneSeconds += dt;
+  for (const p of bAttackers) ensureMatchStats(p).enemyZoneSeconds += dt;
+  for (const p of aDefenders) ensureMatchStats(p).ownZoneDefenseSeconds += dt;
+  for (const p of bDefenders) ensureMatchStats(p).ownZoneDefenseSeconds += dt;
+  if (aScoring) for (const p of aAttackers) ensureMatchStats(p).objectiveSeconds += dt;
+  if (bScoring) for (const p of bAttackers) ensureMatchStats(p).objectiveSeconds += dt;
+  if (aAttackers.length && bDefenders.length) {
+    for (const p of aAttackers) ensureMatchStats(p).contestSeconds += dt;
+    for (const p of bDefenders) ensureMatchStats(p).contestSeconds += dt;
+  }
+  if (bAttackers.length && aDefenders.length) {
+    for (const p of bAttackers) ensureMatchStats(p).contestSeconds += dt;
+    for (const p of aDefenders) ensureMatchStats(p).contestSeconds += dt;
+  }
 
   if (aScoring) room.scoreA += dt;
   if (bScoring) room.scoreB += dt;
@@ -4058,12 +4592,12 @@ module.exports = {
   ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate, scheduleDelayedUltimate, resolveDelayedUltimate, spawnDiaUltimateVolley,
   reactorStageForOutput, reactorDamageForOutput, currentAttackDef,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
-  POST_GAME_ROOM_CLOSE_MS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
+  POST_GAME_ROOM_CLOSE_MS, MAX_ROOMS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
-  competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, statsVersionFromMatch,
+  competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload,
   teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate,
-  normalizeRoomMode, roomDisplayName, publicRoomList, nextRoomDisplayNumber, createRoomAndJoin, joinRoom, startMatch, rooms
+  normalizeRoomMode, roomDisplayName, publicRoomList, nextRoomDisplayNumber, createRoomAndJoin, joinRoom, leaveRoomExplicit, startMatch, rooms
 };

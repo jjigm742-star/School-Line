@@ -185,6 +185,7 @@ const pickerState = {
   lobby: { selected: null, role: initialRole }
 };
 let roomDirectory = [];
+let roomDirectoryMaxRooms = 5;
 let roomDirectoryRequestInFlight = false;
 let lastLobbyPickerAvailabilityKey = null;
 let lastCompetitiveRenderKey = null;
@@ -1439,10 +1440,11 @@ function updateAccessUi(open, message='') {
   }
   if ($('accessOpenButton')) $('accessOpenButton').disabled = schoolLineAccessOpen;
   if ($('accessLockButton')) $('accessLockButton').disabled = !schoolLineAccessOpen;
-  for (const id of ['resumeButton','spectatorJoinButton','createCasualRoomButton','createCompetitiveRoomButton','refreshRoomsButton']) {
+  for (const id of ['resumeButton','spectatorJoinButton','refreshRoomsButton']) {
     const el = $(id);
     if (el) el.disabled = !schoolLineAccessOpen;
   }
+  updateRoomCreationAvailability();
 }
 
 function resetClientForAccessLock(message='') {
@@ -1594,10 +1596,23 @@ function roomStateLabel(entry) {
   return String(entry.state || '');
 }
 function roomModeLabel(mode) { return mode === 'competitive' ? '🏆 경쟁전' : '🎮 일반전'; }
+function updateRoomCreationAvailability() {
+  const maxRooms = Math.max(1, Number(roomDirectoryMaxRooms) || 5);
+  const atLimit = Array.isArray(roomDirectory) && roomDirectory.length >= maxRooms;
+  for (const id of ['createCasualRoomButton','createCompetitiveRoomButton']) {
+    const btn = $(id);
+    if (btn) btn.disabled = !schoolLineAccessOpen || atLimit;
+  }
+  const help = $('roomCreateHelp');
+  if (help) help.textContent = atLimit
+    ? `현재 방 ${maxRooms}개가 모두 사용 중입니다. 기존 방이 닫히면 새 방을 만들 수 있습니다.`
+    : `최대 ${maxRooms}개 방까지 만들 수 있습니다. 일반전은 자유 인원, 경쟁전은 A 4명 / B 4명이 필요합니다.`;
+}
 function renderRoomDirectory() {
   const root = $('openRoomList');
   if (!root) return;
   const rooms = Array.isArray(roomDirectory) ? roomDirectory : [];
+  updateRoomCreationAvailability();
   if (!rooms.length) {
     root.innerHTML = '<div class="open-room-empty">현재 열린 방이 없습니다. 새 방을 만들어 첫 게임을 시작해 보세요.</div>';
   } else {
@@ -1650,7 +1665,8 @@ async function refreshRoomDirectory() {
     if (!res.ok) throw new Error('rooms');
     const data = await res.json();
     roomDirectory = Array.isArray(data.rooms) ? data.rooms : [];
-    if (status) status.textContent = `현재 ${roomDirectory.length}개`;
+    roomDirectoryMaxRooms = Math.max(1, Number(data.maxRooms) || 5);
+    if (status) status.textContent = `현재 ${roomDirectory.length}/${roomDirectoryMaxRooms}개`;
     renderRoomDirectory();
   } catch (_) {
     if (status) status.textContent = '목록을 불러오지 못했습니다.';
@@ -1687,6 +1703,13 @@ function joinExistingRoom(roomId, team) {
 $('createCasualRoomButton').onclick = () => createRoom('casual');
 $('createCompetitiveRoomButton').onclick = () => createRoom('competitive');
 $('refreshRoomsButton').onclick = refreshRoomDirectory;
+$('leaveRoomButton').onclick = () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  $('leaveRoomButton').disabled = true;
+  ws.send(JSON.stringify({ type:'leave_room' }));
+  setTimeout(() => { if ($('leaveRoomButton')) $('leaveRoomButton').disabled = false; }, 1200);
+};
+
 refreshRoomDirectory();
 setInterval(() => { if (!myId && !spectatorMode) refreshRoomDirectory(); }, 1000);
 
@@ -1979,6 +2002,38 @@ function handleMessage(msg) {
     refreshRoomDirectory();
     return;
   }
+  if (msg.type === 'left_room') {
+    resetPostGameSequence();
+    stopBgm();
+    stopBeamHum();
+    hideCharacterIntroTip();
+    hidePerkChoicePanel();
+    clearResumeCredentials();
+    clearLiveProjectileRegistry();
+    playerMotionTracks.clear();
+    selectedTargetId = null;
+    myId = null;
+    spectatorMode = false;
+    state = null;
+    config = null;
+    document.body.classList.remove('spectator-mode');
+    $('spectatorBadge')?.classList.add('hidden');
+    $('characterPanel')?.classList.remove('hidden');
+    show('join');
+    $('joinError').textContent = msg.message || '방에서 나왔습니다.';
+    const oldWs = ws;
+    ws = null;
+    if (oldWs && (oldWs.readyState === WebSocket.OPEN || oldWs.readyState === WebSocket.CONNECTING)) {
+      try { oldWs.close(); } catch (_) {}
+    }
+    refreshRoomDirectory();
+    return;
+  }
+  if (msg.type === 'leave_room_error') {
+    const hint = $('modeStartHint');
+    if (hint) hint.textContent = `⚠️ ${msg.message || '지금은 방에서 나갈 수 없습니다.'}`;
+    return;
+  }
   if (msg.type === 'access_locked') {
     resetClientForAccessLock(msg.message || '관리자가 입장을 제한했습니다.');
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
@@ -1987,6 +2042,7 @@ function handleMessage(msg) {
   if (msg.type === 'error') {
     $('joinError').textContent = msg.message;
     if (msg.code === 'resume_invalid' || msg.code === 'resume_unavailable') clearResumeCredentials();
+    if (msg.code === 'room_limit') setTimeout(refreshRoomDirectory, 0);
     if (ws) ws.close();
     return;
   }
@@ -2033,6 +2089,10 @@ function handleMessage(msg) {
     selectedCompetitiveStatsVersion = msg.data?.statsVersion || selectedCompetitiveStatsVersion;
     $('competitiveStatsOverlay').classList.remove('hidden');
     renderCompetitiveStats(msg.data || {});
+    return;
+  }
+  if (msg.type === 'admin_stats_export_data') {
+    downloadCompetitiveStatsBackup(msg.data || {});
     return;
   }
   if (msg.type === 'admin_stats_error') {
@@ -2593,19 +2653,24 @@ function openCompetitiveStats() {
   $('competitiveStatsSummary').textContent = '관리자 인증 및 통계를 불러오는 중…';
   $('competitiveStatsBody').innerHTML = '';
   $('competitiveRecentMatches').innerHTML = '';
+  for (const id of ['competitivePlayerStatsBody','competitiveSynergyBody','competitiveMatchupBody','competitiveCompositionBody','competitiveDraftStatsBody']) { const el=$(id); if (el) el.innerHTML=''; }
+  if ($('competitiveStatsDataQuality')) $('competitiveStatsDataQuality').textContent = '';
   ws.send(JSON.stringify({ type:'admin_stats_request', ...(pin ? { pin } : {}), ...(selectedCompetitiveStatsVersion ? { statsVersion:selectedCompetitiveStatsVersion } : {}) }));
 }
-function exportCompetitiveStatsJson() {
-  if (!lastAdminStatsData) return;
-  const blob = new Blob([JSON.stringify(lastAdminStatsData, null, 2)], { type:'application/json;charset=utf-8' });
+function downloadCompetitiveStatsBackup(data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `school_line_competitive_stats_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  a.download = `competitive_stats_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+function exportCompetitiveStatsJson() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !adminStatsAuthorized) return;
+  ws.send(JSON.stringify({ type:'admin_stats_export_request' }));
 }
 function closeCompetitiveStats() { $('competitiveStatsOverlay').classList.add('hidden'); }
 function percent(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
@@ -2629,25 +2694,82 @@ function renderCompetitiveStats(data) {
   const net = data.network || null;
   const netLabel = net ? ` · WS ${Number(net.totalMiB || 0).toFixed(1)}MB / 현재 ${Number(net.activeConnections || 0)}연결 / 차단 ${Number(net.skippedLiveSnapshots || 0)}회` : '';
   $('competitiveStatsSummary').textContent = `${statsVersion || '현재'} 버전 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${netLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
+
+  const adv = data.advanced || {};
+  const quality = $('competitiveStatsDataQuality');
+  if (quality) {
+    quality.textContent = `고급 원본 기록 ${Number(adv.recordedMatches||0)}판 · 완전 기록 ${Number(adv.completeMatches||0)}판 · 부분/불완전 ${Number(adv.partialMatches||0)}판 · 연결끊김 발생 경기 ${Number(adv.disconnectMatches||0)}판 · 원본 없이 누적치만 남은 과거 경기 ${Number(adv.legacyAggregateOnlyMatches||0)}판`;
+  }
+  const charText = id => {
+    const m = CHARACTER_META[id];
+    return m ? `${m.icon} ${characterPublicDef(id)?.name || m.name}` : id;
+  };
+  const ciText = ci => ci && Number.isFinite(Number(ci.low)) && Number.isFinite(Number(ci.high)) ? `${percent(ci.low)}~${percent(ci.high)}` : '—';
+  const avg = (value, games) => games > 0 ? (Number(value||0)/games).toFixed(0) : '0';
+
   const tbody = $('competitiveStatsBody');
   tbody.innerHTML = '';
   for (const [id,m] of Object.entries(CHARACTER_META)) {
     const st = data.characters?.[id] || {};
+    const ast = adv.characters?.[id] || null;
+    const pg = ast?.perGame || null;
+    const kda = pg ? `${Number(pg.kills||0).toFixed(1)}-${Number(pg.deaths||0).toFixed(1)}-${Number(pg.assists||0).toFixed(1)}` : '—';
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${m.icon} ${escapeHtml(characterPublicDef(id)?.name || m.name)}</td><td>${Number(st.availableMatches||0)}</td><td>${Number(st.bans||0)}</td><td>${percent(st.banRate)}</td><td>${Number(st.picks||0)}</td><td>${percent(st.pickRate)}</td><td>${Number(st.wins||0)}-${Number(st.losses||0)}-${Number(st.draws||0)}</td><td>${percent(st.winRate)}</td><td>${Number(st.totalUltimateUses||0)}</td><td>${Number(st.averageUltimateUsesPerPick||0).toFixed(2)}</td>`;
+    tr.innerHTML = `<td>${m.icon} ${escapeHtml(characterPublicDef(id)?.name || m.name)}</td><td>${Number(st.availableMatches||0)}</td><td>${Number(st.bans||0)}</td><td>${percent(st.banRate)}</td><td>${Number(st.picks||0)}</td><td>${percent(st.pickRate)}</td><td>${percent(st.presenceRate)}</td><td>${percent(st.unbannedPickRate)}</td><td>${Number(st.wins||0)}-${Number(st.losses||0)}-${Number(st.draws||0)}</td><td>${percent(st.winRate)}</td><td>${ciText(st.winRateCI)}</td><td>${kda}</td><td>${pg?Number(pg.damage||0).toFixed(0):'—'}</td><td>${pg?Number(pg.damageTaken||0).toFixed(0):'—'}</td><td>${pg?Number(pg.healing||0).toFixed(0):'—'}</td><td>${pg?Number(pg.objectiveSeconds||0).toFixed(1):'—'}</td><td>${Number(st.totalUltimateUses||0)}</td><td>${Number(st.averageUltimateUsesPerPick||0).toFixed(2)}</td>`;
     tbody.appendChild(tr);
   }
+
+  const playerBody = $('competitivePlayerStatsBody');
+  playerBody.innerHTML = '';
+  const players = Array.isArray(adv.players) ? adv.players : [];
+  if (!players.length) playerBody.innerHTML = '<tr><td colspan="11">경기별 닉네임 원본 기록이 아직 없습니다.</td></tr>';
+  for (const p of players) {
+    const entries = Object.entries(p.characters || {}).sort((a,b) => Number(b[1]?.games||0)-Number(a[1]?.games||0));
+    const main = entries.length ? `${charText(entries[0][0])} ${Number(entries[0][1]?.games||0)}판` : '—';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${escapeHtml(p.nickname||'학생')}</td><td>${Number(p.games||0)}</td><td>${Number(p.wins||0)}-${Number(p.losses||0)}-${Number(p.draws||0)}</td><td>${percent(p.winRate)}</td><td>${Number(p.kills||0)}-${Number(p.deaths||0)}-${Number(p.assists||0)}</td><td>${avg(p.damage,p.games)}</td><td>${avg(p.damageTaken,p.games)}</td><td>${avg(p.healing,p.games)}</td><td>${p.games? (Number(p.objectiveSeconds||0)/p.games).toFixed(1):'0.0'}</td><td>${Number(p.disconnects||0)}</td><td>${main}</td>`;
+    playerBody.appendChild(tr);
+  }
+
+  const synergyBody=$('competitiveSynergyBody'); synergyBody.innerHTML='';
+  const pairs=Array.isArray(adv.synergy?.pairs)?adv.synergy.pairs:[];
+  if(!pairs.length) synergyBody.innerHTML='<tr><td colspan="5">조합 원본 기록이 아직 없습니다.</td></tr>';
+  for(const r of pairs){ const tr=document.createElement('tr'); const lift=Number(r.synergyLift||0); tr.innerHTML=`<td>${r.characters.map(charText).join(' + ')}</td><td>${Number(r.games||0)}</td><td>${Number(r.wins||0)}-${Number(r.losses||0)}-${Number(r.draws||0)}</td><td>${percent(r.winRate)}</td><td>${lift>=0?'+':''}${(lift*100).toFixed(1)}%p</td>`; synergyBody.appendChild(tr); }
+
+  const matchupBody=$('competitiveMatchupBody'); matchupBody.innerHTML='';
+  const matchups=Array.isArray(adv.matchups)?adv.matchups:[];
+  if(!matchups.length) matchupBody.innerHTML='<tr><td colspan="5">상대전적 원본 기록이 아직 없습니다.</td></tr>';
+  for(const r of matchups){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${charText(r.characters?.[0])} vs ${charText(r.characters?.[1])}</td><td>${Number(r.games||0)}</td><td>${Number(r.firstWins||0)}-${Number(r.secondWins||0)}-${Number(r.draws||0)}</td><td>${percent(r.firstWinRate)}</td><td>${ciText(r.firstWinRateCI)}</td>`; matchupBody.appendChild(tr); }
+
+  const compositionBody=$('competitiveCompositionBody'); compositionBody.innerHTML='';
+  const comps=Array.isArray(adv.synergy?.compositions)?adv.synergy.compositions:[];
+  if(!comps.length) compositionBody.innerHTML='<tr><td colspan="4">4인 조합 원본 기록이 아직 없습니다.</td></tr>';
+  for(const r of comps){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${(r.characters||[]).map(charText).join(' / ')}</td><td>${Number(r.games||0)}</td><td>${Number(r.wins||0)}-${Number(r.losses||0)}-${Number(r.draws||0)}</td><td>${percent(r.winRate)}</td>`; compositionBody.appendChild(tr); }
+
+  const draftBody=$('competitiveDraftStatsBody'); draftBody.innerHTML='';
+  const draftChars=adv.draft?.characters || {};
+  const draftIds=Object.keys(CHARACTER_META).filter(id => (data.characters?.[id]?.bans||0)+(data.characters?.[id]?.picks||0)>0 || draftChars[id]).sort((a,b)=>((data.characters?.[b]?.bans||0)+(data.characters?.[b]?.picks||0))-((data.characters?.[a]?.bans||0)+(data.characters?.[a]?.picks||0)));
+  if(!draftIds.length) draftBody.innerHTML='<tr><td colspan="9">드래프트 기록이 아직 없습니다.</td></tr>';
+  const orders=o=>Object.entries(o||{}).sort((a,b)=>Number(a[0])-Number(b[0])).map(([k,v])=>`${k}순:${v}`).join(' · ')||'—';
+  for(const id of draftIds){ const r=draftChars[id]||{}; const st=data.characters?.[id]||{}; const tr=document.createElement('tr'); tr.innerHTML=`<td>${charText(id)}</td><td>${Number(st.bans||0)}</td><td>${Number(r.banVotes||0)}</td><td>${orders(r.banOrders)}</td><td>${Number(st.picks||0)}</td><td>${orders(r.pickOrders)}</td><td>${Number(r.autoPicks||0)}</td><td>${percent(st.presenceRate)}</td><td>${percent(st.unbannedPickRate)}</td>`; draftBody.appendChild(tr); }
+  const fp=adv.draft?.firstPick||{};
+  $('competitiveDraftSummary').textContent=`선픽팀 전적 ${Number(fp.wins||0)}-${Number(fp.losses||0)}-${Number(fp.draws||0)} · 선픽팀 승률 ${percent(fp.winRate)} · A팀 ${Number(adv.side?.A?.wins||0)}-${Number(adv.side?.A?.losses||0)}-${Number(adv.side?.A?.draws||0)} / B팀 ${Number(adv.side?.B?.wins||0)}-${Number(adv.side?.B?.losses||0)}-${Number(adv.side?.B?.draws||0)}`;
+
   const recent = $('competitiveRecentMatches');
   recent.innerHTML = '';
-  const matches = Array.isArray(data.matches) ? data.matches.slice(-8).reverse() : [];
-  if (!matches.length) recent.innerHTML = '<div class="stats-recent-row"><span>아직 저장된 경쟁 결과가 없습니다.</span></div>';
+  const matches = Array.isArray(data.matches) ? data.matches.slice(-12).reverse() : [];
+  if (!matches.length) recent.innerHTML = '<div class="stats-recent-row"><span>경기별 원본 결과가 아직 없습니다.</span></div>';
   for (const m of matches) {
     const row = document.createElement('div');
     row.className = 'stats-recent-row';
     const scoreA = Math.floor(Number(m.score?.A || 0)), scoreB = Math.floor(Number(m.score?.B || 0));
     const result = m.winner === 'DRAW' ? '무승부' : `${m.winner}팀 승리`;
     const killTie = m.winnerReason === 'kills' && m.teamKills ? ` · 킬 ${Number(m.teamKills.A||0)}:${Number(m.teamKills.B||0)}` : '';
-    row.innerHTML = `<span>${escapeHtml(m.room || '')} · ${m.endedAt ? new Date(m.endedAt).toLocaleString('ko-KR') : ''}</span><b>${result} · ${scoreA}:${scoreB}${killTie}</b>`;
+    const assigns=Array.isArray(m.finalAssignments)?m.finalAssignments:[];
+    const teamLine=team=>assigns.filter(p=>p.team===team).map(p=>`${escapeHtml(p.playerName||'학생')}(${escapeHtml(characterPublicDef(p.character)?.name||p.character||'?')})`).join(', ');
+    const bans=(Array.isArray(m.bans)?m.bans:[]).map(b=>`${b.team}:${escapeHtml(characterPublicDef(b.character)?.name||b.character||'?')}`).join(' / ');
+    const dq=m.dataQuality?.complete===false?' ⚠️ 불완전':'';
+    row.innerHTML = `<span>${escapeHtml(m.room || '')} · ${m.endedAt ? new Date(m.endedAt).toLocaleString('ko-KR') : ''}<small class="stats-match-detail">밴 ${bans||'—'}<br>A ${teamLine('A')||'—'}<br>B ${teamLine('B')||'—'}</small></span><b>${result} · ${scoreA}:${scoreB}${killTie}${dq}</b>`;
     recent.appendChild(row);
   }
 }
@@ -3145,11 +3267,28 @@ function drawCharacterUltimateWorldFx(fx, q, a) {
     }
     ctx.globalAlpha=fade*.16; ctx.fillStyle=color; traceRegularPolygon(a.x,a.y,21+q*7,6,Math.PI/6); ctx.fill();
   } else if (ch==='water') {
-    for (let k=0;k<4;k++) {
-      const rr=(exact||28)*Math.max(.10,Math.min(1,q-k*.08));
-      ctx.globalAlpha=Math.max(0,fade-k*.08)*(.88-k*.12); ctx.strokeStyle=k%2?color:dark; ctx.lineWidth=k%2?2.8:4.8;
+    // Flood: a fast outward surge rather than a lingering protection aura. The outer
+    // boundary is already drawn above at the exact 16 m gameplay radius; these waves
+    // make the instantaneous heal/damage/stun pulse read as a single expanding flood.
+    const maxR=exact||28;
+    for (let k=0;k<5;k++) {
+      const local=Math.max(0,Math.min(1,q-k*.075));
+      if (local<=0) continue;
+      const rr=maxR*(.08+.92*local);
+      ctx.globalAlpha=fade*(.90-k*.11); ctx.strokeStyle=k%2?color:dark; ctx.lineWidth=k%2?3.0:5.0;
       ctx.beginPath(); ctx.arc(a.x,a.y,rr,0,Math.PI*2); ctx.stroke();
     }
+    // Short splash spokes at the advancing front keep the effect visible over the white field.
+    for (let k=0;k<12;k++) {
+      const ang=k*Math.PI/6+phase*.035;
+      const r1=maxR*Math.min(.94,.16+.76*q);
+      const r2=Math.min(maxR,maxR*(.23+.82*q)+(k%3)*3);
+      ctx.globalAlpha=fade*(k%2?.78:.56); ctx.strokeStyle=k%2?color:dark; ctx.lineWidth=k%2?2.2:3.8;
+      ctx.beginPath(); ctx.moveTo(a.x+Math.cos(ang)*r1,a.y+Math.sin(ang)*r1);
+      ctx.lineTo(a.x+Math.cos(ang)*r2,a.y+Math.sin(ang)*r2); ctx.stroke();
+    }
+    ctx.globalAlpha=fade*.13; ctx.fillStyle=color;
+    ctx.beginPath(); ctx.arc(a.x,a.y,maxR*Math.min(1,.18+q*1.05),0,Math.PI*2); ctx.fill();
   } else if (ch==='angel') {
     ctx.globalAlpha=fade*.88; ctx.strokeStyle=dark; ctx.lineWidth=5.0;
     ctx.beginPath(); ctx.moveTo(a.x-3,a.y); ctx.bezierCurveTo(a.x-16-q*8,a.y-18,a.x-35-q*10,a.y-6,a.x-41-q*8,a.y+8); ctx.stroke();

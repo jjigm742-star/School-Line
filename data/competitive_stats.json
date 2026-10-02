@@ -1,0 +1,6566 @@
+{
+  "schemaVersion": 6,
+  "statsSeriesMode": "major.minor",
+  "totalMatches": 29,
+  "updatedAt": "2026-10-02T04:55:07.729Z",
+  "characters": {
+    "angel": {
+      "availableMatches": 29,
+      "bans": 1,
+      "picks": 17,
+      "wins": 10,
+      "losses": 6,
+      "draws": 1,
+      "totalUltimateUses": 13
+    },
+    "buffer": {
+      "availableMatches": 29,
+      "bans": 7,
+      "picks": 10,
+      "wins": 4,
+      "losses": 6,
+      "draws": 0,
+      "totalUltimateUses": 7
+    },
+    "cannon": {
+      "availableMatches": 29,
+      "bans": 3,
+      "picks": 21,
+      "wins": 10,
+      "losses": 10,
+      "draws": 1,
+      "totalUltimateUses": 11
+    },
+    "dia": {
+      "availableMatches": 29,
+      "bans": 1,
+      "picks": 8,
+      "wins": 2,
+      "losses": 5,
+      "draws": 1,
+      "totalUltimateUses": 6
+    },
+    "fire": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 2,
+      "wins": 1,
+      "losses": 0,
+      "draws": 1,
+      "totalUltimateUses": 1
+    },
+    "ice": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 8,
+      "wins": 3,
+      "losses": 4,
+      "draws": 1,
+      "totalUltimateUses": 3
+    },
+    "iron": {
+      "availableMatches": 29,
+      "bans": 5,
+      "picks": 3,
+      "wins": 1,
+      "losses": 2,
+      "draws": 0,
+      "totalUltimateUses": 3
+    },
+    "jet": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 6,
+      "wins": 1,
+      "losses": 5,
+      "draws": 0,
+      "totalUltimateUses": 5
+    },
+    "laser": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 11,
+      "wins": 6,
+      "losses": 5,
+      "draws": 0,
+      "totalUltimateUses": 3
+    },
+    "light": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 10,
+      "wins": 4,
+      "losses": 5,
+      "draws": 1,
+      "totalUltimateUses": 5
+    },
+    "mecha": {
+      "availableMatches": 29,
+      "bans": 1,
+      "picks": 16,
+      "wins": 9,
+      "losses": 5,
+      "draws": 2,
+      "totalUltimateUses": 10
+    },
+    "poison": {
+      "availableMatches": 29,
+      "bans": 17,
+      "picks": 11,
+      "wins": 6,
+      "losses": 3,
+      "draws": 2,
+      "totalUltimateUses": 8
+    },
+    "reactor": {
+      "availableMatches": 29,
+      "bans": 6,
+      "picks": 18,
+      "wins": 8,
+      "losses": 8,
+      "draws": 2,
+      "totalUltimateUses": 19
+    },
+    "runner": {
+      "availableMatches": 29,
+      "bans": 6,
+      "picks": 8,
+      "wins": 2,
+      "losses": 6,
+      "draws": 0,
+      "totalUltimateUses": 1
+    },
+    "shield": {
+      "availableMatches": 29,
+      "bans": 4,
+      "picks": 8,
+      "wins": 3,
+      "losses": 5,
+      "draws": 0,
+      "totalUltimateUses": 17
+    },
+    "shooter": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 9,
+      "wins": 5,
+      "losses": 3,
+      "draws": 1,
+      "totalUltimateUses": 8
+    },
+    "sniper": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 9,
+      "wins": 3,
+      "losses": 6,
+      "draws": 0,
+      "totalUltimateUses": 15
+    },
+    "solar": {
+      "availableMatches": 29,
+      "bans": 4,
+      "picks": 19,
+      "wins": 11,
+      "losses": 7,
+      "draws": 1,
+      "totalUltimateUses": 12
+    },
+    "spray": {
+      "availableMatches": 29,
+      "bans": 3,
+      "picks": 18,
+      "wins": 10,
+      "losses": 7,
+      "draws": 1,
+      "totalUltimateUses": 9
+    },
+    "star": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 1,
+      "wins": 0,
+      "losses": 1,
+      "draws": 0,
+      "totalUltimateUses": 2
+    },
+    "water": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 6,
+      "wins": 0,
+      "losses": 6,
+      "draws": 0,
+      "totalUltimateUses": 5
+    },
+    "wind": {
+      "availableMatches": 29,
+      "bans": 0,
+      "picks": 13,
+      "wins": 9,
+      "losses": 3,
+      "draws": 1,
+      "totalUltimateUses": 14
+    }
+  },
+  "versions": {
+    "1.4": {
+      "totalMatches": 15,
+      "updatedAt": "2026-09-23T04:09:29.029Z",
+      "characters": {
+        "iron": {
+          "availableMatches": 15,
+          "bans": 2,
+          "picks": 2,
+          "wins": 0,
+          "losses": 2,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "mecha": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 10,
+          "wins": 4,
+          "losses": 5,
+          "draws": 1,
+          "totalUltimateUses": 0
+        },
+        "jet": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 3,
+          "wins": 1,
+          "losses": 2,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "solar": {
+          "availableMatches": 15,
+          "bans": 2,
+          "picks": 12,
+          "wins": 7,
+          "losses": 4,
+          "draws": 1,
+          "totalUltimateUses": 0
+        },
+        "shield": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 3,
+          "wins": 1,
+          "losses": 2,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "runner": {
+          "availableMatches": 15,
+          "bans": 6,
+          "picks": 7,
+          "wins": 2,
+          "losses": 5,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "shooter": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 4,
+          "wins": 2,
+          "losses": 2,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "sniper": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 2,
+          "wins": 1,
+          "losses": 1,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "cannon": {
+          "availableMatches": 15,
+          "bans": 1,
+          "picks": 10,
+          "wins": 4,
+          "losses": 6,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "fire": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 0,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "poison": {
+          "availableMatches": 15,
+          "bans": 12,
+          "picks": 3,
+          "wins": 2,
+          "losses": 0,
+          "draws": 1,
+          "totalUltimateUses": 0
+        },
+        "reactor": {
+          "availableMatches": 15,
+          "bans": 3,
+          "picks": 9,
+          "wins": 4,
+          "losses": 4,
+          "draws": 1,
+          "totalUltimateUses": 0
+        },
+        "spray": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 10,
+          "wins": 5,
+          "losses": 5,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "water": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 2,
+          "wins": 0,
+          "losses": 2,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "wind": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 3,
+          "wins": 3,
+          "losses": 0,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "star": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 0,
+          "wins": 0,
+          "losses": 0,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "angel": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 10,
+          "wins": 8,
+          "losses": 1,
+          "draws": 1,
+          "totalUltimateUses": 0
+        },
+        "buffer": {
+          "availableMatches": 15,
+          "bans": 3,
+          "picks": 6,
+          "wins": 3,
+          "losses": 3,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "light": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 7,
+          "wins": 3,
+          "losses": 3,
+          "draws": 1,
+          "totalUltimateUses": 0
+        },
+        "laser": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 7,
+          "wins": 4,
+          "losses": 3,
+          "draws": 0,
+          "totalUltimateUses": 0
+        },
+        "ice": {
+          "availableMatches": 15,
+          "bans": 0,
+          "picks": 5,
+          "wins": 2,
+          "losses": 2,
+          "draws": 1,
+          "totalUltimateUses": 0
+        },
+        "dia": {
+          "availableMatches": 15,
+          "bans": 1,
+          "picks": 5,
+          "wins": 0,
+          "losses": 4,
+          "draws": 1,
+          "totalUltimateUses": 0
+        }
+      },
+      "legacySegments": []
+    },
+    "1.5": {
+      "totalMatches": 0,
+      "updatedAt": null,
+      "characters": {},
+      "legacySegments": [
+        {
+          "source": "historical-bucket-marker",
+          "statsVersion": "1.5",
+          "balanceVersion": "1.5",
+          "totalMatches": 0,
+          "note": "Alpha 1.5 bucket was created and verified at 0 matches; no later 1.5 match export was available to reconstruct."
+        }
+      ]
+    },
+    "1.6": {
+      "totalMatches": 14,
+      "updatedAt": "2026-10-02T04:55:07.729Z",
+      "characters": {
+        "angel": {
+          "availableMatches": 14,
+          "bans": 1,
+          "picks": 7,
+          "wins": 2,
+          "losses": 5,
+          "draws": 0,
+          "totalUltimateUses": 13
+        },
+        "buffer": {
+          "availableMatches": 14,
+          "bans": 4,
+          "picks": 4,
+          "wins": 1,
+          "losses": 3,
+          "draws": 0,
+          "totalUltimateUses": 7
+        },
+        "cannon": {
+          "availableMatches": 14,
+          "bans": 2,
+          "picks": 11,
+          "wins": 6,
+          "losses": 4,
+          "draws": 1,
+          "totalUltimateUses": 11
+        },
+        "dia": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 3,
+          "wins": 2,
+          "losses": 1,
+          "draws": 0,
+          "totalUltimateUses": 6
+        },
+        "fire": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 2,
+          "wins": 1,
+          "losses": 0,
+          "draws": 1,
+          "totalUltimateUses": 1
+        },
+        "ice": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 3,
+          "wins": 1,
+          "losses": 2,
+          "draws": 0,
+          "totalUltimateUses": 3
+        },
+        "iron": {
+          "availableMatches": 14,
+          "bans": 3,
+          "picks": 1,
+          "wins": 1,
+          "losses": 0,
+          "draws": 0,
+          "totalUltimateUses": 3
+        },
+        "jet": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 3,
+          "wins": 0,
+          "losses": 3,
+          "draws": 0,
+          "totalUltimateUses": 5
+        },
+        "laser": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 4,
+          "wins": 2,
+          "losses": 2,
+          "draws": 0,
+          "totalUltimateUses": 3
+        },
+        "light": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 3,
+          "wins": 1,
+          "losses": 2,
+          "draws": 0,
+          "totalUltimateUses": 5
+        },
+        "mecha": {
+          "availableMatches": 14,
+          "bans": 1,
+          "picks": 6,
+          "wins": 5,
+          "losses": 0,
+          "draws": 1,
+          "totalUltimateUses": 10
+        },
+        "poison": {
+          "availableMatches": 14,
+          "bans": 5,
+          "picks": 8,
+          "wins": 4,
+          "losses": 3,
+          "draws": 1,
+          "totalUltimateUses": 8
+        },
+        "reactor": {
+          "availableMatches": 14,
+          "bans": 3,
+          "picks": 9,
+          "wins": 4,
+          "losses": 4,
+          "draws": 1,
+          "totalUltimateUses": 19
+        },
+        "runner": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 1,
+          "wins": 0,
+          "losses": 1,
+          "draws": 0,
+          "totalUltimateUses": 1
+        },
+        "shield": {
+          "availableMatches": 14,
+          "bans": 4,
+          "picks": 5,
+          "wins": 2,
+          "losses": 3,
+          "draws": 0,
+          "totalUltimateUses": 17
+        },
+        "shooter": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 5,
+          "wins": 3,
+          "losses": 1,
+          "draws": 1,
+          "totalUltimateUses": 8
+        },
+        "sniper": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 7,
+          "wins": 2,
+          "losses": 5,
+          "draws": 0,
+          "totalUltimateUses": 15
+        },
+        "solar": {
+          "availableMatches": 14,
+          "bans": 2,
+          "picks": 7,
+          "wins": 4,
+          "losses": 3,
+          "draws": 0,
+          "totalUltimateUses": 12
+        },
+        "spray": {
+          "availableMatches": 14,
+          "bans": 3,
+          "picks": 8,
+          "wins": 5,
+          "losses": 2,
+          "draws": 1,
+          "totalUltimateUses": 9
+        },
+        "star": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 1,
+          "wins": 0,
+          "losses": 1,
+          "draws": 0,
+          "totalUltimateUses": 2
+        },
+        "water": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 4,
+          "wins": 0,
+          "losses": 4,
+          "draws": 0,
+          "totalUltimateUses": 5
+        },
+        "wind": {
+          "availableMatches": 14,
+          "bans": 0,
+          "picks": 10,
+          "wins": 6,
+          "losses": 3,
+          "draws": 1,
+          "totalUltimateUses": 14
+        }
+      },
+      "legacySegments": [
+        {
+          "source": "aggregate-export",
+          "statsVersion": "1.6",
+          "balanceVersion": "1.6.2",
+          "gameVersion": "Alpha 1.6.2",
+          "buildId": "alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-postgame30rematch1-ultstats1-diacrystalburst1-delayedultwarn1-whitefieldfx3-shortultdesc1-bwopt9c6sparse",
+          "rosterVersion": "alpha-1.6.2-r22-allultimates",
+          "totalMatches": 7,
+          "updatedAt": "2026-10-02T03:57:18.548Z",
+          "characters": {
+            "iron": {
+              "availableMatches": 7,
+              "bans": 2,
+              "picks": 1,
+              "wins": 1,
+              "losses": 0,
+              "draws": 0,
+              "totalUltimateUses": 3
+            },
+            "mecha": {
+              "availableMatches": 7,
+              "bans": 1,
+              "picks": 3,
+              "wins": 3,
+              "losses": 0,
+              "draws": 0,
+              "totalUltimateUses": 5
+            },
+            "jet": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 0
+            },
+            "solar": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 5,
+              "wins": 4,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 8
+            },
+            "shield": {
+              "availableMatches": 7,
+              "bans": 1,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 2
+            },
+            "runner": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 1
+            },
+            "shooter": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 3,
+              "wins": 2,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 5
+            },
+            "sniper": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 4,
+              "wins": 2,
+              "losses": 2,
+              "draws": 0,
+              "totalUltimateUses": 9
+            },
+            "cannon": {
+              "availableMatches": 7,
+              "bans": 1,
+              "picks": 5,
+              "wins": 2,
+              "losses": 3,
+              "draws": 0,
+              "totalUltimateUses": 6
+            },
+            "fire": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 1,
+              "losses": 0,
+              "draws": 0,
+              "totalUltimateUses": 1
+            },
+            "poison": {
+              "availableMatches": 7,
+              "bans": 5,
+              "picks": 2,
+              "wins": 1,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 1
+            },
+            "reactor": {
+              "availableMatches": 7,
+              "bans": 2,
+              "picks": 5,
+              "wins": 3,
+              "losses": 2,
+              "draws": 0,
+              "totalUltimateUses": 12
+            },
+            "spray": {
+              "availableMatches": 7,
+              "bans": 1,
+              "picks": 3,
+              "wins": 2,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 3
+            },
+            "water": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 3,
+              "wins": 0,
+              "losses": 3,
+              "draws": 0,
+              "totalUltimateUses": 3
+            },
+            "wind": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 3,
+              "wins": 1,
+              "losses": 2,
+              "draws": 0,
+              "totalUltimateUses": 2
+            },
+            "star": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 0,
+              "wins": 0,
+              "losses": 0,
+              "draws": 0,
+              "totalUltimateUses": 0
+            },
+            "angel": {
+              "availableMatches": 7,
+              "bans": 1,
+              "picks": 3,
+              "wins": 0,
+              "losses": 3,
+              "draws": 0,
+              "totalUltimateUses": 5
+            },
+            "buffer": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 3,
+              "wins": 1,
+              "losses": 2,
+              "draws": 0,
+              "totalUltimateUses": 5
+            },
+            "light": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 1
+            },
+            "laser": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 3,
+              "wins": 2,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 1
+            },
+            "ice": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 2,
+              "wins": 1,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 1
+            },
+            "dia": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 3,
+              "wins": 2,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 6
+            }
+          }
+        },
+        {
+          "source": "aggregate-export",
+          "statsVersion": "1.6",
+          "balanceVersion": "1.6.2",
+          "gameVersion": "Alpha 1.6.2",
+          "buildId": "alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-postgame30rematch1-ultstats1-diacrystalburst1-delayedult2s-mechafuse4s-sustainradius1-whitefieldfx3-shortultdesc1-bwopt9c6sparse",
+          "rosterVersion": "alpha-1.6.2-r22-allultimates",
+          "totalMatches": 7,
+          "updatedAt": "2026-10-02T04:55:07.729Z",
+          "characters": {
+            "iron": {
+              "availableMatches": 7,
+              "bans": 1,
+              "picks": 0,
+              "wins": 0,
+              "losses": 0,
+              "draws": 0,
+              "totalUltimateUses": 0
+            },
+            "mecha": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 3,
+              "wins": 2,
+              "losses": 0,
+              "draws": 1,
+              "totalUltimateUses": 5
+            },
+            "jet": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 2,
+              "wins": 0,
+              "losses": 2,
+              "draws": 0,
+              "totalUltimateUses": 5
+            },
+            "solar": {
+              "availableMatches": 7,
+              "bans": 2,
+              "picks": 2,
+              "wins": 0,
+              "losses": 2,
+              "draws": 0,
+              "totalUltimateUses": 4
+            },
+            "shield": {
+              "availableMatches": 7,
+              "bans": 3,
+              "picks": 4,
+              "wins": 2,
+              "losses": 2,
+              "draws": 0,
+              "totalUltimateUses": 15
+            },
+            "runner": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 0,
+              "wins": 0,
+              "losses": 0,
+              "draws": 0,
+              "totalUltimateUses": 0
+            },
+            "shooter": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 2,
+              "wins": 1,
+              "losses": 0,
+              "draws": 1,
+              "totalUltimateUses": 3
+            },
+            "sniper": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 3,
+              "wins": 0,
+              "losses": 3,
+              "draws": 0,
+              "totalUltimateUses": 6
+            },
+            "cannon": {
+              "availableMatches": 7,
+              "bans": 1,
+              "picks": 6,
+              "wins": 4,
+              "losses": 1,
+              "draws": 1,
+              "totalUltimateUses": 5
+            },
+            "fire": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 0,
+              "losses": 0,
+              "draws": 1,
+              "totalUltimateUses": 0
+            },
+            "poison": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 6,
+              "wins": 3,
+              "losses": 2,
+              "draws": 1,
+              "totalUltimateUses": 7
+            },
+            "reactor": {
+              "availableMatches": 7,
+              "bans": 1,
+              "picks": 4,
+              "wins": 1,
+              "losses": 2,
+              "draws": 1,
+              "totalUltimateUses": 7
+            },
+            "spray": {
+              "availableMatches": 7,
+              "bans": 2,
+              "picks": 5,
+              "wins": 3,
+              "losses": 1,
+              "draws": 1,
+              "totalUltimateUses": 6
+            },
+            "water": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 2
+            },
+            "wind": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 7,
+              "wins": 5,
+              "losses": 1,
+              "draws": 1,
+              "totalUltimateUses": 12
+            },
+            "star": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 2
+            },
+            "angel": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 4,
+              "wins": 2,
+              "losses": 2,
+              "draws": 0,
+              "totalUltimateUses": 8
+            },
+            "buffer": {
+              "availableMatches": 7,
+              "bans": 4,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 2
+            },
+            "light": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 2,
+              "wins": 1,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 4
+            },
+            "laser": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 2
+            },
+            "ice": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 1,
+              "wins": 0,
+              "losses": 1,
+              "draws": 0,
+              "totalUltimateUses": 2
+            },
+            "dia": {
+              "availableMatches": 7,
+              "bans": 0,
+              "picks": 0,
+              "wins": 0,
+              "losses": 0,
+              "draws": 0,
+              "totalUltimateUses": 0
+            }
+          }
+        }
+      ]
+    }
+  },
+  "matches": [
+    {
+      "matchId": "1790134602523-7383a9d6",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "나1",
+      "draftStartedAt": "2026-09-23T03:32:34.846Z",
+      "matchStartedAt": "2026-09-23T03:33:42.520Z",
+      "endedAt": "2026-09-23T03:36:42.523Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "runner"
+        },
+        {
+          "team": "A",
+          "character": "poison"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P8",
+          "team": "B",
+          "character": "solar",
+          "auto": false,
+          "playerName": "이채은"
+        },
+        {
+          "order": 2,
+          "playerId": "P6",
+          "team": "A",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "정도윤"
+        },
+        {
+          "order": 3,
+          "playerId": "P16",
+          "team": "A",
+          "character": "buffer",
+          "auto": false,
+          "playerName": "준우"
+        },
+        {
+          "order": 4,
+          "playerId": "P9",
+          "team": "B",
+          "character": "shooter",
+          "auto": false,
+          "playerName": "최윤서"
+        },
+        {
+          "order": 5,
+          "playerId": "P5",
+          "team": "B",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "김가은"
+        },
+        {
+          "order": 6,
+          "playerId": "P11",
+          "team": "A",
+          "character": "angel",
+          "auto": false,
+          "playerName": "김민준"
+        },
+        {
+          "order": 7,
+          "playerId": "P1",
+          "team": "A",
+          "character": "laser",
+          "auto": false,
+          "playerName": "인서강"
+        },
+        {
+          "order": 8,
+          "playerId": "P2",
+          "team": "B",
+          "character": "light",
+          "auto": false,
+          "playerName": "지유"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P1",
+          "playerName": "인서강",
+          "team": "A",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P2",
+          "playerName": "지유",
+          "team": "B",
+          "character": "light"
+        },
+        {
+          "playerId": "P5",
+          "playerName": "김가은",
+          "team": "B",
+          "character": "mecha"
+        },
+        {
+          "playerId": "P6",
+          "playerName": "정도윤",
+          "team": "A",
+          "character": "buffer"
+        },
+        {
+          "playerId": "P8",
+          "playerName": "이채은",
+          "team": "B",
+          "character": "solar"
+        },
+        {
+          "playerId": "P9",
+          "playerName": "최윤서",
+          "team": "B",
+          "character": "shooter"
+        },
+        {
+          "playerId": "P11",
+          "playerName": "김민준",
+          "team": "A",
+          "character": "angel"
+        },
+        {
+          "playerId": "P16",
+          "playerName": "준우",
+          "team": "A",
+          "character": "laser"
+        }
+      ],
+      "score": {
+        "A": 1.4,
+        "B": 7.38
+      },
+      "teamKills": {
+        "A": 8,
+        "B": 5
+      },
+      "winner": "B",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P1",
+          "playerName": "인서강",
+          "team": "A",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 7,
+            "deaths": 1,
+            "damage": 2930.4999999999986,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P2",
+          "playerName": "지유",
+          "team": "B",
+          "character": "light",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "light",
+            "kills": 1,
+            "deaths": 2,
+            "damage": 594.6000000000005,
+            "healing": 1064.0199999999982,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P5",
+          "playerName": "김가은",
+          "team": "B",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 1,
+            "deaths": 0,
+            "damage": 1135,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P6",
+          "playerName": "정도윤",
+          "team": "A",
+          "character": "buffer",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "buffer",
+            "kills": 0,
+            "deaths": 2,
+            "damage": 0,
+            "healing": 1570.0625000000007,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 55.880000000003136,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P8",
+          "playerName": "이채은",
+          "team": "B",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 0,
+            "deaths": 3,
+            "damage": 1052.1000000000038,
+            "healing": 349.70000000000016,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 349.70000000000016,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P9",
+          "playerName": "최윤서",
+          "team": "B",
+          "character": "shooter",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "shooter",
+            "kills": 3,
+            "deaths": 3,
+            "damage": 1826.5,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P11",
+          "playerName": "김민준",
+          "team": "A",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 1,
+            "deaths": 1,
+            "damage": 1034,
+            "healing": 1188.3749999999998,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 859.8000000000002
+          }
+        },
+        {
+          "playerId": "P16",
+          "playerName": "준우",
+          "team": "A",
+          "character": "laser",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "laser",
+            "kills": 0,
+            "deaths": 1,
+            "damage": 1334.9699999999887,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790134610324-79ba4dad",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "가1",
+      "draftStartedAt": "2026-09-23T03:32:43.146Z",
+      "matchStartedAt": "2026-09-23T03:33:50.307Z",
+      "endedAt": "2026-09-23T03:36:50.324Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "poison"
+        },
+        {
+          "team": "A",
+          "character": "buffer"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P10",
+          "team": "B",
+          "character": "solar",
+          "auto": false,
+          "playerName": "혜민"
+        },
+        {
+          "order": 2,
+          "playerId": "P17",
+          "team": "A",
+          "character": "shield",
+          "auto": false,
+          "playerName": "김명서"
+        },
+        {
+          "order": 3,
+          "playerId": "P3",
+          "team": "A",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "정주영"
+        },
+        {
+          "order": 4,
+          "playerId": "P20",
+          "team": "B",
+          "character": "spray",
+          "auto": false,
+          "playerName": "심세윤"
+        },
+        {
+          "order": 5,
+          "playerId": "P13",
+          "team": "B",
+          "character": "laser",
+          "auto": false,
+          "playerName": "심서윤"
+        },
+        {
+          "order": 6,
+          "playerId": "P14",
+          "team": "A",
+          "character": "jet",
+          "auto": false,
+          "playerName": "김루환"
+        },
+        {
+          "order": 7,
+          "playerId": "P18",
+          "team": "A",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "김선"
+        },
+        {
+          "order": 8,
+          "playerId": "P7",
+          "team": "B",
+          "character": "ice",
+          "auto": false,
+          "playerName": "김윤서"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P3",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "jet"
+        },
+        {
+          "playerId": "P7",
+          "playerName": "김윤서",
+          "team": "B",
+          "character": "solar"
+        },
+        {
+          "playerId": "P10",
+          "playerName": "혜민",
+          "team": "B",
+          "character": "spray"
+        },
+        {
+          "playerId": "P13",
+          "playerName": "심서윤",
+          "team": "B",
+          "character": "ice"
+        },
+        {
+          "playerId": "P14",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "shield"
+        },
+        {
+          "playerId": "P17",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P18",
+          "playerName": "김선",
+          "team": "A",
+          "character": "mecha"
+        },
+        {
+          "playerId": "P20",
+          "playerName": "심세윤",
+          "team": "B",
+          "character": "laser"
+        }
+      ],
+      "score": {
+        "A": 2.1,
+        "B": 7.94
+      },
+      "teamKills": {
+        "A": 22,
+        "B": 13
+      },
+      "winner": "B",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P3",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "jet",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "jet",
+            "kills": 5,
+            "deaths": 3,
+            "damage": 1232,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P7",
+          "playerName": "김윤서",
+          "team": "B",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 2,
+            "deaths": 6,
+            "damage": 1320.809999999995,
+            "healing": 302,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 302,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P10",
+          "playerName": "혜민",
+          "team": "B",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 3,
+            "deaths": 6,
+            "damage": 2146.8499999999967,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P13",
+          "playerName": "심서윤",
+          "team": "B",
+          "character": "ice",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "ice",
+            "kills": 1,
+            "deaths": 5,
+            "damage": 1389.2799999999968,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P14",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "shield",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "shield",
+            "kills": 3,
+            "deaths": 4,
+            "damage": 1143.9999999999995,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 98.92999999999995,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P17",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 13,
+            "deaths": 3,
+            "damage": 3475.9999999999995,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P18",
+          "playerName": "김선",
+          "team": "A",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 1,
+            "deaths": 3,
+            "damage": 1440,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P20",
+          "playerName": "심세윤",
+          "team": "B",
+          "character": "laser",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "laser",
+            "kills": 7,
+            "deaths": 5,
+            "damage": 1980.680000000013,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790134833610-7a2ad806",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "다1",
+      "draftStartedAt": "2026-09-23T03:36:31.078Z",
+      "matchStartedAt": "2026-09-23T03:37:33.609Z",
+      "endedAt": "2026-09-23T03:40:33.610Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "poison"
+        },
+        {
+          "team": "A",
+          "character": "iron"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P24",
+          "team": "B",
+          "character": "spray",
+          "auto": false,
+          "playerName": "권세하"
+        },
+        {
+          "order": 2,
+          "playerId": "P21",
+          "team": "A",
+          "character": "dia",
+          "auto": false,
+          "playerName": "오지환"
+        },
+        {
+          "order": 3,
+          "playerId": "P25",
+          "team": "A",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "강예준"
+        },
+        {
+          "order": 4,
+          "playerId": "P12",
+          "team": "B",
+          "character": "runner",
+          "auto": false,
+          "playerName": "김온유"
+        },
+        {
+          "order": 5,
+          "playerId": "P15",
+          "team": "B",
+          "character": "solar",
+          "auto": false,
+          "playerName": "공지호"
+        },
+        {
+          "order": 6,
+          "playerId": "P4",
+          "team": "A",
+          "character": "water",
+          "auto": false,
+          "playerName": "영호"
+        },
+        {
+          "order": 7,
+          "playerId": "P19",
+          "team": "A",
+          "character": "jet",
+          "auto": false,
+          "playerName": "박준형"
+        },
+        {
+          "order": 8,
+          "playerId": "P22",
+          "team": "B",
+          "character": "laser",
+          "auto": false,
+          "playerName": "율하"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P4",
+          "playerName": "영호",
+          "team": "A",
+          "character": "water"
+        },
+        {
+          "playerId": "P12",
+          "playerName": "김온유",
+          "team": "B",
+          "character": "runner"
+        },
+        {
+          "playerId": "P15",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "laser"
+        },
+        {
+          "playerId": "P19",
+          "playerName": "박준형",
+          "team": "A",
+          "character": "jet"
+        },
+        {
+          "playerId": "P21",
+          "playerName": "오지환",
+          "team": "A",
+          "character": "dia"
+        },
+        {
+          "playerId": "P22",
+          "playerName": "율하",
+          "team": "B",
+          "character": "spray"
+        },
+        {
+          "playerId": "P24",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "solar"
+        },
+        {
+          "playerId": "P25",
+          "playerName": "강예준",
+          "team": "A",
+          "character": "mecha"
+        }
+      ],
+      "score": {
+        "A": 1.98,
+        "B": 13
+      },
+      "teamKills": {
+        "A": 13,
+        "B": 4
+      },
+      "winner": "B",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P4",
+          "playerName": "영호",
+          "team": "A",
+          "character": "water",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "water",
+            "kills": 2,
+            "deaths": 0,
+            "damage": 1169.4000000000028,
+            "healing": 3374.9000000000033,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P12",
+          "playerName": "김온유",
+          "team": "B",
+          "character": "runner",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "runner",
+            "kills": 0,
+            "deaths": 2,
+            "damage": 480.70000000000005,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P15",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "laser",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "laser",
+            "kills": 2,
+            "deaths": 2,
+            "damage": 1790.8999999999917,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P19",
+          "playerName": "박준형",
+          "team": "A",
+          "character": "jet",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "jet",
+            "kills": 6,
+            "deaths": 2,
+            "damage": 2285.399999999999,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P21",
+          "playerName": "오지환",
+          "team": "A",
+          "character": "dia",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "dia",
+            "kills": 3,
+            "deaths": 2,
+            "damage": 925,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P22",
+          "playerName": "율하",
+          "team": "B",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 1,
+            "deaths": 6,
+            "damage": 3095.7999999999993,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P24",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 1,
+            "deaths": 3,
+            "damage": 464.40000000000146,
+            "healing": 225,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 225,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P25",
+          "playerName": "강예준",
+          "team": "A",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 2,
+            "deaths": 0,
+            "damage": 344,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790135002628-bd578211",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "가2",
+      "draftStartedAt": "2026-09-23T03:39:09.957Z",
+      "matchStartedAt": "2026-09-23T03:40:22.617Z",
+      "endedAt": "2026-09-23T03:43:22.628Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "poison"
+        },
+        {
+          "team": "A",
+          "character": "buffer"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P36",
+          "team": "B",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "정도윤"
+        },
+        {
+          "order": 2,
+          "playerId": "P39",
+          "team": "A",
+          "character": "solar",
+          "auto": false,
+          "playerName": "김선"
+        },
+        {
+          "order": 3,
+          "playerId": "P35",
+          "team": "A",
+          "character": "angel",
+          "auto": false,
+          "playerName": "김명서"
+        },
+        {
+          "order": 4,
+          "playerId": "P26",
+          "team": "B",
+          "character": "runner",
+          "auto": false,
+          "playerName": "김민준"
+        },
+        {
+          "order": 5,
+          "playerId": "P27",
+          "team": "B",
+          "character": "laser",
+          "auto": false,
+          "playerName": "인서강"
+        },
+        {
+          "order": 6,
+          "playerId": "P30",
+          "team": "A",
+          "character": "ice",
+          "auto": false,
+          "playerName": "김루환"
+        },
+        {
+          "order": 7,
+          "playerId": "P31",
+          "team": "A",
+          "character": "spray",
+          "auto": false,
+          "playerName": "정주영"
+        },
+        {
+          "order": 8,
+          "playerId": "P28",
+          "team": "B",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "준우"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P26",
+          "playerName": "김민준",
+          "team": "B",
+          "character": "reactor"
+        },
+        {
+          "playerId": "P27",
+          "playerName": "인서강",
+          "team": "B",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P28",
+          "playerName": "준우",
+          "team": "B",
+          "character": "runner"
+        },
+        {
+          "playerId": "P30",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "ice"
+        },
+        {
+          "playerId": "P31",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "spray"
+        },
+        {
+          "playerId": "P35",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "angel"
+        },
+        {
+          "playerId": "P36",
+          "playerName": "정도윤",
+          "team": "B",
+          "character": "laser"
+        },
+        {
+          "playerId": "P39",
+          "playerName": "김선",
+          "team": "A",
+          "character": "solar"
+        }
+      ],
+      "score": {
+        "A": 1.5,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 13,
+        "B": 11
+      },
+      "winner": "A",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P26",
+          "playerName": "김민준",
+          "team": "B",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 4,
+            "deaths": 1,
+            "damage": 2003.6999999999996,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 47.300000000001795,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P27",
+          "playerName": "인서강",
+          "team": "B",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 4,
+            "deaths": 4,
+            "damage": 2469.8499999999985,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P28",
+          "playerName": "준우",
+          "team": "B",
+          "character": "runner",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "runner",
+            "kills": 1,
+            "deaths": 4,
+            "damage": 583,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P30",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "ice",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "ice",
+            "kills": 4,
+            "deaths": 4,
+            "damage": 1881.9000000000417,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P31",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 3,
+            "deaths": 5,
+            "damage": 1325.000000000001,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P35",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 1,
+            "deaths": 0,
+            "damage": 158.8,
+            "healing": 1839.9499999999985,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 1175
+          }
+        },
+        {
+          "playerId": "P36",
+          "playerName": "정도윤",
+          "team": "B",
+          "character": "laser",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "laser",
+            "kills": 2,
+            "deaths": 4,
+            "damage": 1360.7999999999934,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P39",
+          "playerName": "김선",
+          "team": "A",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 5,
+            "deaths": 2,
+            "damage": 1335.299999999987,
+            "healing": 362.599999999999,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 362.599999999999,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790135138594-1d3e5f19",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "다2",
+      "draftStartedAt": "2026-09-23T03:41:41.802Z",
+      "matchStartedAt": "2026-09-23T03:42:38.581Z",
+      "endedAt": "2026-09-23T03:45:38.594Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "poison"
+        },
+        {
+          "team": "A",
+          "character": "runner"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P49",
+          "team": "B",
+          "character": "spray",
+          "auto": false,
+          "playerName": "온유"
+        },
+        {
+          "order": 2,
+          "playerId": "P40",
+          "team": "A",
+          "character": "light",
+          "auto": false,
+          "playerName": "지유"
+        },
+        {
+          "order": 3,
+          "playerId": "P32",
+          "team": "A",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "김가은"
+        },
+        {
+          "order": 4,
+          "playerId": "P46",
+          "team": "B",
+          "character": "shooter",
+          "auto": false,
+          "playerName": "율하"
+        },
+        {
+          "order": 5,
+          "playerId": "P50",
+          "team": "B",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "공지호"
+        },
+        {
+          "order": 6,
+          "playerId": "P43",
+          "team": "A",
+          "character": "laser",
+          "auto": false,
+          "playerName": "최윤서"
+        },
+        {
+          "order": 7,
+          "playerId": "P37",
+          "team": "A",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "이채은"
+        },
+        {
+          "order": 8,
+          "playerId": "P47",
+          "team": "B",
+          "character": "solar",
+          "auto": false,
+          "playerName": "권세하"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P32",
+          "playerName": "김가은",
+          "team": "A",
+          "character": "mecha"
+        },
+        {
+          "playerId": "P37",
+          "playerName": "이채은",
+          "team": "A",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P40",
+          "playerName": "지유",
+          "team": "A",
+          "character": "light"
+        },
+        {
+          "playerId": "P43",
+          "playerName": "최윤서",
+          "team": "A",
+          "character": "laser"
+        },
+        {
+          "playerId": "P46",
+          "playerName": "율하",
+          "team": "B",
+          "character": "reactor"
+        },
+        {
+          "playerId": "P47",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "solar"
+        },
+        {
+          "playerId": "P49",
+          "playerName": "온유",
+          "team": "B",
+          "character": "spray"
+        },
+        {
+          "playerId": "P50",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "shooter"
+        }
+      ],
+      "score": {
+        "A": 0,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 6,
+        "B": 4
+      },
+      "winner": "A",
+      "winnerReason": "kills",
+      "players": [
+        {
+          "playerId": "P32",
+          "playerName": "김가은",
+          "team": "A",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 247,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P37",
+          "playerName": "이채은",
+          "team": "A",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 3,
+            "deaths": 2,
+            "damage": 2266.099999999998,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P40",
+          "playerName": "지유",
+          "team": "A",
+          "character": "light",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "light",
+            "kills": 0,
+            "deaths": 1,
+            "damage": 118,
+            "healing": 2425.5,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P43",
+          "playerName": "최윤서",
+          "team": "A",
+          "character": "laser",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "laser",
+            "kills": 3,
+            "deaths": 1,
+            "damage": 788.299999999995,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P46",
+          "playerName": "율하",
+          "team": "B",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 3,
+            "deaths": 1,
+            "damage": 1843.2750000000005,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 39.52000000000058,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P47",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 1,
+            "deaths": 1,
+            "damage": 321.0699999999988,
+            "healing": 300,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 300,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P49",
+          "playerName": "온유",
+          "team": "B",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 0,
+            "deaths": 3,
+            "damage": 1199.8000000000004,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P50",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "shooter",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "shooter",
+            "kills": 0,
+            "deaths": 1,
+            "damage": 1664,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790135231070-f67256a2",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "나2",
+      "draftStartedAt": "2026-09-23T03:43:03.780Z",
+      "matchStartedAt": "2026-09-23T03:44:11.061Z",
+      "endedAt": "2026-09-23T03:47:11.070Z",
+      "firstPickTeam": "A",
+      "bans": [
+        {
+          "team": "A",
+          "character": "poison"
+        },
+        {
+          "team": "B",
+          "character": "runner"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P45",
+          "team": "A",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "김혜민"
+        },
+        {
+          "order": 2,
+          "playerId": "P48",
+          "team": "B",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "영호"
+        },
+        {
+          "order": 3,
+          "playerId": "P53",
+          "team": "B",
+          "character": "shield",
+          "auto": false,
+          "playerName": "오지환"
+        },
+        {
+          "order": 4,
+          "playerId": "P42",
+          "team": "A",
+          "character": "buffer",
+          "auto": false,
+          "playerName": "심세윤"
+        },
+        {
+          "order": 5,
+          "playerId": "P44",
+          "team": "A",
+          "character": "ice",
+          "auto": false,
+          "playerName": "서윤"
+        },
+        {
+          "order": 6,
+          "playerId": "P54",
+          "team": "B",
+          "character": "solar",
+          "auto": false,
+          "playerName": "박준형"
+        },
+        {
+          "order": 7,
+          "playerId": "P51",
+          "team": "B",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "강예준"
+        },
+        {
+          "order": 8,
+          "playerId": "P41",
+          "team": "A",
+          "character": "spray",
+          "auto": false,
+          "playerName": "김윤서"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P41",
+          "playerName": "김윤서",
+          "team": "A",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P42",
+          "playerName": "심세윤",
+          "team": "A",
+          "character": "buffer"
+        },
+        {
+          "playerId": "P44",
+          "playerName": "서윤",
+          "team": "A",
+          "character": "ice"
+        },
+        {
+          "playerId": "P45",
+          "playerName": "김혜민",
+          "team": "A",
+          "character": "spray"
+        },
+        {
+          "playerId": "P48",
+          "playerName": "영호",
+          "team": "B",
+          "character": "reactor"
+        },
+        {
+          "playerId": "P51",
+          "playerName": "강예준",
+          "team": "B",
+          "character": "shield"
+        },
+        {
+          "playerId": "P53",
+          "playerName": "오지환",
+          "team": "B",
+          "character": "mecha"
+        },
+        {
+          "playerId": "P54",
+          "playerName": "박준형",
+          "team": "B",
+          "character": "solar"
+        }
+      ],
+      "score": {
+        "A": 0,
+        "B": 2.36
+      },
+      "teamKills": {
+        "A": 5,
+        "B": 22
+      },
+      "winner": "B",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P41",
+          "playerName": "김윤서",
+          "team": "A",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 0,
+            "deaths": 7,
+            "damage": 1206.4000000000017,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P42",
+          "playerName": "심세윤",
+          "team": "A",
+          "character": "buffer",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "buffer",
+            "kills": 0,
+            "deaths": 5,
+            "damage": 0,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P44",
+          "playerName": "서윤",
+          "team": "A",
+          "character": "ice",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "ice",
+            "kills": 2,
+            "deaths": 4,
+            "damage": 1305.8799999999997,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P45",
+          "playerName": "김혜민",
+          "team": "A",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 3,
+            "deaths": 6,
+            "damage": 1981.7599999999986,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P48",
+          "playerName": "영호",
+          "team": "B",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 9,
+            "deaths": 0,
+            "damage": 2901.6000000000004,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 87.77999999999967,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P51",
+          "playerName": "강예준",
+          "team": "B",
+          "character": "shield",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "shield",
+            "kills": 2,
+            "deaths": 1,
+            "damage": 861.3000000000003,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P53",
+          "playerName": "오지환",
+          "team": "B",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 1,
+            "deaths": 2,
+            "damage": 917.2000000000003,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P54",
+          "playerName": "박준형",
+          "team": "B",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 10,
+            "deaths": 2,
+            "damage": 2134.8999999999464,
+            "healing": 470,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 470,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790135506236-88466d02",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "가3",
+      "draftStartedAt": "2026-09-23T03:47:53.850Z",
+      "matchStartedAt": "2026-09-23T03:48:46.222Z",
+      "endedAt": "2026-09-23T03:51:46.236Z",
+      "firstPickTeam": "A",
+      "bans": [
+        {
+          "team": "A",
+          "character": "buffer"
+        },
+        {
+          "team": "B",
+          "character": "runner"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P62",
+          "team": "A",
+          "character": "poison",
+          "auto": false,
+          "playerName": "정주영"
+        },
+        {
+          "order": 2,
+          "playerId": "P71",
+          "team": "B",
+          "character": "light",
+          "auto": false,
+          "playerName": "지유"
+        },
+        {
+          "order": 3,
+          "playerId": "P72",
+          "team": "B",
+          "character": "laser",
+          "auto": false,
+          "playerName": "최윤서"
+        },
+        {
+          "order": 4,
+          "playerId": "P61",
+          "team": "A",
+          "character": "angel",
+          "auto": false,
+          "playerName": "김명서"
+        },
+        {
+          "order": 5,
+          "playerId": "P64",
+          "team": "A",
+          "character": "solar",
+          "auto": false,
+          "playerName": "김선"
+        },
+        {
+          "order": 6,
+          "playerId": "P76",
+          "team": "B",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "이채은"
+        },
+        {
+          "order": 7,
+          "playerId": "P69",
+          "team": "B",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "김가은"
+        },
+        {
+          "order": 8,
+          "playerId": "P60",
+          "team": "A",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "김루환"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P60",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "poison"
+        },
+        {
+          "playerId": "P61",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "angel"
+        },
+        {
+          "playerId": "P62",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "reactor"
+        },
+        {
+          "playerId": "P64",
+          "playerName": "김선",
+          "team": "A",
+          "character": "solar"
+        },
+        {
+          "playerId": "P69",
+          "playerName": "김가은",
+          "team": "B",
+          "character": "mecha"
+        },
+        {
+          "playerId": "P71",
+          "playerName": "지유",
+          "team": "B",
+          "character": "light"
+        },
+        {
+          "playerId": "P72",
+          "playerName": "최윤서",
+          "team": "B",
+          "character": "laser"
+        },
+        {
+          "playerId": "P76",
+          "playerName": "이채은",
+          "team": "B",
+          "character": "cannon"
+        }
+      ],
+      "score": {
+        "A": 9.08,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 19,
+        "B": 5
+      },
+      "winner": "A",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P60",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "poison",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "poison",
+            "kills": 6,
+            "deaths": 2,
+            "damage": 2099.1749999999993,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 231.5,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P61",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 143,
+            "healing": 1226.6999999999998,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 1200
+          }
+        },
+        {
+          "playerId": "P62",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 8,
+            "deaths": 2,
+            "damage": 2667.7699999999986,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 77.56000000000171,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P64",
+          "playerName": "김선",
+          "team": "A",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 5,
+            "deaths": 1,
+            "damage": 2873.659999999893,
+            "healing": 767.1500000000012,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 767.1500000000012,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P69",
+          "playerName": "김가은",
+          "team": "B",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 1,
+            "deaths": 3,
+            "damage": 1108,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P71",
+          "playerName": "지유",
+          "team": "B",
+          "character": "light",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "light",
+            "kills": 0,
+            "deaths": 6,
+            "damage": 390,
+            "healing": 1252.725,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P72",
+          "playerName": "최윤서",
+          "team": "B",
+          "character": "laser",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "laser",
+            "kills": 1,
+            "deaths": 5,
+            "damage": 1026.349999999991,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P76",
+          "playerName": "이채은",
+          "team": "B",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 3,
+            "deaths": 5,
+            "damage": 1431.6499999999999,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790135533977-c5554177",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "나3",
+      "draftStartedAt": "2026-09-23T03:48:12.486Z",
+      "matchStartedAt": "2026-09-23T03:49:13.964Z",
+      "endedAt": "2026-09-23T03:52:13.977Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "poison"
+        },
+        {
+          "team": "A",
+          "character": "cannon"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P66",
+          "team": "B",
+          "character": "spray",
+          "auto": false,
+          "playerName": "권세하"
+        },
+        {
+          "order": 2,
+          "playerId": "P81",
+          "team": "A",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "심서윤"
+        },
+        {
+          "order": 3,
+          "playerId": "P73",
+          "team": "A",
+          "character": "dia",
+          "auto": false,
+          "playerName": "심세윤"
+        },
+        {
+          "order": 4,
+          "playerId": "P65",
+          "team": "B",
+          "character": "runner",
+          "auto": false,
+          "playerName": "김온유"
+        },
+        {
+          "order": 5,
+          "playerId": "P68",
+          "team": "B",
+          "character": "light",
+          "auto": false,
+          "playerName": "공지호"
+        },
+        {
+          "order": 6,
+          "playerId": "P75",
+          "team": "A",
+          "character": "solar",
+          "auto": false,
+          "playerName": "김윤서"
+        },
+        {
+          "order": 7,
+          "playerId": "P77",
+          "team": "A",
+          "character": "ice",
+          "auto": false,
+          "playerName": "혜민."
+        },
+        {
+          "order": 8,
+          "playerId": "P67",
+          "team": "B",
+          "character": "sniper",
+          "auto": false,
+          "playerName": "율하"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P65",
+          "playerName": "김온유",
+          "team": "B",
+          "character": "spray"
+        },
+        {
+          "playerId": "P66",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "runner"
+        },
+        {
+          "playerId": "P67",
+          "playerName": "율하",
+          "team": "B",
+          "character": "sniper"
+        },
+        {
+          "playerId": "P68",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "light"
+        },
+        {
+          "playerId": "P73",
+          "playerName": "심세윤",
+          "team": "A",
+          "character": "solar"
+        },
+        {
+          "playerId": "P75",
+          "playerName": "김윤서",
+          "team": "A",
+          "character": "reactor"
+        },
+        {
+          "playerId": "P77",
+          "playerName": "혜민.",
+          "team": "A",
+          "character": "dia"
+        },
+        {
+          "playerId": "P81",
+          "playerName": "심서윤",
+          "team": "A",
+          "character": "ice"
+        }
+      ],
+      "score": {
+        "A": 0,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 0,
+        "B": 6
+      },
+      "winner": "B",
+      "winnerReason": "kills",
+      "players": [
+        {
+          "playerId": "P65",
+          "playerName": "김온유",
+          "team": "B",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 3,
+            "deaths": 0,
+            "damage": 1114,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P66",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "runner",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "runner",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 121,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P67",
+          "playerName": "율하",
+          "team": "B",
+          "character": "sniper",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "sniper",
+            "kills": 3,
+            "deaths": 0,
+            "damage": 2636,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 1515,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P68",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "light",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "light",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 176,
+            "healing": 910.100000000001,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P73",
+          "playerName": "심세윤",
+          "team": "A",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 368.30000000000047,
+            "healing": 200,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 200,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P75",
+          "playerName": "김윤서",
+          "team": "A",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 0,
+            "deaths": 6,
+            "damage": 676,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P77",
+          "playerName": "혜민.",
+          "team": "A",
+          "character": "dia",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "dia",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 494,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P81",
+          "playerName": "심서윤",
+          "team": "A",
+          "character": "ice",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "ice",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 114.80000000000017,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790135734537-a5369c7b",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "다3A",
+      "draftStartedAt": "2026-09-23T03:51:26.386Z",
+      "matchStartedAt": "2026-09-23T03:52:34.528Z",
+      "endedAt": "2026-09-23T03:55:34.537Z",
+      "firstPickTeam": "A",
+      "bans": [
+        {
+          "team": "A",
+          "character": "poison"
+        },
+        {
+          "team": "B",
+          "character": "solar"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P84",
+          "team": "A",
+          "character": "wind",
+          "auto": false,
+          "playerName": "정도윤"
+        },
+        {
+          "order": 2,
+          "playerId": "P92",
+          "team": "B",
+          "character": "runner",
+          "auto": false,
+          "playerName": "박준형ㄴ"
+        },
+        {
+          "order": 3,
+          "playerId": "P91",
+          "team": "B",
+          "character": "iron",
+          "auto": false,
+          "playerName": "y강예준ㅅ"
+        },
+        {
+          "order": 4,
+          "playerId": "P83",
+          "team": "A",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "김민준2"
+        },
+        {
+          "order": 5,
+          "playerId": "P86",
+          "team": "A",
+          "character": "angel",
+          "auto": false,
+          "playerName": "곽준우"
+        },
+        {
+          "order": 6,
+          "playerId": "P82",
+          "team": "B",
+          "character": "water",
+          "auto": false,
+          "playerName": "영호"
+        },
+        {
+          "order": 7,
+          "playerId": "P89",
+          "team": "B",
+          "character": "dia",
+          "auto": false,
+          "playerName": "오지환"
+        },
+        {
+          "order": 8,
+          "playerId": "P87",
+          "team": "A",
+          "character": "buffer",
+          "auto": false,
+          "playerName": "인서강546567890"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P82",
+          "playerName": "영호",
+          "team": "B",
+          "character": "dia"
+        },
+        {
+          "playerId": "P83",
+          "playerName": "김민준2",
+          "team": "A",
+          "character": "reactor"
+        },
+        {
+          "playerId": "P84",
+          "playerName": "정도윤",
+          "team": "A",
+          "character": "wind"
+        },
+        {
+          "playerId": "P86",
+          "playerName": "곽준우",
+          "team": "A",
+          "character": "angel"
+        },
+        {
+          "playerId": "P87",
+          "playerName": "인서강546567890",
+          "team": "A",
+          "character": "buffer"
+        },
+        {
+          "playerId": "P89",
+          "playerName": "오지환",
+          "team": "B",
+          "character": "iron"
+        },
+        {
+          "playerId": "P91",
+          "playerName": "y강예준ㅅ",
+          "team": "B",
+          "character": "water"
+        },
+        {
+          "playerId": "P92",
+          "playerName": "박준형ㄴ",
+          "team": "B",
+          "character": "runner"
+        }
+      ],
+      "score": {
+        "A": 0,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 19,
+        "B": 2
+      },
+      "winner": "A",
+      "winnerReason": "kills",
+      "players": [
+        {
+          "playerId": "P82",
+          "playerName": "영호",
+          "team": "B",
+          "character": "dia",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "dia",
+            "kills": 2,
+            "deaths": 6,
+            "damage": 950.6000000000042,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 1,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P83",
+          "playerName": "김민준2",
+          "team": "A",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 15,
+            "deaths": 0,
+            "damage": 8296.599999999975,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 161.2800000000087,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P84",
+          "playerName": "정도윤",
+          "team": "A",
+          "character": "wind",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "wind",
+            "kills": 4,
+            "deaths": 2,
+            "damage": 1419.0000000000002,
+            "healing": 271.3999999999997,
+            "tailwindApplications": 24,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P86",
+          "playerName": "곽준우",
+          "team": "A",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 130,
+            "healing": 784.7000000000008,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 784.7000000000008
+          }
+        },
+        {
+          "playerId": "P87",
+          "playerName": "인서강546567890",
+          "team": "A",
+          "character": "buffer",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "buffer",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 0,
+            "healing": 1846.1999999999991,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 118.67999999999353,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P89",
+          "playerName": "오지환",
+          "team": "B",
+          "character": "iron",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "iron",
+            "kills": 0,
+            "deaths": 7,
+            "damage": 885,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P91",
+          "playerName": "y강예준ㅅ",
+          "team": "B",
+          "character": "water",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "water",
+            "kills": 0,
+            "deaths": 5,
+            "damage": 1250,
+            "healing": 622.6000000000009,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P92",
+          "playerName": "박준형ㄴ",
+          "team": "B",
+          "character": "runner",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "runner",
+            "kills": 0,
+            "deaths": 1,
+            "damage": 737,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790135823521-ab17178f",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "나4",
+      "draftStartedAt": "2026-09-23T03:53:06.057Z",
+      "matchStartedAt": "2026-09-23T03:54:03.520Z",
+      "endedAt": "2026-09-23T03:57:03.521Z",
+      "firstPickTeam": "A",
+      "bans": [
+        {
+          "team": "A",
+          "character": "iron"
+        },
+        {
+          "team": "B",
+          "character": "runner"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P106",
+          "team": "A",
+          "character": "poison",
+          "auto": false,
+          "playerName": "김윤서"
+        },
+        {
+          "order": 2,
+          "playerId": "P97",
+          "team": "B",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "김가은"
+        },
+        {
+          "order": 3,
+          "playerId": "P94",
+          "team": "B",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "최윤서"
+        },
+        {
+          "order": 4,
+          "playerId": "P107",
+          "team": "A",
+          "character": "solar",
+          "auto": false,
+          "playerName": "혜민.."
+        },
+        {
+          "order": 5,
+          "playerId": "P105",
+          "team": "A",
+          "character": "light",
+          "auto": false,
+          "playerName": "심세윤"
+        },
+        {
+          "order": 6,
+          "playerId": "P96",
+          "team": "B",
+          "character": "dia",
+          "auto": false,
+          "playerName": "이채은"
+        },
+        {
+          "order": 7,
+          "playerId": "P98",
+          "team": "B",
+          "character": "angel",
+          "auto": false,
+          "playerName": "지유"
+        },
+        {
+          "order": 8,
+          "playerId": "P100",
+          "team": "A",
+          "character": "ice",
+          "auto": false,
+          "playerName": "서윤"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P94",
+          "playerName": "최윤서",
+          "team": "B",
+          "character": "reactor"
+        },
+        {
+          "playerId": "P96",
+          "playerName": "이채은",
+          "team": "B",
+          "character": "dia"
+        },
+        {
+          "playerId": "P97",
+          "playerName": "김가은",
+          "team": "B",
+          "character": "mecha"
+        },
+        {
+          "playerId": "P98",
+          "playerName": "지유",
+          "team": "B",
+          "character": "angel"
+        },
+        {
+          "playerId": "P100",
+          "playerName": "서윤",
+          "team": "A",
+          "character": "ice"
+        },
+        {
+          "playerId": "P105",
+          "playerName": "심세윤",
+          "team": "A",
+          "character": "light"
+        },
+        {
+          "playerId": "P106",
+          "playerName": "김윤서",
+          "team": "A",
+          "character": "solar"
+        },
+        {
+          "playerId": "P107",
+          "playerName": "혜민..",
+          "team": "A",
+          "character": "poison"
+        }
+      ],
+      "score": {
+        "A": 0,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 0,
+        "B": 0
+      },
+      "winner": "DRAW",
+      "winnerReason": "draw",
+      "players": [
+        {
+          "playerId": "P94",
+          "playerName": "최윤서",
+          "team": "B",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 692,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P96",
+          "playerName": "이채은",
+          "team": "B",
+          "character": "dia",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "dia",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 72.8,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P97",
+          "playerName": "김가은",
+          "team": "B",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 39,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P98",
+          "playerName": "지유",
+          "team": "B",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 30,
+            "healing": 209.80000000000064,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 50
+          }
+        },
+        {
+          "playerId": "P100",
+          "playerName": "서윤",
+          "team": "A",
+          "character": "ice",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "ice",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 7.000000000000001,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P105",
+          "playerName": "심세윤",
+          "team": "A",
+          "character": "light",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "light",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 28,
+            "healing": 92,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P106",
+          "playerName": "김윤서",
+          "team": "A",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 167.39999999999978,
+            "healing": 64.4000000000002,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 64.4000000000002,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P107",
+          "playerName": "혜민..",
+          "team": "A",
+          "character": "poison",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "poison",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 139.5,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 50,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790136108650-3e96aec7",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "다4",
+      "draftStartedAt": "2026-09-23T03:57:50.678Z",
+      "matchStartedAt": "2026-09-23T03:58:48.634Z",
+      "endedAt": "2026-09-23T04:01:48.650Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "reactor"
+        },
+        {
+          "team": "A",
+          "character": "poison"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P113",
+          "team": "B",
+          "character": "spray",
+          "auto": false,
+          "playerName": "김온유"
+        },
+        {
+          "order": 2,
+          "playerId": "P122",
+          "team": "A",
+          "character": "buffer",
+          "auto": false,
+          "playerName": "인서강1"
+        },
+        {
+          "order": 3,
+          "playerId": "P117",
+          "team": "A",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "김민준23"
+        },
+        {
+          "order": 4,
+          "playerId": "P109",
+          "team": "B",
+          "character": "runner",
+          "auto": false,
+          "playerName": "권세하"
+        },
+        {
+          "order": 5,
+          "playerId": "P112",
+          "team": "B",
+          "character": "shield",
+          "auto": false,
+          "playerName": "율하"
+        },
+        {
+          "order": 6,
+          "playerId": "P114",
+          "team": "A",
+          "character": "wind",
+          "auto": false,
+          "playerName": "정도윤"
+        },
+        {
+          "order": 7,
+          "playerId": "P123",
+          "team": "A",
+          "character": "angel",
+          "auto": false,
+          "playerName": "곽준우131"
+        },
+        {
+          "order": 8,
+          "playerId": "P110",
+          "team": "B",
+          "character": "light",
+          "auto": false,
+          "playerName": "공지호"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P109",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "shield"
+        },
+        {
+          "playerId": "P110",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "light"
+        },
+        {
+          "playerId": "P112",
+          "playerName": "율하",
+          "team": "B",
+          "character": "spray"
+        },
+        {
+          "playerId": "P113",
+          "playerName": "김온유",
+          "team": "B",
+          "character": "runner"
+        },
+        {
+          "playerId": "P114",
+          "playerName": "정도윤",
+          "team": "A",
+          "character": "wind"
+        },
+        {
+          "playerId": "P117",
+          "playerName": "김민준23",
+          "team": "A",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P122",
+          "playerName": "인서강1",
+          "team": "A",
+          "character": "buffer"
+        },
+        {
+          "playerId": "P123",
+          "playerName": "곽준우131",
+          "team": "A",
+          "character": "angel"
+        }
+      ],
+      "score": {
+        "A": 9.54,
+        "B": 2.24
+      },
+      "teamKills": {
+        "A": 14,
+        "B": 4
+      },
+      "winner": "A",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P109",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "shield",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "shield",
+            "kills": 0,
+            "deaths": 4,
+            "damage": 168,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P110",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "light",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "light",
+            "kills": 1,
+            "deaths": 3,
+            "damage": 839,
+            "healing": 1045.55,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P112",
+          "playerName": "율하",
+          "team": "B",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 3,
+            "deaths": 3,
+            "damage": 2319.5,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P113",
+          "playerName": "김온유",
+          "team": "B",
+          "character": "runner",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "runner",
+            "kills": 0,
+            "deaths": 4,
+            "damage": 363,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P114",
+          "playerName": "정도윤",
+          "team": "A",
+          "character": "wind",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "wind",
+            "kills": 0,
+            "deaths": 2,
+            "damage": 1078,
+            "healing": 517.1500000000003,
+            "tailwindApplications": 34,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P117",
+          "playerName": "김민준23",
+          "team": "A",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 14,
+            "deaths": 0,
+            "damage": 4470.449999999988,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P122",
+          "playerName": "인서강1",
+          "team": "A",
+          "character": "buffer",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "buffer",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 0,
+            "healing": 1233,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 159.20000000000763,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P123",
+          "playerName": "곽준우131",
+          "team": "A",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 0,
+            "deaths": 2,
+            "damage": 210,
+            "healing": 886.5500000000008,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 465.5
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790136151090-e4bc62b5",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "가4",
+      "draftStartedAt": "2026-09-23T03:58:12.245Z",
+      "matchStartedAt": "2026-09-23T03:59:31.078Z",
+      "endedAt": "2026-09-23T04:02:31.090Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "dia"
+        },
+        {
+          "team": "A",
+          "character": "poison"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P115",
+          "team": "B",
+          "character": "solar",
+          "auto": false,
+          "playerName": "영호"
+        },
+        {
+          "order": 2,
+          "playerId": "P93",
+          "team": "A",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "정주영"
+        },
+        {
+          "order": 3,
+          "playerId": "P111",
+          "team": "A",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "김선"
+        },
+        {
+          "order": 4,
+          "playerId": "P120",
+          "team": "B",
+          "character": "runner",
+          "auto": true,
+          "playerName": "y강예준ㅅ"
+        },
+        {
+          "order": 5,
+          "playerId": "P129",
+          "team": "B",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "박준형ㆍ"
+        },
+        {
+          "order": 6,
+          "playerId": "P99",
+          "team": "A",
+          "character": "angel",
+          "auto": false,
+          "playerName": "김명서"
+        },
+        {
+          "order": 7,
+          "playerId": "P121",
+          "team": "A",
+          "character": "jet",
+          "auto": false,
+          "playerName": "김루환"
+        },
+        {
+          "order": 8,
+          "playerId": "P116",
+          "team": "B",
+          "character": "shooter",
+          "auto": false,
+          "playerName": "오지환"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P93",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "jet"
+        },
+        {
+          "playerId": "P99",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "angel"
+        },
+        {
+          "playerId": "P111",
+          "playerName": "김선",
+          "team": "A",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P115",
+          "playerName": "영호",
+          "team": "B",
+          "character": "solar"
+        },
+        {
+          "playerId": "P116",
+          "playerName": "오지환",
+          "team": "B",
+          "character": "shooter"
+        },
+        {
+          "playerId": "P120",
+          "playerName": "y강예준ㅅ",
+          "team": "B",
+          "character": "runner"
+        },
+        {
+          "playerId": "P121",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "reactor"
+        },
+        {
+          "playerId": "P129",
+          "playerName": "박준형ㆍ",
+          "team": "B",
+          "character": "mecha"
+        }
+      ],
+      "score": {
+        "A": 4.18,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 27,
+        "B": 9
+      },
+      "winner": "A",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P93",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "jet",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "jet",
+            "kills": 7,
+            "deaths": 3,
+            "damage": 1959.8999999999974,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P99",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 0,
+            "healing": 1539.7000000000003,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 1495.7000000000003
+          }
+        },
+        {
+          "playerId": "P111",
+          "playerName": "김선",
+          "team": "A",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 11,
+            "deaths": 3,
+            "damage": 3679.4999999999914,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P115",
+          "playerName": "영호",
+          "team": "B",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 1,
+            "deaths": 7,
+            "damage": 1591.399999999981,
+            "healing": 438,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 438,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P116",
+          "playerName": "오지환",
+          "team": "B",
+          "character": "shooter",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "shooter",
+            "kills": 2,
+            "deaths": 8,
+            "damage": 779.6000000000008,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P120",
+          "playerName": "y강예준ㅅ",
+          "team": "B",
+          "character": "runner",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "runner",
+            "kills": 1,
+            "deaths": 7,
+            "damage": 455.20000000000016,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P121",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 9,
+            "deaths": 3,
+            "damage": 3944.200000000003,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 99.41999999999736,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P129",
+          "playerName": "박준형ㆍ",
+          "team": "B",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 5,
+            "deaths": 5,
+            "damage": 1816.1000000000013,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790136406630-028a461d",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "나5",
+      "draftStartedAt": "2026-09-23T04:02:44.727Z",
+      "matchStartedAt": "2026-09-23T04:03:46.611Z",
+      "endedAt": "2026-09-23T04:06:46.630Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "poison"
+        },
+        {
+          "team": "A",
+          "character": "reactor"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P141",
+          "team": "B",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "곽준우131"
+        },
+        {
+          "order": 2,
+          "playerId": "P124",
+          "team": "A",
+          "character": "light",
+          "auto": false,
+          "playerName": "서윤"
+        },
+        {
+          "order": 3,
+          "playerId": "P128",
+          "team": "A",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "김윤서"
+        },
+        {
+          "order": 4,
+          "playerId": "P138",
+          "team": "B",
+          "character": "wind",
+          "auto": false,
+          "playerName": "정도윤"
+        },
+        {
+          "order": 5,
+          "playerId": "P136",
+          "team": "B",
+          "character": "angel",
+          "auto": false,
+          "playerName": "김민준23"
+        },
+        {
+          "order": 6,
+          "playerId": "P127",
+          "team": "A",
+          "character": "spray",
+          "auto": false,
+          "playerName": "혜민..."
+        },
+        {
+          "order": 7,
+          "playerId": "P134",
+          "team": "A",
+          "character": "solar",
+          "auto": false,
+          "playerName": "심세윤"
+        },
+        {
+          "order": 8,
+          "playerId": "P142",
+          "team": "B",
+          "character": "buffer",
+          "auto": false,
+          "playerName": "인서강2"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P124",
+          "playerName": "서윤",
+          "team": "A",
+          "character": "light"
+        },
+        {
+          "playerId": "P127",
+          "playerName": "혜민...",
+          "team": "A",
+          "character": "spray"
+        },
+        {
+          "playerId": "P128",
+          "playerName": "김윤서",
+          "team": "A",
+          "character": "mecha"
+        },
+        {
+          "playerId": "P134",
+          "playerName": "심세윤",
+          "team": "A",
+          "character": "solar"
+        },
+        {
+          "playerId": "P136",
+          "playerName": "김민준23",
+          "team": "B",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P138",
+          "playerName": "정도윤",
+          "team": "B",
+          "character": "wind"
+        },
+        {
+          "playerId": "P141",
+          "playerName": "곽준우131",
+          "team": "B",
+          "character": "angel"
+        },
+        {
+          "playerId": "P142",
+          "playerName": "인서강2",
+          "team": "B",
+          "character": "buffer"
+        }
+      ],
+      "score": {
+        "A": 0,
+        "B": 45.88
+      },
+      "teamKills": {
+        "A": 0,
+        "B": 19
+      },
+      "winner": "B",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P124",
+          "playerName": "서윤",
+          "team": "A",
+          "character": "light",
+          "connectedAtEnd": false,
+          "stats": {
+            "character": "light",
+            "kills": 0,
+            "deaths": 4,
+            "damage": 44,
+            "healing": 298,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P127",
+          "playerName": "혜민...",
+          "team": "A",
+          "character": "spray",
+          "connectedAtEnd": false,
+          "stats": {
+            "character": "spray",
+            "kills": 0,
+            "deaths": 5,
+            "damage": 1326,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P128",
+          "playerName": "김윤서",
+          "team": "A",
+          "character": "mecha",
+          "connectedAtEnd": false,
+          "stats": {
+            "character": "mecha",
+            "kills": 0,
+            "deaths": 4,
+            "damage": 104,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P134",
+          "playerName": "심세윤",
+          "team": "A",
+          "character": "solar",
+          "connectedAtEnd": false,
+          "stats": {
+            "character": "solar",
+            "kills": 0,
+            "deaths": 6,
+            "damage": 387.0000000000017,
+            "healing": 25,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 25,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P136",
+          "playerName": "김민준23",
+          "team": "B",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 14,
+            "deaths": 0,
+            "damage": 7061.999999999968,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P138",
+          "playerName": "정도윤",
+          "team": "B",
+          "character": "wind",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "wind",
+            "kills": 5,
+            "deaths": 0,
+            "damage": 776.5999999999995,
+            "healing": 361.9000000000004,
+            "tailwindApplications": 28,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P141",
+          "playerName": "곽준우131",
+          "team": "B",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 132,
+            "healing": 470.5000000000002,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 200
+          }
+        },
+        {
+          "playerId": "P142",
+          "playerName": "인서강2",
+          "team": "B",
+          "character": "buffer",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "buffer",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 0,
+            "healing": 858.1999999999999,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 167.22000000001174,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790136525166-ee5f20dc",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "가5",
+      "draftStartedAt": "2026-09-23T04:04:52.664Z",
+      "matchStartedAt": "2026-09-23T04:05:45.161Z",
+      "endedAt": "2026-09-23T04:08:45.166Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "reactor"
+        },
+        {
+          "team": "A",
+          "character": "poison"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P140",
+          "team": "B",
+          "character": "runner",
+          "auto": false,
+          "playerName": "김온유"
+        },
+        {
+          "order": 2,
+          "playerId": "P150",
+          "team": "A",
+          "character": "solar",
+          "auto": false,
+          "playerName": "김선ㄱ"
+        },
+        {
+          "order": 3,
+          "playerId": "P145",
+          "team": "A",
+          "character": "angel",
+          "auto": false,
+          "playerName": "정주영"
+        },
+        {
+          "order": 4,
+          "playerId": "P137",
+          "team": "B",
+          "character": "cannon",
+          "auto": false,
+          "playerName": "권세하"
+        },
+        {
+          "order": 5,
+          "playerId": "P135",
+          "team": "B",
+          "character": "buffer",
+          "auto": false,
+          "playerName": "공지호"
+        },
+        {
+          "order": 6,
+          "playerId": "P147",
+          "team": "A",
+          "character": "spray",
+          "auto": false,
+          "playerName": "김명서"
+        },
+        {
+          "order": 7,
+          "playerId": "P143",
+          "team": "A",
+          "character": "shooter",
+          "auto": false,
+          "playerName": "김루환"
+        },
+        {
+          "order": 8,
+          "playerId": "P139",
+          "team": "B",
+          "character": "sniper",
+          "auto": false,
+          "playerName": "율하"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P135",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "buffer"
+        },
+        {
+          "playerId": "P137",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "cannon"
+        },
+        {
+          "playerId": "P139",
+          "playerName": "율하",
+          "team": "B",
+          "character": "sniper"
+        },
+        {
+          "playerId": "P140",
+          "playerName": "김온유",
+          "team": "B",
+          "character": "runner"
+        },
+        {
+          "playerId": "P143",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "shooter"
+        },
+        {
+          "playerId": "P145",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "spray"
+        },
+        {
+          "playerId": "P147",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "angel"
+        },
+        {
+          "playerId": "P150",
+          "playerName": "김선ㄱ",
+          "team": "A",
+          "character": "solar"
+        }
+      ],
+      "score": {
+        "A": 26.18,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 32,
+        "B": 1
+      },
+      "winner": "A",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P135",
+          "playerName": "공지호",
+          "team": "B",
+          "character": "buffer",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "buffer",
+            "kills": 0,
+            "deaths": 9,
+            "damage": 0,
+            "healing": 2143.7999999999993,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 47.28000000000179,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P137",
+          "playerName": "권세하",
+          "team": "B",
+          "character": "cannon",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "cannon",
+            "kills": 0,
+            "deaths": 10,
+            "damage": 572,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P139",
+          "playerName": "율하",
+          "team": "B",
+          "character": "sniper",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "sniper",
+            "kills": 1,
+            "deaths": 8,
+            "damage": 2350,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 120,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P140",
+          "playerName": "김온유",
+          "team": "B",
+          "character": "runner",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "runner",
+            "kills": 0,
+            "deaths": 5,
+            "damage": 407,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P143",
+          "playerName": "김루환",
+          "team": "A",
+          "character": "shooter",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "shooter",
+            "kills": 14,
+            "deaths": 1,
+            "damage": 3240.100000000001,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P145",
+          "playerName": "정주영",
+          "team": "A",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 8,
+            "deaths": 0,
+            "damage": 2857.7000000000003,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P147",
+          "playerName": "김명서",
+          "team": "A",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 90,
+            "healing": 1172,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 1139
+          }
+        },
+        {
+          "playerId": "P150",
+          "playerName": "김선ㄱ",
+          "team": "A",
+          "character": "solar",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "solar",
+            "kills": 10,
+            "deaths": 0,
+            "damage": 2942.7999999999065,
+            "healing": 972,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 972,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    },
+    {
+      "matchId": "1790136569029-50b6e5cc",
+      "statsVersion": "1.4",
+      "gameVersion": "Alpha 1.4",
+      "buildId": "alpha-1.4-r22-shield-access-lock-bwopt3heavyproj-contrib-reactorstage-extra3-teamtag-sniper16guide-ui3-perkframe-shieldcap300-shieldamount150-antihealcap80-reactorenergy-auditedshortdesc-reactordecay4-sniper16thin-reactorgain3-sniper16clear-reactorkill25-bwopt4auditbudgetc3-bwopt5projectilelifecyclec4-bwopt6beamlessc5-resultsawards1-charintro1-healerhybrid50-bufferhps50-regen4s-regen30hps-nicklock1-nicknamerecovery1-healallyradius140-water80-star90-bless10-tailwind15-stale15-ping10-healerselfheal50-irondr10-shieldrecharge8-healaudio2-healerlowhpui1-iron75-shield60dr10-mecha65dr10-spray14-4-4-healnumbers200-bwopt9c6sparse-draftrolesui1-shooter42-spraydisplayfix1-healerpolite1-c6projectilefix1",
+      "rosterVersion": "alpha-1.4-r22-shield",
+      "availableCharacters": [
+        "iron",
+        "mecha",
+        "jet",
+        "solar",
+        "shield",
+        "runner",
+        "shooter",
+        "sniper",
+        "cannon",
+        "fire",
+        "poison",
+        "reactor",
+        "spray",
+        "water",
+        "wind",
+        "star",
+        "angel",
+        "buffer",
+        "light",
+        "laser",
+        "ice",
+        "dia"
+      ],
+      "room": "다5",
+      "draftStartedAt": "2026-09-23T04:05:22.104Z",
+      "matchStartedAt": "2026-09-23T04:06:29.013Z",
+      "endedAt": "2026-09-23T04:09:29.029Z",
+      "firstPickTeam": "B",
+      "bans": [
+        {
+          "team": "B",
+          "character": "runner"
+        },
+        {
+          "team": "A",
+          "character": "solar"
+        }
+      ],
+      "picks": [
+        {
+          "order": 1,
+          "playerId": "P149",
+          "team": "B",
+          "character": "reactor",
+          "auto": false,
+          "playerName": "영호"
+        },
+        {
+          "order": 2,
+          "playerId": "P132",
+          "team": "A",
+          "character": "poison",
+          "auto": false,
+          "playerName": "채은"
+        },
+        {
+          "order": 3,
+          "playerId": "P130",
+          "team": "A",
+          "character": "laser",
+          "auto": false,
+          "playerName": "최윤서"
+        },
+        {
+          "order": 4,
+          "playerId": "P148",
+          "team": "B",
+          "character": "dia",
+          "auto": false,
+          "playerName": "y강예준ㅅ"
+        },
+        {
+          "order": 5,
+          "playerId": "P144",
+          "team": "B",
+          "character": "spray",
+          "auto": false,
+          "playerName": "박준형1"
+        },
+        {
+          "order": 6,
+          "playerId": "P131",
+          "team": "A",
+          "character": "angel",
+          "auto": false,
+          "playerName": "지유"
+        },
+        {
+          "order": 7,
+          "playerId": "P133",
+          "team": "A",
+          "character": "mecha",
+          "auto": false,
+          "playerName": "김가은"
+        },
+        {
+          "order": 8,
+          "playerId": "P151",
+          "team": "B",
+          "character": "iron",
+          "auto": false,
+          "playerName": "오지환"
+        }
+      ],
+      "finalAssignments": [
+        {
+          "playerId": "P130",
+          "playerName": "최윤서",
+          "team": "A",
+          "character": "laser"
+        },
+        {
+          "playerId": "P131",
+          "playerName": "지유",
+          "team": "A",
+          "character": "angel"
+        },
+        {
+          "playerId": "P132",
+          "playerName": "채은",
+          "team": "A",
+          "character": "poison"
+        },
+        {
+          "playerId": "P133",
+          "playerName": "김가은",
+          "team": "A",
+          "character": "mecha"
+        },
+        {
+          "playerId": "P144",
+          "playerName": "박준형1",
+          "team": "B",
+          "character": "spray"
+        },
+        {
+          "playerId": "P148",
+          "playerName": "y강예준ㅅ",
+          "team": "B",
+          "character": "iron"
+        },
+        {
+          "playerId": "P149",
+          "playerName": "영호",
+          "team": "B",
+          "character": "dia"
+        },
+        {
+          "playerId": "P151",
+          "playerName": "오지환",
+          "team": "B",
+          "character": "reactor"
+        }
+      ],
+      "score": {
+        "A": 13.8,
+        "B": 0
+      },
+      "teamKills": {
+        "A": 9,
+        "B": 4
+      },
+      "winner": "A",
+      "winnerReason": "score",
+      "players": [
+        {
+          "playerId": "P130",
+          "playerName": "최윤서",
+          "team": "A",
+          "character": "laser",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "laser",
+            "kills": 7,
+            "deaths": 2,
+            "damage": 2443.1000000000327,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P131",
+          "playerName": "지유",
+          "team": "A",
+          "character": "angel",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "angel",
+            "kills": 1,
+            "deaths": 1,
+            "damage": 623.6999999999994,
+            "healing": 2052.1199999999953,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 691.8000000000009
+          }
+        },
+        {
+          "playerId": "P132",
+          "playerName": "채은",
+          "team": "A",
+          "character": "poison",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "poison",
+            "kills": 1,
+            "deaths": 1,
+            "damage": 738.5500000000044,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P133",
+          "playerName": "김가은",
+          "team": "A",
+          "character": "mecha",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "mecha",
+            "kills": 0,
+            "deaths": 0,
+            "damage": 851.5000000000002,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P144",
+          "playerName": "박준형1",
+          "team": "B",
+          "character": "spray",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "spray",
+            "kills": 1,
+            "deaths": 3,
+            "damage": 1592.9999999999982,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P148",
+          "playerName": "y강예준ㅅ",
+          "team": "B",
+          "character": "iron",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "iron",
+            "kills": 2,
+            "deaths": 1,
+            "damage": 1484.6000000000001,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P149",
+          "playerName": "영호",
+          "team": "B",
+          "character": "dia",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "dia",
+            "kills": 0,
+            "deaths": 2,
+            "damage": 1114.4200000000058,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 0,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        },
+        {
+          "playerId": "P151",
+          "playerName": "오지환",
+          "team": "B",
+          "character": "reactor",
+          "connectedAtEnd": true,
+          "stats": {
+            "character": "reactor",
+            "kills": 1,
+            "deaths": 3,
+            "damage": 758,
+            "healing": 0,
+            "tailwindApplications": 0,
+            "diaFormKills": 0,
+            "healingPrevented": 0,
+            "reactorStage3Seconds": 12.759999999999817,
+            "shieldDamageBlocked": 0,
+            "bufferLinkSeconds": 0,
+            "burnDamage": 0,
+            "sniperLongRangeDamage": 0,
+            "solarProjectileHealing": 0,
+            "angelBlessingHealing": 0
+          }
+        }
+      ],
+      "balanceVersion": "1.4"
+    }
+  ],
+  "migrationNotes": {
+    "createdAt": "2026-10-02T14:03:00+09:00",
+    "statsGrouping": "major.minor",
+    "history": "1.4 raw 15 matches restored; 1.5 zero-match bucket restored; two separate 1.6.2 aggregate exports merged into one 1.6 bucket (7+7=14).",
+    "advancedHistoryLimit": "The 1.6 legacy exports contained no match rows, so pre-schema-v5 nickname/synergy/matchup details cannot be reconstructed for those 14 matches."
+  }
+}

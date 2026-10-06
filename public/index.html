@@ -33,7 +33,12 @@
         <button id="accessLockButton" type="button" class="danger">🔒 스쿨라인 잠그기</button>
       </div>
       <p id="accessAdminMessage" class="access-admin-message"></p>
-      <p class="access-admin-help">잠그면 현재 진행 중인 방과 경기도 즉시 종료됩니다. 서버를 다시 시작하면 안전을 위해 잠김 상태로 시작합니다.</p>
+      <section class="account-admin-section">
+        <div class="account-admin-heading"><div><b>👥 고정 계정 / PIN</b><span>학생 24명 + 교사 1명</span></div><button id="accountAdminLoadButton" type="button">PIN 확인·수정</button></div>
+        <div id="accountAdminList" class="account-admin-list hidden"></div>
+        <p id="accountAdminMessage" class="access-admin-message"></p>
+      </section>
+      <p class="access-admin-help">계정 PIN은 관리자 화면에서 즉시 확인·수정할 수 있습니다. 이름을 수정해도 내부 계정 ID는 유지되어 통계가 끊기지 않습니다. 잠그면 현재 진행 중인 방과 경기도 즉시 종료됩니다.</p>
     </article>
   </div>
 
@@ -41,7 +46,11 @@
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
       <p class="subtitle">Mobile Alpha 1.6.2 · 일반전 / 경쟁전 · 22 캐릭터</p>
-      <label>닉네임<input id="nameInput" maxlength="12" placeholder="예: 1번" autocomplete="off" /></label>
+      <div class="account-login-grid">
+        <label>내 이름<select id="accountSelect" aria-label="계정 이름"><option value="">이름 선택</option></select></label>
+        <label>4자리 PIN<input id="accountPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" autocomplete="off" /></label>
+      </div>
+      <p class="account-login-help">이름은 고정 계정으로 사용됩니다. 한 번 선택한 이름은 이 기기에서 기억합니다.</p>
 
       <button id="resumeButton" type="button" class="resume-game-button hidden">↩️ 진행 중인 게임으로 돌아가기</button>
       <div id="resumeHint" class="resume-game-hint hidden"></div>
@@ -225,7 +234,7 @@
         <h3 class="stats-recent-title">캐릭터 종합</h3>
         <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>가능</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>관여율</th><th>풀렸을 때 픽</th><th>W-L-D</th><th>승률</th><th>95% CI</th><th>K-D-A/판</th><th>피해/판</th><th>받피/판</th><th>치유/판</th><th>점유초/판</th><th>궁</th><th>픽당 궁</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
         <div class="stats-analysis-grid">
-          <section><h3 class="stats-recent-title">플레이어 / 닉네임</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>닉네임</th><th>경기</th><th>W-L-D</th><th>승률</th><th>K-D-A</th><th>피해/판</th><th>받피/판</th><th>치유/판</th><th>점유초/판</th><th>연결끊김</th><th>최다 픽</th></tr></thead><tbody id="competitivePlayerStatsBody"></tbody></table></div></section>
+          <section><h3 class="stats-recent-title">플레이어 / 고정 계정</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>이름</th><th>경기</th><th>W-L-D</th><th>승률</th><th>K-D-A</th><th>피해/판</th><th>받피/판</th><th>치유/판</th><th>점유초/판</th><th>연결끊김</th><th>최다 픽</th></tr></thead><tbody id="competitivePlayerStatsBody"></tbody></table></div></section>
           <section><h3 class="stats-recent-title">2인 시너지</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>조합</th><th>경기</th><th>W-L-D</th><th>승률</th><th>시너지 Lift</th></tr></thead><tbody id="competitiveSynergyBody"></tbody></table></div></section>
           <section><h3 class="stats-recent-title">캐릭터 상대전적</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>매치업</th><th>경기</th><th>전적</th><th>왼쪽 승률</th><th>95% CI</th></tr></thead><tbody id="competitiveMatchupBody"></tbody></table></div></section>
           <section><h3 class="stats-recent-title">4인 조합</h3><div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>조합</th><th>경기</th><th>W-L-D</th><th>승률</th></tr></thead><tbody id="competitiveCompositionBody"></tbody></table></div></section>

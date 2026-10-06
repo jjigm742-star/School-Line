@@ -72,9 +72,9 @@ h2, h3 { margin-top: 0; }
 .my-info-ultimate.ready { color:#ffe88a; text-shadow:0 0 8px rgba(255,211,86,.30); }
 .my-info-ultimate.active { color:#d7f4ff; }
 .respawn { position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); z-index: 9; color: #ffcf70; background: rgba(10,14,20,.82); border-radius: 14px; padding: 10px 14px; font-size: clamp(18px, 5vh, 28px); font-weight: 900; pointer-events: none; }
-.action-buttons { position:absolute; left:50%; bottom:max(12px, env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:11; display:flex; align-items:flex-end; justify-content:center; gap:8px; pointer-events:auto; }
+.action-buttons { position:absolute; left:50%; bottom:max(12px, env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:20; display:flex; align-items:flex-end; justify-content:center; gap:8px; pointer-events:auto; }
 .action-buttons.hidden { display:none !important; }
-.ability-button, .ultimate-button { position:relative; min-width:clamp(88px, 14vw, 118px); min-height:52px; padding:8px 12px; border-radius:18px; box-shadow:0 4px 18px rgba(0,0,0,.35); font-weight:900; font-size:clamp(12px, 3.1vh, 17px); touch-action:manipulation; white-space:nowrap; }
+.ability-button, .ultimate-button { position:relative; min-width:clamp(88px, 14vw, 118px); min-height:52px; padding:8px 12px; border-radius:18px; box-shadow:0 4px 18px rgba(0,0,0,.35); font-weight:900; font-size:clamp(12px, 3.1vh, 17px); touch-action:none; white-space:nowrap; user-select:none; -webkit-user-select:none; }
 .ability-button { background:rgba(65,150,190,.9); border:2px solid rgba(220,250,255,.72); }
 .ability-button.active { background:rgba(130,225,240,.94); color:#08202a; box-shadow:0 0 22px rgba(130,235,255,.55); }
 .ability-button:disabled { cursor:default; opacity:.72; filter:none; }
@@ -91,6 +91,7 @@ h2, h3 { margin-top: 0; }
 .ultimate-fill { height:100%; width:0%; border-radius:inherit; background:linear-gradient(90deg,#8169b6,#c7a8f0); transition:width .14s linear; }
 .ultimate-hud.ready .ultimate-fill { background:linear-gradient(90deg,#d7a733,#ffe37b); }
 .touch-controls { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+body.desktop-controls-only .touch-controls { display:none !important; }
 .control-zone { position: absolute; bottom: max(10px, env(safe-area-inset-bottom)); width: 39vw; height: 46vh; min-height: 150px; max-height: 300px; pointer-events: auto; touch-action: none; }
 .move-zone { left: max(6px, env(safe-area-inset-left)); }
 .aim-zone { right: max(6px, env(safe-area-inset-right)); }
@@ -114,7 +115,7 @@ h2, h3 { margin-top: 0; }
   .game-screen:not(.hidden) .rotate-notice { display: flex !important; }
 }
 @media (hover: hover) and (pointer: fine) {
-  .touch-controls { opacity: .42; }
+  body:not(.desktop-controls-only) .touch-controls { opacity: .42; }
 }
 
 /* Alpha 0.4 character picker + combat feedback controls */
@@ -252,6 +253,7 @@ body.spectator-mode .lobby-layout { grid-template-columns: 1fr; max-width: 820px
 .result-awards { display:inline-flex; flex-wrap:wrap; gap:4px; margin-left:7px; vertical-align:middle; }
 .result-award { display:inline-block; padding:2px 6px; border-radius:999px; font-size:10px; font-weight:1000; letter-spacing:.02em; color:#fff7d5; border:1px solid rgba(255,225,120,.56); background:linear-gradient(120deg,rgba(84,57,8,.86),rgba(180,129,28,.78),rgba(84,57,8,.86)); box-shadow:0 0 7px rgba(255,213,91,.24); animation:result-award-sparkle 1.55s ease-in-out infinite; }
 .result-award-damage { color:#ffe2d7; border-color:rgba(255,144,102,.62); background:linear-gradient(120deg,rgba(91,31,14,.88),rgba(190,73,35,.80),rgba(91,31,14,.88)); box-shadow:0 0 7px rgba(255,111,66,.26); }
+.result-award-assist { color:#e5e5ff; border-color:rgba(155,150,255,.62); background:linear-gradient(120deg,rgba(49,42,112,.88),rgba(94,83,196,.80),rgba(49,42,112,.88)); box-shadow:0 0 7px rgba(138,128,255,.25); }
 .result-award-healing { color:#dcffe8; border-color:rgba(104,230,151,.58); background:linear-gradient(120deg,rgba(18,79,45,.88),rgba(43,151,86,.80),rgba(18,79,45,.88)); box-shadow:0 0 7px rgba(84,225,137,.24); }
 @keyframes result-award-sparkle { 0%,100% { filter:brightness(.92); transform:translateY(0); } 50% { filter:brightness(1.28); transform:translateY(-1px); } }
 @media (max-width: 680px) {
@@ -599,3 +601,20 @@ body.access-locked .access-admin-floating { display: none; }
 .leave-room-button:hover { background:#4a2630; border-color:#a44e5e; }
 .leave-room-button:disabled { opacity:.55; cursor:not-allowed; }
 .room-create-buttons button:disabled { opacity:.48; cursor:not-allowed; filter:grayscale(.2); }
+
+
+/* Fixed classroom accounts */
+.account-login-grid{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:10px;align-items:end}
+.account-login-grid label{display:flex;flex-direction:column;gap:5px}
+.account-login-grid select,.account-login-grid input{width:100%;box-sizing:border-box}
+.account-login-help{margin:6px 0 10px;color:var(--muted,#748093);font-size:.86rem}
+.account-admin-section{margin-top:14px;padding-top:14px;border-top:1px solid rgba(120,130,150,.25)}
+.account-admin-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.account-admin-heading>div{display:flex;flex-direction:column;gap:2px}.account-admin-heading span{font-size:.78rem;color:var(--muted,#748093)}
+.account-admin-list{display:grid;gap:6px;max-height:45vh;overflow:auto;padding-right:4px}
+.account-admin-row{display:grid;grid-template-columns:48px minmax(100px,1fr) 76px 58px;gap:6px;align-items:center}
+.account-admin-id{font-size:.76rem;color:var(--muted,#748093);font-variant-numeric:tabular-nums}
+.account-admin-name,.account-admin-pin{min-width:0;padding:7px 8px;border-radius:8px}
+.account-admin-pin{font-weight:800;letter-spacing:.12em;text-align:center;font-variant-numeric:tabular-nums}
+.account-admin-row button{padding:7px 8px}
+@media(max-width:640px){.account-login-grid{grid-template-columns:1fr 100px}.account-admin-row{grid-template-columns:42px minmax(84px,1fr) 68px 52px;gap:4px}.account-admin-row button{padding:7px 4px;font-size:.8rem}}

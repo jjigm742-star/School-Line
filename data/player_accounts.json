@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 2,
+  "accounts": [
+    {
+      "id": "S001",
+      "name": "박지유",
+      "pin": "8496",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S002",
+      "name": "김가은",
+      "pin": "6777",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S003",
+      "name": "정도윤",
+      "pin": "7277",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S004",
+      "name": "최윤서",
+      "pin": "9724",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S005",
+      "name": "정주영",
+      "pin": "8053",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S006",
+      "name": "김윤서",
+      "pin": "1351",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S007",
+      "name": "김루환",
+      "pin": "3435",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S008",
+      "name": "김명서",
+      "pin": "1292",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S009",
+      "name": "심세윤",
+      "pin": "8910",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S010",
+      "name": "박영호",
+      "pin": "1832",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "teacher"
+    },
+    {
+      "id": "S011",
+      "name": "공지호",
+      "pin": "3207",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S012",
+      "name": "오지환",
+      "pin": "5557",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S013",
+      "name": "정율하",
+      "pin": "5685",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S014",
+      "name": "권세하",
+      "pin": "3477",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S015",
+      "name": "이채은",
+      "pin": "3155",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S016",
+      "name": "김선",
+      "pin": "1377",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S017",
+      "name": "김온유",
+      "pin": "5700",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S018",
+      "name": "민건희",
+      "pin": "4319",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S019",
+      "name": "강예준",
+      "pin": "1514",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S020",
+      "name": "인서강",
+      "pin": "8190",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S021",
+      "name": "김민준",
+      "pin": "3702",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S022",
+      "name": "곽준우",
+      "pin": "2572",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S023",
+      "name": "심서윤",
+      "pin": "7576",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S024",
+      "name": "박준형",
+      "pin": "3296",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    },
+    {
+      "id": "S025",
+      "name": "김혜민",
+      "pin": "7977",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "role": "student"
+    }
+  ]
+}

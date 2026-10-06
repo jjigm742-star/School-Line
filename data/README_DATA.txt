@@ -8,3 +8,5 @@ competitive_stats.json contains:
 
 After the server writes a new result it will also rotate the previous file to competitive_stats.json.bak.
 The administrator stats export button now creates a FULL restorable backup, not a single-version screen export.
+
+player_accounts.json: 25 fixed classroom accounts. Admin panel can view/edit 4-digit PINs; server keeps a .bak after later edits.

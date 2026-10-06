@@ -35,6 +35,7 @@ const COMPETITIVE_PICK_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_PI
 const COMPETITIVE_READY_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_READY_MS || 20000));
 const COMPETITIVE_DATA_DIR = process.env.SCHOOL_LINE_DATA_DIR ? path.resolve(process.env.SCHOOL_LINE_DATA_DIR) : path.join(__dirname, 'data');
 const COMPETITIVE_STATS_FILE = path.join(COMPETITIVE_DATA_DIR, 'competitive_stats.json');
+const PLAYER_ACCOUNTS_FILE = path.join(COMPETITIVE_DATA_DIR, 'player_accounts.json');
 const RESPAWN_MS = 10000;
 const RESPAWN_INVULN_MS = 2000;
 const RESPAWN_POST_SHIELD = 100;
@@ -59,8 +60,111 @@ const COMPETITIVE_STATS_SCHEMA_VERSION = 6;
 // Patch/build revisions such as 1.6.2 remain recorded separately and never split the statistics bucket.
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION.split('.').slice(0, 2).join('.');
 const KNOWN_COMPETITIVE_STATS_VERSIONS = Object.freeze(['1.4', '1.5', '1.6']);
-const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-roomcap5-leave1-postgame30rematch1-ultstats1-compstats6-seriesstable1-backup1-historymerge1-waterflood2-diacrystalburst1-delayedult2s-mechafuse4s-sustainradius1-whitefieldfx3-shortultdesc1-bwopt9c6sparse';
+const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-roomcap5-leave1-postgame30rematch1-ultstats1-compstats6-seriesstable1-backup1-historymerge1-waterflood2-diacrystalburst1-delayedult2s-mechafuse4s-sustainradius1-whitefieldfx3-shortultdesc1-bwopt9c6sparse-inputfix1-fixedaccounts2-teacherrole1-assist5-supportassist1-resultassist1';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.2-r22-allultimates';
+
+
+const DEFAULT_PLAYER_ACCOUNT_NAMES = Object.freeze([
+  '박지유','김가은','정도윤','최윤서','정주영','김윤서','김루환','김명서','심세윤','박영호',
+  '공지호','오지환','정율하','권세하','이채은','김선','김온유','민건희','강예준','인서강',
+  '김민준','곽준우','심서윤','박준형','김혜민'
+]);
+const TEACHER_ACCOUNT_ID = 'S010';
+
+function randomStudentPin(used = new Set()) {
+  for (let i = 0; i < 10000; i++) {
+    const pin = String(1000 + crypto.randomInt(9000));
+    if (!used.has(pin)) { used.add(pin); return pin; }
+  }
+  return String(1000 + crypto.randomInt(9000));
+}
+function normalizeAccountName(value) {
+  const s = String(value || '').trim().replace(/[\r\n\t]/g, ' ');
+  return s.slice(0, 12) || '학생';
+}
+function defaultPlayerAccounts() {
+  const used = new Set();
+  return DEFAULT_PLAYER_ACCOUNT_NAMES.map((name, i) => ({
+    id: `S${String(i + 1).padStart(3, '0')}`,
+    name,
+    pin: randomStudentPin(used),
+    role: `S${String(i + 1).padStart(3, '0')}` === TEACHER_ACCOUNT_ID ? 'teacher' : 'student',
+    updatedAt: new Date().toISOString()
+  }));
+}
+function savePlayerAccounts() {
+  try {
+    fs.mkdirSync(COMPETITIVE_DATA_DIR, { recursive: true });
+    const tmp = `${PLAYER_ACCOUNTS_FILE}.tmp`;
+    const backup = `${PLAYER_ACCOUNTS_FILE}.bak`;
+    if (fs.existsSync(PLAYER_ACCOUNTS_FILE)) {
+      try { fs.copyFileSync(PLAYER_ACCOUNTS_FILE, backup); } catch (_) {}
+    }
+    fs.writeFileSync(tmp, JSON.stringify({ schemaVersion: 1, accounts: playerAccounts }, null, 2), 'utf8');
+    fs.renameSync(tmp, PLAYER_ACCOUNTS_FILE);
+    return true;
+  } catch (err) {
+    console.error('[accounts] save failed:', err && err.message ? err.message : err);
+    return false;
+  }
+}
+function loadPlayerAccounts() {
+  let loaded = null;
+  try {
+    if (fs.existsSync(PLAYER_ACCOUNTS_FILE)) loaded = JSON.parse(fs.readFileSync(PLAYER_ACCOUNTS_FILE, 'utf8'));
+  } catch (err) {
+    console.error('[accounts] load failed:', err && err.message ? err.message : err);
+  }
+  const defaults = defaultPlayerAccounts();
+  const byId = new Map(Array.isArray(loaded?.accounts) ? loaded.accounts.map(a => [String(a?.id || ''), a]) : []);
+  const usedPins = new Set();
+  const result = defaults.map(def => {
+    const old = byId.get(def.id) || {};
+    let pin = /^\d{4}$/.test(String(old.pin || '')) ? String(old.pin) : def.pin;
+    if (usedPins.has(pin)) pin = randomStudentPin(usedPins); else usedPins.add(pin);
+    return {
+      id: def.id,
+      name: normalizeAccountName(old.name || def.name),
+      pin,
+      role: def.role,
+      updatedAt: old.updatedAt || def.updatedAt
+    };
+  });
+  playerAccounts = result;
+  if (!loaded || !Array.isArray(loaded.accounts) || loaded.accounts.length !== result.length) savePlayerAccounts();
+  return playerAccounts;
+}
+let playerAccounts = [];
+loadPlayerAccounts();
+
+function publicPlayerAccounts() {
+  return playerAccounts.map(a => ({ id: a.id, name: a.name, role: a.role }));
+}
+function playerAccountById(value) {
+  const id = String(value || '').trim().toUpperCase();
+  return playerAccounts.find(a => a.id === id) || null;
+}
+function authenticatePlayerAccount(accountId, pin) {
+  const account = playerAccountById(accountId);
+  if (!account) return null;
+  const cleanPin = String(pin || '').replace(/\D/g, '').slice(0, 4);
+  return cleanPin.length === 4 && cleanPin === account.pin ? account : null;
+}
+function accountStatKey(accountId, fallbackName = '') {
+  const stable = String(accountId || '').trim().toUpperCase();
+  if (stable) return crypto.createHash('sha256').update(`account:${stable}`).digest('hex').slice(0, 20);
+  return nicknameStatKey(fallbackName);
+}
+function findAccountReservation(accountId) {
+  const wanted = String(accountId || '').trim().toUpperCase();
+  if (!wanted) return null;
+  for (const room of rooms.values()) {
+    for (const player of room.players.values()) {
+      if (String(player.accountId || '').toUpperCase() === wanted) return { room, player };
+    }
+  }
+  return null;
+}
 
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
@@ -733,7 +837,7 @@ function wilsonInterval(wins, losses) {
 function matchAssignments(match) {
   if (Array.isArray(match?.finalAssignments) && match.finalAssignments.length) return match.finalAssignments;
   return (Array.isArray(match?.players) ? match.players : []).map(p => ({
-    playerId: p.playerId, playerName: p.playerName || p.nickname, team: p.team, character: p.character
+    playerId: p.playerId, accountId: p.accountId || null, playerName: p.playerName || p.nickname, team: p.team, character: p.character
   })).filter(p => p.character && (p.team === 'A' || p.team === 'B'));
 }
 
@@ -776,7 +880,7 @@ function buildAdvancedCompetitiveStats(matches, aggregateCharacters = {}) {
     for (const a of assignments) {
       const pr = playerRecords.get(String(a.playerId || '')) || {};
       const name = String(pr.playerName || pr.nickname || a.playerName || '학생');
-      const key = String(pr.playerKey || nicknameStatKey(name));
+      const key = String(pr.playerKey || accountStatKey(pr.accountId || a.accountId, name));
       if (!playerMap.has(key)) playerMap.set(key, { playerKey: key, nickname: name, games: 0, wins: 0, losses: 0, draws: 0, kills: 0, deaths: 0, assists: 0, damage: 0, damageTaken: 0, healing: 0, ultimateUses: 0, objectiveSeconds: 0, disconnects: 0, characters: {} });
       const ps = playerMap.get(key); ps.nickname = name;
       wl(ps, outcomeForTeam(match, a.team));
@@ -1199,6 +1303,16 @@ function periodicActionReady(room, player, baseRate, now = Date.now()) {
 }
 
 
+function recordSupportContribution(source, target, now = Date.now()) {
+  if (!source || !target || !source.id || !target.id) return false;
+  if (source.id === target.id || source.team !== target.team) return false;
+  if (!target.supportContributors || typeof target.supportContributors !== 'object') {
+    target.supportContributors = Object.create(null);
+  }
+  target.supportContributors[String(source.id)] = now;
+  return true;
+}
+
 function getTargetRelation(source, target) {
   if (!source || !target) return null;
   if (source.id === target.id) return TARGET_RELATION.SELF;
@@ -1235,6 +1349,7 @@ function applyStatus(room, source, target, statusId, durationMs, now = Date.now(
     sourceId: source && source.id ? source.id : null,
     data: { ...(existing && existing.data ? existing.data : {}), ...(data || {}) }
   };
+  if (def.kind === 'beneficial') recordSupportContribution(source, target, now);
   return true;
 }
 function isStunned(player, now = Date.now()) { return hasStatus(player, 'stun', now); }
@@ -1291,6 +1406,8 @@ function applyShield(room, source, target, amount, options = {}) {
   target.shield = Math.min(GLOBAL_SHIELD_CAP, before + raw);
   const added = Math.max(0, target.shield - before);
   if (added > 0) {
+    const supportNow = Number.isFinite(Number(options && options.now)) ? Number(options.now) : Date.now();
+    recordSupportContribution(source, target, supportNow);
     if (source && source.character === 'shield') {
       const key = String(source.id);
       target.shieldCreditBySource[key] = Math.max(0, Number(target.shieldCreditBySource[key]) || 0) + added;
@@ -1341,7 +1458,7 @@ function activateShieldAbility(room, player, target, now = Date.now()) {
   if ((player.shieldAbilityCharges || 0) <= 0) return false;
   player.shieldAbilityCharges -= 1;
   if (!player.shieldRechargeAt) player.shieldRechargeAt = now + Number(def.shieldRecharge) * 1000;
-  applyShield(room, player, target, def.shieldAmount);
+  applyShield(room, player, target, def.shieldAmount, { now });
   target.shieldUntil = now + Number(def.shieldDuration) * 1000;
   if (target.character === 'jet') target.jetShieldUntil = target.shieldUntil;
   return true;
@@ -1442,6 +1559,59 @@ function handleAccessControlRequest(req, res) {
   });
 }
 
+
+function handlePlayerAccountsAdmin(req, res) {
+  const remoteAddress = req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  if (accessAdminAuthLocked(remoteAddress, now)) {
+    sendJson(res, 429, { ok:false, error:'locked_out', message:'관리자 암호 입력이 잠시 잠겼습니다. 30초 뒤 다시 시도하세요.' });
+    return;
+  }
+  readJsonBody(req, (err, body) => {
+    if (err) { sendJson(res, 400, { ok:false, error:'bad_request', message:'요청을 처리할 수 없습니다.' }); return; }
+    const adminPin = safePin(body && body.adminPin);
+    if (adminPin.length !== 4 || hashText(adminPin) !== ACCESS_ADMIN_PIN_HASH) {
+      noteAccessAdminAuthFailure(remoteAddress, Date.now());
+      sendJson(res, 403, { ok:false, error:'bad_pin', message:'관리자 암호가 올바르지 않습니다.' });
+      return;
+    }
+    clearAccessAdminAuthFailure(remoteAddress);
+    const action = String(body && body.action || 'list').toLowerCase();
+    if (action === 'list') {
+      sendJson(res, 200, { ok:true, accounts: playerAccounts.map(a => ({ ...a })) });
+      return;
+    }
+    if (action !== 'update') {
+      sendJson(res, 400, { ok:false, error:'bad_action', message:'지원하지 않는 계정 관리 동작입니다.' });
+      return;
+    }
+    const account = playerAccountById(body && body.accountId);
+    if (!account) { sendJson(res, 404, { ok:false, error:'account_missing', message:'고정 계정을 찾을 수 없습니다.' }); return; }
+    const nextPin = String(body && body.pin || '').replace(/\D/g, '').slice(0, 4);
+    const nextName = normalizeAccountName(body && body.name || account.name);
+    if (nextPin.length !== 4) { sendJson(res, 400, { ok:false, error:'bad_student_pin', message:'계정 PIN은 숫자 4자리여야 합니다.' }); return; }
+    if (playerAccounts.some(a => a.id !== account.id && a.pin === nextPin)) {
+      sendJson(res, 409, { ok:false, error:'pin_duplicate', message:'다른 계정이 이미 사용하는 PIN입니다. 다른 번호를 입력하세요.' });
+      return;
+    }
+    if (playerAccounts.some(a => a.id !== account.id && a.name.normalize('NFKC').trim() === nextName.normalize('NFKC').trim())) {
+      sendJson(res, 409, { ok:false, error:'name_duplicate', message:'다른 계정이 이미 사용하는 이름입니다.' });
+      return;
+    }
+    account.name = nextName;
+    account.pin = nextPin;
+    account.updatedAt = new Date().toISOString();
+    if (!savePlayerAccounts()) { sendJson(res, 500, { ok:false, error:'save_failed', message:'계정 파일을 저장하지 못했습니다.' }); return; }
+    // An active player's display name follows an administrator correction immediately,
+    // while immutable accountId continues to identify the same statistics record.
+    for (const room of rooms.values()) {
+      for (const player of room.players.values()) if (player.accountId === account.id) player.name = account.name;
+      broadcast(room);
+    }
+    sendJson(res, 200, { ok:true, account:{ ...account }, message:`${account.name} 계정을 저장했습니다.` });
+  });
+}
+
 function mimeType(file) {
   const ext = path.extname(file).toLowerCase();
   return ({ '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml' })[ext] || 'application/octet-stream';
@@ -1455,6 +1625,14 @@ const server = http.createServer((req, res) => {
   }
   if (urlPath === '/rooms.json' && req.method === 'GET') {
     sendJson(res, 200, { rooms: publicRoomList(), maxRooms: MAX_ROOMS, updatedAt: new Date().toISOString() });
+    return;
+  }
+  if (urlPath === '/player-accounts.json' && req.method === 'GET') {
+    sendJson(res, 200, { accounts: publicPlayerAccounts(), updatedAt: new Date().toISOString() });
+    return;
+  }
+  if (urlPath === '/admin/player-accounts' && req.method === 'POST') {
+    handlePlayerAccountsAdmin(req, res);
     return;
   }
   if (urlPath === '/admin/access-control' && req.method === 'POST') {
@@ -2001,7 +2179,7 @@ function recordCompetitiveResult(room, now = Date.now()) {
   if (!comp || room.matchMode !== 'competitive' || comp.recorded) return false;
   comp.recorded = true;
   const players = [...room.players.values()].map(p => ({
-    playerId: p.id, playerKey: nicknameStatKey(p.name), playerName: p.name, nickname: p.name, team: p.team, character: p.character,
+    playerId: p.id, accountId: p.accountId || null, playerKey: accountStatKey(p.accountId, p.name), playerName: p.name, nickname: p.name, team: p.team, character: p.character,
     connectedAtEnd: p.connected !== false, disconnectCount: Math.max(0, Number(p.competitiveDisconnects) || 0),
     stats: { ...ensureMatchStats(p), shotsFired: Math.max(0, Number(p.shotSeq)||0), projectileHits: Math.max(0, Number(p.projectileHitSeq)||0), healFeedbackHits: Math.max(0, Number(p.healHitSeq)||0), abilityUses: Math.max(0, Number(p.abilityUseSeq)||0) }
   }));
@@ -2020,7 +2198,7 @@ function recordCompetitiveResult(room, now = Date.now()) {
     bans: (comp.bans || []).map(b => ({ ...b })),
     picks: (comp.picks || []).map(pick => {
       const player = room.players.get(pick.playerId);
-      return { ...pick, playerName: player ? player.name : null, playerKey: player ? nicknameStatKey(player.name) : null };
+      return { ...pick, accountId: player ? (player.accountId || null) : null, playerName: player ? player.name : null, playerKey: player ? accountStatKey(player.accountId, player.name) : null };
     }),
     draft: {
       firstTeam: comp.firstTeam, secondTeam: comp.secondTeam,
@@ -2028,7 +2206,7 @@ function recordCompetitiveResult(room, now = Date.now()) {
       readySwaps: (comp.readySwaps || []).map(e => ({ ...e }))
     },
     events: (comp.matchEvents || []).map(e => ({ ...e })),
-    finalAssignments: players.map(p => ({ playerId: p.playerId, playerName: p.playerName, team: p.team, character: p.character })),
+    finalAssignments: players.map(p => ({ playerId: p.playerId, accountId: p.accountId || null, playerName: p.playerName, team: p.team, character: p.character })),
     score: { A: Number(room.scoreA.toFixed(3)), B: Number(room.scoreB.toFixed(3)) },
     teamKills: teamKillTotals(room),
     winner: room.winner,
@@ -2360,30 +2538,29 @@ function joinSpectator(conn, msg) {
 function joinRoom(conn, msg, options = {}) {
   if (conn.playerId) return false;
   const code = safeRoom(msg.roomId || msg.room);
-  const requestedName = safeName(msg.name);
-  const existing = findNicknameReservation(requestedName);
+  const account = authenticatePlayerAccount(msg.accountId, msg.pin);
+  if (!account) {
+    conn.send({ type:'error', code:'account_login_failed', message:'이름 또는 4자리 PIN이 올바르지 않습니다.' });
+    return false;
+  }
+  const requestedName = account.name;
+  const existing = findAccountReservation(account.id);
   if (existing) {
     const sameRoom = existing.room.code === code;
-    const canRecoverByNickname = sameRoom
+    const canRecoverByAccount = sameRoom
       && existing.player.connected === false
       && ['draft','ready','playing'].includes(existing.room.state);
-    if (canRecoverByNickname) {
-      // Classroom-friendly fallback: if the browser lost its resume token, typing the
-      // same nickname into the same room reclaims the disconnected authoritative seat.
-      // Rotate the token so an older browser copy cannot later steal the recovered seat.
+    if (canRecoverByAccount) {
       return attachExistingPlayerConnection(conn, existing.room, existing.player, {
         rotateResumeToken: true,
-        recoveredByNickname: true
+        recoveredByAccount: true
       });
     }
     conn.send({
-      type: 'error',
-      code: 'nickname_in_use',
-      message: sameRoom
-        ? '이 닉네임은 이미 이 게임에 접속 중입니다. 기존 화면을 사용하세요.'
-        : '이 닉네임은 이미 다른 게임에 참가 중입니다. 기존 게임을 먼저 종료하거나 기존 화면으로 돌아가세요.'
+      type:'error', code:'account_in_use',
+      message:sameRoom ? '이 계정은 이미 이 게임에 접속 중입니다. 기존 화면을 사용하세요.' : '이 계정은 이미 다른 게임에 참가 중입니다. 기존 게임을 먼저 종료하세요.'
     });
-    return;
+    return false;
   }
 
   let room = rooms.get(code);
@@ -2407,7 +2584,7 @@ function joinRoom(conn, msg, options = {}) {
 
   const id = `P${idCounter++}`;
   const player = {
-    id, name: requestedName, team, character: null,
+    id, accountId: account.id, name: requestedName, team, character: null,
     resumeToken: newResumeToken(), connected: true, disconnectedAt: 0,
     x: 21, y: team === 'A' ? 5 : 63,
     hp: 0, maxHp: 0, alive: true, respawnAt: 0, invulnerableUntil: 0, respawnShieldAt: 0,
@@ -2418,7 +2595,7 @@ function joinRoom(conn, msg, options = {}) {
     statuses: Object.create(null),
     shield: 0, maxShield: 0, shieldUntil: 0, shieldCreditBySource: Object.create(null), shieldUncredited: 0,
     shieldAbilityCharges: 0, shieldRechargeAt: 0,
-    lastCombatAt: 0, damageContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
+    lastCombatAt: 0, damageContributors: Object.create(null), supportContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
     diaFormUntil: 0, diaCooldownUntil: 0,
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
@@ -2434,7 +2611,7 @@ function joinRoom(conn, msg, options = {}) {
   conn.playerId = id; conn.roomCode = code;
   const sp = spawnPoint(room, player); player.x = sp.x; player.y = sp.y;
   conn.send({
-    type: 'joined', id, room: roomDisplayName(room), roomId: code, roomNumber: room.displayNumber, mode: room.mode, team, resumeToken: player.resumeToken,
+    type: 'joined', id, accountId: account.id, room: roomDisplayName(room), roomId: code, roomNumber: room.displayNumber, mode: room.mode, team, resumeToken: player.resumeToken,
     config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
   });
   broadcast(room);
@@ -2443,9 +2620,13 @@ function joinRoom(conn, msg, options = {}) {
 
 function createRoomAndJoin(conn, msg) {
   if (conn.playerId || conn.spectatorId) return false;
-  const requestedName = safeName(msg.name);
-  if (findNicknameReservation(requestedName)) {
-    conn.send({ type: 'error', code: 'nickname_in_use', message: '이 닉네임은 이미 다른 게임에 참가 중입니다. 기존 게임을 먼저 종료하거나 기존 화면으로 돌아가세요.' });
+  const account = authenticatePlayerAccount(msg.accountId, msg.pin);
+  if (!account) {
+    conn.send({ type:'error', code:'account_login_failed', message:'이름 또는 4자리 PIN이 올바르지 않습니다.' });
+    return false;
+  }
+  if (findAccountReservation(account.id)) {
+    conn.send({ type:'error', code:'account_in_use', message:'이 계정은 이미 다른 게임에 참가 중입니다. 기존 게임을 먼저 종료하세요.' });
     return false;
   }
   const displayNumber = nextRoomDisplayNumber();
@@ -2458,7 +2639,7 @@ function createRoomAndJoin(conn, msg) {
   const code = newInternalRoomCode();
   const room = newRoom(code, { mode: normalizeRoomMode(msg.mode), displayNumber });
   rooms.set(code, room);
-  const joined = joinRoom(conn, { name: requestedName, room: code, team }, { allowCreate: false });
+  const joined = joinRoom(conn, { accountId: account.id, pin: account.pin, room: code, team }, { allowCreate: false });
   if (!joined && room.players.size === 0 && room.spectators.size === 0) rooms.delete(code);
   return joined;
 }
@@ -2519,6 +2700,7 @@ function neutralizePlayerInput(player) {
 function attachExistingPlayerConnection(conn, room, player, options = {}) {
   const rotateResumeToken = options.rotateResumeToken === true;
   const recoveredByNickname = options.recoveredByNickname === true;
+  const recoveredByAccount = options.recoveredByAccount === true;
   const previousConn = room.clients.get(player.id);
   if (previousConn && previousConn !== conn) {
     // A mobile network change can leave the old TCP socket half-open. A valid token
@@ -2539,7 +2721,7 @@ function attachExistingPlayerConnection(conn, room, player, options = {}) {
 
   conn.send({
     type: 'resumed', id: player.id, room: roomDisplayName(room), roomId: room.code, roomNumber: room.displayNumber, mode: room.mode, team: player.team,
-    resumeToken: player.resumeToken, recoveredByNickname,
+    resumeToken: player.resumeToken, recoveredByNickname, recoveredByAccount, accountId: player.accountId || null,
     config: { world: WORLD, walls: WALLS, characters: publicCharacterDefs() }
   });
   if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.send(snapshot(room, player.id));
@@ -2692,7 +2874,7 @@ function startMatch(room, now = Date.now()) {
       shieldAbilityCharges: p.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0, shieldRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
       jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
-      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), lastCombatAt: now, damageContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
+      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), lastCombatAt: now, damageContributors: Object.create(null), supportContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
       stats: makeMatchStats(p.character)
@@ -2803,7 +2985,7 @@ function finishJetBoost(room, player, now) {
   player.jetBoostUntil = 0;
   player.jetBoostStartAt = 0;
   const def = CHARACTERS.jet;
-  applyShield(room, player, player, def.boostShield);
+  applyShield(room, player, player, def.boostShield, { now });
   player.shieldUntil = now + def.boostShieldDuration * 1000;
   player.jetShieldUntil = player.shieldUntil;
   return true;
@@ -2899,21 +3081,42 @@ function registerDirectKill(room, attackerId, now) {
 function die(room, player, now) {
   player.ultimateUntil = 0;
   ensureMatchStats(player).deaths += 1;
-  const recentWindowMs = 8000;
+  const recentWindowMs = 5000;
   const killerId = player.lastDamageAttackerId && now - Number(player.lastDamageAt || 0) <= recentWindowMs ? player.lastDamageAttackerId : null;
+  const killer = killerId ? room.players.get(killerId) : null;
+  const assistIds = new Set();
+
+  // Damage assist: dealt qualifying damage to the victim in the last 5 seconds,
+  // but did not land the direct kill.
   const contributors = player.damageContributors && typeof player.damageContributors === 'object' ? player.damageContributors : {};
   for (const [sourceId, hitAt] of Object.entries(contributors)) {
     if (sourceId === killerId || now - Number(hitAt || 0) > recentWindowMs) continue;
     const source = room.players.get(sourceId);
-    if (source && source.team !== player.team) ensureMatchStats(source).assists += 1;
+    if (source && source.team !== player.team) assistIds.add(sourceId);
   }
-  const killer = killerId ? room.players.get(killerId) : null;
+
+  // Support assist: effectively healed or successfully buffed/supported the killer
+  // in the last 5 seconds. Multiple qualifying paths from the same teammate are
+  // deduplicated into a single assist for this kill.
+  if (killer) {
+    const supporters = killer.supportContributors && typeof killer.supportContributors === 'object' ? killer.supportContributors : {};
+    for (const [sourceId, supportedAt] of Object.entries(supporters)) {
+      if (sourceId === killerId || now - Number(supportedAt || 0) > recentWindowMs) continue;
+      const source = room.players.get(sourceId);
+      if (source && source.team === killer.team) assistIds.add(sourceId);
+    }
+  }
+
+  for (const sourceId of assistIds) {
+    const source = room.players.get(sourceId);
+    if (source) ensureMatchStats(source).assists += 1;
+  }
   appendCompetitiveMatchEvent(room, 'death', {
     victimId: player.id, victimName: player.name, victimTeam: player.team, victimCharacter: player.character,
     killerId: killer ? killer.id : null, killerName: killer ? killer.name : null, killerTeam: killer ? killer.team : null, killerCharacter: killer ? killer.character : null,
     x: Number(player.x.toFixed(2)), y: Number(player.y.toFixed(2))
   }, now);
-  player.damageContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
+  player.damageContributors = Object.create(null); player.supportContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
   player.hp = 0;
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
@@ -2942,7 +3145,7 @@ function respawn(room, player, now) {
   player.hp = def.hp; player.maxHp = def.hp;
   player.alive = true; player.respawnAt = 0; player.invulnerableUntil = now + RESPAWN_INVULN_MS;
   player.respawnShieldAt = player.invulnerableUntil;
-  player.damageContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
+  player.damageContributors = Object.create(null); player.supportContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
   clearAllStatuses(player); clearShield(player);
   player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
@@ -2959,7 +3162,7 @@ function respawn(room, player, now) {
 function applyRespawnPostShield(room, player, now) {
   if (!player || !player.alive || !player.respawnShieldAt || now < player.respawnShieldAt) return false;
   player.respawnShieldAt = 0;
-  applyShield(room, null, player, RESPAWN_POST_SHIELD);
+  applyShield(room, null, player, RESPAWN_POST_SHIELD, { now });
   player.shieldUntil = Math.max(Number(player.shieldUntil) || 0, now + RESPAWN_POST_SHIELD_MS);
   return true;
 }
@@ -3213,7 +3416,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
   } else if (player.character === 'shield') {
     for (const target of room.players.values()) {
       if (!target.alive || target.team !== player.team) continue;
-      applyShield(room, player, target, Number(def.ultimateShield) || 300);
+      applyShield(room, player, target, Number(def.ultimateShield) || 300, { now });
       target.shieldUntil = Math.max(Number(target.shieldUntil) || 0, now + (Number(def.ultimateShieldDuration) || 3) * 1000);
       if (target.character === 'jet') target.jetShieldUntil = target.shieldUntil;
     }
@@ -3240,6 +3443,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
       : player;
     player.ultimateUntil = now + (Number(def.ultimateDuration) || 3) * 1000;
     target.invulnerableUntil = Math.max(Number(target.invulnerableUntil) || 0, player.ultimateUntil);
+    recordSupportContribution(player, target, now);
     activated = true;
   } else if (player.character === 'ice') {
     scheduleDelayedUltimate(player, 'ice', now, Number(def.ultimateDelay) || 2);
@@ -3389,6 +3593,7 @@ function applyHealing(room, healer, target, amount, now, options = null) {
   if (healer) {
     const healerStats = ensureMatchStats(healer);
     healerStats.healing += actual;
+    if (healer.id !== target.id && healer.team === target.team) recordSupportContribution(healer, target, now);
     if (healer.id === target.id) healerStats.selfHealing += actual;
     else healerStats.allyHealing += actual;
     const countsForUltimate = !options || options.countsForUltimate !== false;
@@ -4063,6 +4268,7 @@ function updateRoom(room, dt, now) {
       if (!link.target && player.bufferTargetId) player.bufferTargetId = null;
       if (link.active) {
         ensureMatchStats(player).bufferLinkSeconds += dt;
+        recordSupportContribution(player, link.target, now);
         applyHealing(room, player, link.target, currentBufferLinkHealHps(player, now) * dt, now);
       }
     }
@@ -4586,7 +4792,7 @@ School Line Mobile ${GAME_VERSION} · Competitive Mode`);
 module.exports = {
   server, CHARACTERS, TARGET_RELATION, STATUS_DEFS, GLOBAL_SHIELD_CAP, RESPAWN_INVULN_MS, RESPAWN_POST_SHIELD, RESPAWN_POST_SHIELD_MS, PERK_SYSTEM, CHARACTER_PERKS,
   resetPerkState, perkOptionsForCharacter, publicPerkOption, perkSelectionUnlocked, maybeSendPerkOffer, choosePerk, updatePerkSystem,
-  getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget,
+  getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget, recordSupportContribution,
   applyStatus, getStatus, hasStatus, clearStatus, clearAllStatuses, isStunned,
   applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing, queueHealerNumberFeedback, flushHealerNumberFeedback,
   ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate, scheduleDelayedUltimate, resolveDelayedUltimate, spawnDiaUltimateVolley,

@@ -840,6 +840,14 @@ let mouseWorld = { x: 21, y: 34 };
 let firing = false;
 let lastAimDir = { x: 0, y: 1 }; // world direction, A->B by default
 
+// Mouse-only desktop clients never use the virtual joysticks. Hide their large
+// pointer zones entirely so every battlefield mouse click reaches the canvas.
+// Touch-capable/coarse-pointer devices retain the dual-stick UI.
+const HAS_TOUCH_INPUT = (Number(navigator.maxTouchPoints) || 0) > 0
+  || (window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
+const HAS_FINE_PRIMARY_POINTER = !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
+if (HAS_FINE_PRIMARY_POINTER && !HAS_TOUCH_INPUT) document.body.classList.add('desktop-controls-only');
+
 
 // Alpha 0.6: lightweight Web Audio + haptics. No external audio assets are required.
 const AUDIO_VOLUME_MULTIPLIER = 9;
@@ -1419,7 +1427,37 @@ function processCombatFeedback(previousState, nextState) {
   }
 }
 
-$('nameInput').value = localStorage.getItem('schoolLineName') || '';
+const PLAYER_ACCOUNT_KEY = 'schoolLinePlayerAccountId';
+let playerAccountDirectory = [];
+let accountAdminPinCache = '';
+
+async function refreshPlayerAccounts() {
+  try {
+    const res = await fetch('/player-accounts.json', { cache:'no-store' });
+    if (!res.ok) throw new Error('accounts');
+    const data = await res.json();
+    playerAccountDirectory = Array.isArray(data.accounts) ? data.accounts : [];
+    const select = $('accountSelect');
+    if (!select) return;
+    const remembered = localStorage.getItem(PLAYER_ACCOUNT_KEY) || select.value || '';
+    select.innerHTML = '<option value="">이름 선택</option>';
+    for (const account of playerAccountDirectory) {
+      const option = document.createElement('option');
+      option.value = account.id;
+      option.textContent = account.role === 'teacher' ? `${account.name} (교사)` : account.name;
+      select.appendChild(option);
+    }
+    if (playerAccountDirectory.some(a => a.id === remembered)) select.value = remembered;
+  } catch (_) {
+    $('joinError').textContent = '고정 계정 목록을 불러오지 못했습니다. 새로고침해주세요.';
+  }
+}
+refreshPlayerAccounts();
+setInterval(() => { if (!myId && !spectatorMode) refreshPlayerAccounts(); }, 30000);
+$('accountPinInput')?.addEventListener('input', e => { e.target.value = String(e.target.value || '').replace(/\D/g,'').slice(0,4); });
+$('accountSelect')?.addEventListener('change', e => {
+  if (e.target.value) localStorage.setItem(PLAYER_ACCOUNT_KEY, e.target.value);
+});
 
 
 const RESUME_TOKEN_KEY = 'schoolLineResumeToken';
@@ -1491,6 +1529,9 @@ function openAccessAdmin() {
 function closeAccessAdmin() {
   $('accessAdminOverlay').classList.add('hidden');
   $('accessAdminMessage').textContent = '';
+  if ($('accountAdminMessage')) $('accountAdminMessage').textContent = '';
+  if ($('accountAdminList')) $('accountAdminList').classList.add('hidden');
+  accountAdminPinCache = '';
   if ($('accessAdminPin')) $('accessAdminPin').value = '';
 }
 
@@ -1519,8 +1560,8 @@ async function submitAccessControl(action) {
     if (action === 'lock') resetClientForAccessLock(data.message || '관리자가 입장을 제한했습니다.');
     else updateAccessUi(true);
     $('accessAdminMessage').textContent = data.message || (action === 'open' ? '스쿨라인을 열었습니다.' : '스쿨라인을 잠갔습니다.');
-    if ($('accessAdminPin')) $('accessAdminPin').value = '';
-    if (action === 'open') setTimeout(closeAccessAdmin, 450);
+    accountAdminPinCache = pin;
+    if (action === 'open' && $('accountAdminList')?.classList.contains('hidden')) setTimeout(closeAccessAdmin, 450);
   } catch (_) {
     $('accessAdminMessage').textContent = '서버에 연결하지 못했습니다.';
   } finally {
@@ -1540,6 +1581,55 @@ $('accessAdminPin').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   submitAccessControl(schoolLineAccessOpen ? 'lock' : 'open');
 });
+
+function renderAccountAdminList(accounts) {
+  const root = $('accountAdminList');
+  if (!root) return;
+  root.innerHTML = '';
+  for (const account of accounts || []) {
+    const row = document.createElement('div');
+    row.className = 'account-admin-row';
+    row.dataset.accountId = account.id;
+    row.innerHTML = `<span class="account-admin-id">${escapeHtml(account.id)}${account.role === 'teacher' ? ' · 교사' : ''}</span><input class="account-admin-name" maxlength="12" value="${escapeHtml(account.name || '')}" aria-label="${escapeHtml(account.id)} 이름"><input class="account-admin-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="${escapeHtml(account.pin || '')}" aria-label="${escapeHtml(account.id)} PIN"><button type="button">저장</button>`;
+    const pinInput = row.querySelector('.account-admin-pin');
+    pinInput.addEventListener('input', e => { e.target.value = String(e.target.value || '').replace(/\D/g,'').slice(0,4); });
+    row.querySelector('button').onclick = () => saveAccountAdminRow(row);
+    root.appendChild(row);
+  }
+  root.classList.remove('hidden');
+}
+
+async function loadAccountAdminList() {
+  const adminPin = String($('accessAdminPin')?.value || accountAdminPinCache || '').replace(/\D/g,'').slice(0,4);
+  if (adminPin.length !== 4) { $('accountAdminMessage').textContent = '위 관리자 비밀번호 4자리를 먼저 입력하세요.'; return; }
+  $('accountAdminMessage').textContent = '계정 불러오는 중...';
+  try {
+    const res = await fetch('/admin/player-accounts', { method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store', body:JSON.stringify({ adminPin, action:'list' }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) { $('accountAdminMessage').textContent = data.message || '계정을 불러오지 못했습니다.'; return; }
+    accountAdminPinCache = adminPin;
+    renderAccountAdminList(data.accounts || []);
+    $('accountAdminMessage').textContent = 'PIN을 바로 확인하거나 수정할 수 있습니다.';
+  } catch (_) { $('accountAdminMessage').textContent = '서버에 연결하지 못했습니다.'; }
+}
+
+async function saveAccountAdminRow(row) {
+  const accountId = row?.dataset?.accountId;
+  const name = String(row?.querySelector('.account-admin-name')?.value || '').trim();
+  const pin = String(row?.querySelector('.account-admin-pin')?.value || '').replace(/\D/g,'').slice(0,4);
+  if (!accountId || !name || pin.length !== 4) { $('accountAdminMessage').textContent = '이름과 숫자 4자리 PIN을 확인하세요.'; return; }
+  if (accountAdminPinCache.length !== 4) { $('accountAdminMessage').textContent = '관리자 인증을 다시 해주세요.'; return; }
+  const button = row.querySelector('button'); if (button) button.disabled = true;
+  try {
+    const res = await fetch('/admin/player-accounts', { method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store', body:JSON.stringify({ adminPin:accountAdminPinCache, action:'update', accountId, name, pin }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) { $('accountAdminMessage').textContent = data.message || '계정을 저장하지 못했습니다.'; return; }
+    $('accountAdminMessage').textContent = data.message || '저장했습니다.';
+    await refreshPlayerAccounts();
+  } catch (_) { $('accountAdminMessage').textContent = '서버에 연결하지 못했습니다.'; }
+  finally { if (button) button.disabled = false; }
+}
+$('accountAdminLoadButton').onclick = loadAccountAdminList;
 refreshAccessStatus();
 setInterval(refreshAccessStatus, 3000);
 
@@ -1574,7 +1664,7 @@ function refreshResumeButton() {
   hint.classList.toggle('hidden', !saved);
   if (saved) {
     btn.textContent = `↩️ ${saved.roomLabel} 경기로 돌아가기`;
-    hint.textContent = '경기 중 연결이 끊겼다면 이 버튼으로 복귀할 수 있습니다. 버튼이 없어도 같은 방에 같은 이름으로 다시 입장하면 기존 자리로 돌아갑니다.';
+    hint.textContent = '경기 중 연결이 끊겼다면 이 버튼으로 복귀할 수 있습니다. 버튼이 없어도 같은 방에 같은 계정과 PIN으로 다시 입장하면 기존 자리로 돌아갑니다.';
   }
 }
 refreshResumeButton();
@@ -1674,31 +1764,35 @@ async function refreshRoomDirectory() {
     roomDirectoryRequestInFlight = false;
   }
 }
-function validateJoinIdentity() {
-  const name = String($('nameInput')?.value || '').trim();
-  if (!name) { $('joinError').textContent = '닉네임을 입력하세요.'; return false; }
-  localStorage.setItem('schoolLineName', name);
-  return true;
+function selectedAccountCredentials() {
+  const accountId = String($('accountSelect')?.value || '').trim();
+  const pin = String($('accountPinInput')?.value || '').replace(/\D/g,'').slice(0,4);
+  if (!accountId) { $('joinError').textContent = '내 이름을 선택하세요.'; return null; }
+  if (pin.length !== 4) { $('joinError').textContent = '4자리 PIN을 입력하세요.'; return null; }
+  localStorage.setItem(PLAYER_ACCOUNT_KEY, accountId);
+  return { accountId, pin };
 }
 function createRoom(mode) {
   ensureAudio();
   updateSoundButton();
   $('joinError').textContent = '';
-  if (!validateJoinIdentity()) return;
-  openConnection(() => ws.send(JSON.stringify({ type:'create_room', name:$('nameInput').value, team:'A', mode })));
+  const credentials = selectedAccountCredentials();
+  if (!credentials) return;
+  openConnection(() => ws.send(JSON.stringify({ type:'create_room', ...credentials, team:'A', mode })));
 }
 function joinExistingRoom(roomId, team) {
   ensureAudio();
   updateSoundButton();
   $('joinError').textContent = '';
-  if (!validateJoinIdentity()) return;
+  const credentials = selectedAccountCredentials();
+  if (!credentials) return;
   if (team !== 'A' && team !== 'B') { $('joinError').textContent = '입장할 팀을 선택하세요.'; return; }
   const entry = roomDirectory.find(room => room.id === roomId);
   if (!entry || !entry.joinable) { $('joinError').textContent = '이 방은 더 이상 입장할 수 없습니다. 방 목록을 새로고침해주세요.'; refreshRoomDirectory(); return; }
   const count = team === 'A' ? Number(entry.countA||0) : Number(entry.countB||0);
   if (count >= 4) { $('joinError').textContent = `${team}팀은 이미 4명입니다.`; refreshRoomDirectory(); return; }
   rememberJoinedTeam(team);
-  openConnection(() => ws.send(JSON.stringify({ type:'join_room', name:$('nameInput').value, roomId, team })));
+  openConnection(() => ws.send(JSON.stringify({ type:'join_room', ...credentials, roomId, team })));
 }
 $('createCasualRoomButton').onclick = () => createRoom('casual');
 $('createCompetitiveRoomButton').onclick = () => createRoom('competitive');
@@ -2047,6 +2141,8 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'joined') {
+    if (msg.accountId) localStorage.setItem(PLAYER_ACCOUNT_KEY, msg.accountId);
+    if ($('accountPinInput')) $('accountPinInput').value = '';
     clearLiveProjectileRegistry();
     myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room;
     saveResumeCredentials(msg.roomId || msg.room, msg.resumeToken, msg.room);
@@ -2057,6 +2153,8 @@ function handleMessage(msg) {
     show('lobby'); return;
   }
   if (msg.type === 'resumed') {
+    if (msg.accountId) localStorage.setItem(PLAYER_ACCOUNT_KEY, msg.accountId);
+    if ($('accountPinInput')) $('accountPinInput').value = '';
     clearLiveProjectileRegistry();
     spectatorMode = false;
     document.body.classList.remove('spectator-mode');
@@ -2065,7 +2163,7 @@ function handleMessage(msg) {
     $('roomLabel').textContent = msg.room;
     saveResumeCredentials(msg.roomId || msg.room, msg.resumeToken, msg.room);
     const notice = $('pickNotice');
-    if (notice) notice.textContent = msg.recoveredByNickname ? '↩️ 같은 이름의 기존 경기 자리로 복귀했습니다.' : '↩️ 기존 경기 자리로 재접속했습니다.';
+    if (notice) notice.textContent = msg.recoveredByAccount ? '↩️ 같은 계정의 기존 경기 자리로 복귀했습니다.' : '↩️ 기존 경기 자리로 재접속했습니다.';
     show('lobby');
     return;
   }
@@ -2258,8 +2356,8 @@ $('switchTeamBButton').onclick = () => requestLobbyTeamChange('B');
 $('fullscreenButton').onclick = enterGameDisplayMode;
 $('gameFullscreenButton').onclick = enterGameDisplayMode;
 $('soundButton').onclick = toggleSound;
-$('abilityButton').onclick = useAbility;
-$('ultimateButton').onclick = useUltimate;
+bindCombatActionButton($('abilityButton'), useAbility);
+bindCombatActionButton($('ultimateButton'), useUltimate);
 $('storyButton').onclick = openMyCharacterStory;
 $('storyCloseButton').onclick = closeMyCharacterStory;
 $('storyOverlay').onclick = e => { if (e.target === $('storyOverlay')) closeMyCharacterStory(); };
@@ -2274,6 +2372,31 @@ window.addEventListener('keydown', e => {
 window.addEventListener('resize', closePortraitHoverPreview);
 window.addEventListener('scroll', closePortraitHoverPreview, true);
 updateSoundButton();
+
+function bindCombatActionButton(button, action) {
+  if (!button || typeof action !== 'function') return;
+  let suppressSyntheticClickUntil = 0;
+
+  // Mobile browsers do not reliably synthesize `click` for a third touch while
+  // move/aim pointers are already held. Fire combat actions directly from that
+  // pointer without disturbing either joystick pointer capture. Desktop mouse
+  // keeps the normal click path so keyboard/mouse semantics remain unchanged.
+  button.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+    e.preventDefault();
+    e.stopPropagation();
+    suppressSyntheticClickUntil = performance.now() + 750;
+    action();
+  });
+  button.addEventListener('click', e => {
+    if (performance.now() < suppressSyntheticClickUntil) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    action();
+  });
+}
 
 function useAbility() {
   if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;
@@ -2335,6 +2458,7 @@ function contributionSpecialLine(character, stats) {
 function resultAwardLeaders(players) {
   const metrics = [
     ['kills', '킬 최다', 'kill'],
+    ['assists', '어시스트 최다', 'assist'],
     ['damage', '딜 최다', 'damage'],
     ['healing', '힐 최다', 'healing']
   ];
@@ -2385,7 +2509,7 @@ function renderResultStats() {
       const special = contributionSpecialLine(playedCharacter, stats);
       row.innerHTML = `
         <div class="result-player-name">${meta.icon} ${escapeHtml(p.name)} <span>${meta.name}</span>${resultAwardBadges(awardMap.get(p.id))}</div>
-        <div class="result-player-core">킬 <b>${formatContributionNumber(stats.kills)}</b> · 데스 <b>${formatContributionNumber(stats.deaths)}</b> · 딜 <b>${formatContributionNumber(stats.damage)}</b> · 힐 <b>${formatContributionNumber(stats.healing)}</b></div>
+        <div class="result-player-core">킬 <b>${formatContributionNumber(stats.kills)}</b> · 어시 <b>${formatContributionNumber(stats.assists)}</b> · 데스 <b>${formatContributionNumber(stats.deaths)}</b> · 딜 <b>${formatContributionNumber(stats.damage)}</b> · 힐 <b>${formatContributionNumber(stats.healing)}</b></div>
         ${special ? `<div class="result-player-special">${special}</div>` : ''}`;
       list.appendChild(row);
     }
@@ -3036,6 +3160,10 @@ function getStickBase(stick) {
 }
 
 function startStick(stick, e) {
+  // Virtual sticks are touch/pen controls only. A desktop mouse must never be
+  // captured by these large invisible control zones, because that can turn a
+  // normal battlefield click into unintended movement/aim-stick input.
+  if (e.pointerType === 'mouse') return;
   if (stick.active || stick.pointerId !== null) return;
   e.preventDefault();
   stick.pointerId = e.pointerId;

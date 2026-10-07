@@ -66,7 +66,7 @@ function statsSeriesForBalanceVersion(balanceVersion) {
   return `${major}.${minor}`;
 }
 const COMPETITIVE_STATS_VERSION = statsSeriesForBalanceVersion(BALANCE_VERSION);
-const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-stats1.7-postgres1-httpadmin1-durableaccounts1-autoseries1-rostersnapshot1';
+const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-stats1.7-postgres1-httpadmin2-durableaccounts1-autoseries1-rostersnapshot1';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.2-r22-allultimates';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
@@ -641,6 +641,11 @@ function versionSort(a, b) {
   return String(a || '').localeCompare(String(b || ''));
 }
 
+function nicknameStatKey(value) {
+  const normalized = String(value || '').normalize('NFKC').trim().toLowerCase();
+  return crypto.createHash('sha256').update(normalized || 'unknown').digest('hex').slice(0, 20);
+}
+
 function statsVersionFromMatch(match) {
   return normalizeStatsVersion(match?.statsVersion) || normalizeStatsVersion(match?.balanceVersion) || normalizeStatsVersion(match?.gameVersion) || '';
 }
@@ -867,6 +872,26 @@ function matchAssignments(match) {
   return (Array.isArray(match?.players) ? match.players : []).map(p => ({
     playerId: p.playerId, accountId: p.accountId || null, playerName: p.playerName || p.nickname, team: p.team, character: p.character
   })).filter(p => p.character && (p.team === 'A' || p.team === 'B'));
+}
+
+function combinations(items, size) {
+  const source = Array.isArray(items) ? items : [];
+  const k = Math.max(0, Math.trunc(Number(size) || 0));
+  if (k === 0) return [[]];
+  if (k > source.length) return [];
+  const out = [];
+  const current = [];
+  const visit = start => {
+    if (current.length === k) { out.push([...current]); return; }
+    const remaining = k - current.length;
+    for (let i = start; i <= source.length - remaining; i++) {
+      current.push(source[i]);
+      visit(i + 1);
+      current.pop();
+    }
+  };
+  visit(0);
+  return out;
 }
 
 function buildAdvancedCompetitiveStats(matches, aggregateCharacters = {}) {
@@ -4970,7 +4995,7 @@ module.exports = {
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
-  competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload, rebuildCompetitiveStatsFromMatches, statsSeriesForBalanceVersion, buildCompetitiveResult,
+  competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload, rebuildCompetitiveStatsFromMatches, statsSeriesForBalanceVersion, buildCompetitiveResult, buildAdvancedCompetitiveStats, combinations,
   teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate,
   normalizeRoomMode, roomDisplayName, publicRoomList, nextRoomDisplayNumber, createRoomAndJoin, joinRoom, leaveRoomExplicit, startMatch, rooms
 };

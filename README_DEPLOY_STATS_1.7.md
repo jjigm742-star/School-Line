@@ -82,3 +82,10 @@ DB 제공자가 SSL을 URL의 `sslmode=require`로 지정하면 그대로 사용
 7. 테스트 경쟁전 한 판 더 종료 → 2판인지 확인
 
 6번이 통과하기 전에는 실전 학생 데이터를 다시 쌓지 않는 것을 권장합니다.
+
+## Hotfix v2 (admin statistics aggregation)
+
+- Restores the `combinations()` helper required by 2-person / 3-person synergy aggregation.
+- Restores the `nicknameStatKey()` fallback helper used by advanced player statistics when a legacy/fallback record has no account ID.
+- Adds regression coverage that executes advanced 4v4 statistics aggregation, including pairs, trios, and full compositions.
+- This hotfix does **not** alter the PostgreSQL schema or existing `school_line_matches` rows. Existing persisted 1.7 matches remain authoritative and are reloaded after deployment.

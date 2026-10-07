@@ -1,0 +1,21 @@
+School Line Mobile
+Gameplay balance: Alpha 1.6.2 (gameplay values unchanged from the supplied authoritative build)
+Competitive statistics series: 1.7 RESET
+Persistence architecture: PostgreSQL durable-only v1
+
+Data policy:
+- Historical local 1.6 aggregate stats intentionally discarded.
+- No runtime competitive_stats.json.
+- No runtime player_accounts.json.
+- PostgreSQL is authoritative.
+- Server fails closed without DATABASE_URL.
+
+Admin stats UI:
+- Available from the first join/lobby screen without joining a room.
+- Fixed non-scrolling header contains JSON backup button.
+- HTTP admin stats/export endpoints do not depend on game WebSocket state.
+- Dynamic stats-version selector reads versions present in durable data.
+
+Roster evolution:
+- Every raw match stores availableCharacters + rosterSnapshot + rosterVersion.
+- New characters only accrue availableMatches after they exist in the roster.

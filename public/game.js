@@ -645,6 +645,7 @@ let accessLockActive = true;
 let accessStatusRequestInFlight = false;
 let postGameSequence = { active:false, timers:[], finalState:null };
 let adminStatsAuthorized = false;
+let adminStatsPin = ''; // memory-only; never stored in localStorage/sessionStorage.
 let lastAdminStatsData = null;
 let selectedCompetitiveStatsVersion = null;
 let selectedTargetId = null; // Targeted ability selection (Angel Blessing and future targeted abilities).
@@ -2760,29 +2761,52 @@ function renderCompetitiveDraft() {
   renderDraftCharacterGrid(comp);
 }
 
-function openCompetitiveStats() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    alert('먼저 방에 입장한 뒤 관리자 통계를 열어주세요.');
-    return;
+async function requestCompetitiveStatsHttp(statsVersion = selectedCompetitiveStatsVersion) {
+  if (!/^\d{4}$/.test(adminStatsPin)) {
+    const entered = prompt('관리자 암호 4자리를 입력하세요.');
+    if (entered === null) return false;
+    adminStatsPin = String(entered).replace(/\D/g, '').slice(0, 4);
+    if (adminStatsPin.length !== 4) { adminStatsPin = ''; alert('관리자 암호 4자리를 입력하세요.'); return false; }
   }
-  let pin = null;
-  if (!adminStatsAuthorized) {
-    pin = prompt('관리자 암호 4자리를 입력하세요.');
-    if (pin === null) return;
-    pin = String(pin).replace(/\D/g, '').slice(0, 4);
-    if (pin.length !== 4) { alert('관리자 암호 4자리를 입력하세요.'); return; }
+  try {
+    const response = await fetch('/admin/competitive-stats', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      cache:'no-store',
+      body:JSON.stringify({ pin:adminStatsPin, ...(statsVersion ? { statsVersion } : {}) })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) {
+      if (response.status === 403 || payload.error === 'bad_pin') { adminStatsAuthorized = false; adminStatsPin = ''; }
+      throw new Error(payload.message || '관리자 통계를 불러오지 못했습니다.');
+    }
+    adminStatsAuthorized = true;
+    lastAdminStatsData = payload.data || {};
+    selectedCompetitiveStatsVersion = lastAdminStatsData.statsVersion || selectedCompetitiveStatsVersion;
+    renderCompetitiveStats(lastAdminStatsData);
+    return true;
+  } catch (err) {
+    alert(err?.message || '관리자 통계를 불러오지 못했습니다.');
+    return false;
   }
+}
+
+async function openCompetitiveStats() {
   const overlay = $('competitiveStatsOverlay');
   overlay.classList.remove('hidden');
-  $('competitiveStatsSummary').textContent = '관리자 인증 및 통계를 불러오는 중…';
+  $('competitiveStatsSummary').textContent = 'PostgreSQL 영구 통계를 불러오는 중…';
   $('competitiveStatsBody').innerHTML = '';
   $('competitiveRecentMatches').innerHTML = '';
   for (const id of ['competitivePlayerStatsBody','competitiveSynergyBody','competitiveMatchupBody','competitiveCompositionBody','competitiveDraftStatsBody']) { const el=$(id); if (el) el.innerHTML=''; }
   if ($('competitiveStatsDataQuality')) $('competitiveStatsDataQuality').textContent = '';
-  ws.send(JSON.stringify({ type:'admin_stats_request', ...(pin ? { pin } : {}), ...(selectedCompetitiveStatsVersion ? { statsVersion:selectedCompetitiveStatsVersion } : {}) }));
+  const badge = $('competitiveStatsPersistenceBadge');
+  if (badge) { badge.textContent = '영구 저장소 확인 중…'; badge.classList.remove('ok','error'); }
+  const ok = await requestCompetitiveStatsHttp(selectedCompetitiveStatsVersion);
+  if (!ok && !adminStatsAuthorized) overlay.classList.add('hidden');
 }
+
 function downloadCompetitiveStatsBackup(data) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json;charset=utf-8' });
+  const blob = data instanceof Blob ? data : new Blob([JSON.stringify(data, null, 2)], { type:'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2792,11 +2816,33 @@ function downloadCompetitiveStatsBackup(data) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
-function exportCompetitiveStatsJson() {
-  if (!ws || ws.readyState !== WebSocket.OPEN || !adminStatsAuthorized) return;
-  ws.send(JSON.stringify({ type:'admin_stats_export_request' }));
+
+async function exportCompetitiveStatsJson() {
+  if (!/^\d{4}$/.test(adminStatsPin)) {
+    const ok = await requestCompetitiveStatsHttp(selectedCompetitiveStatsVersion);
+    if (!ok) return;
+  }
+  const buttons = [$('competitiveStatsExportTop'), $('competitiveStatsExport')].filter(Boolean);
+  buttons.forEach(button => { button.disabled = true; });
+  try {
+    const response = await fetch('/admin/competitive-stats/export', {
+      method:'POST', headers:{ 'Content-Type':'application/json' }, cache:'no-store',
+      body:JSON.stringify({ pin:adminStatsPin })
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      if (response.status === 403) { adminStatsAuthorized = false; adminStatsPin = ''; }
+      throw new Error(payload.message || 'JSON 백업을 생성하지 못했습니다.');
+    }
+    downloadCompetitiveStatsBackup(await response.blob());
+  } catch (err) {
+    alert(err?.message || 'JSON 백업을 생성하지 못했습니다.');
+  } finally {
+    buttons.forEach(button => { button.disabled = false; });
+  }
 }
 function closeCompetitiveStats() { $('competitiveStatsOverlay').classList.add('hidden'); }
+
 function percent(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
 function renderCompetitiveStats(data) {
   const total = Number(data.totalMatches || 0);
@@ -2818,6 +2864,20 @@ function renderCompetitiveStats(data) {
   const net = data.network || null;
   const netLabel = net ? ` · WS ${Number(net.totalMiB || 0).toFixed(1)}MB / 현재 ${Number(net.activeConnections || 0)}연결 / 차단 ${Number(net.skippedLiveSnapshots || 0)}회` : '';
   $('competitiveStatsSummary').textContent = `${statsVersion || '현재'} 버전 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${netLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
+  const persistence = data.persistence || {};
+  const persistenceBadge = $('competitiveStatsPersistenceBadge');
+  if (persistenceBadge) {
+    const pending = Number(persistence.pendingSaves || 0);
+    persistenceBadge.classList.toggle('ok', !!persistence.ready && pending === 0);
+    persistenceBadge.classList.toggle('error', !persistence.ready || pending > 0);
+    if (persistence.ready && pending === 0) {
+      persistenceBadge.textContent = `🟢 PostgreSQL 영구 저장 정상${persistence.lastMatchWriteAt ? ` · 마지막 경기 저장 ${new Date(persistence.lastMatchWriteAt).toLocaleString('ko-KR')}` : ' · 저장된 경기 없음'}`;
+    } else if (persistence.ready) {
+      persistenceBadge.textContent = `🟠 영구 저장 대기 ${pending}건 · 자동 재시도 중`;
+    } else {
+      persistenceBadge.textContent = `🔴 영구 저장소 연결 오류${persistence.lastError ? ` · ${persistence.lastError}` : ''}`;
+    }
+  }
 
   const adv = data.advanced || {};
   const quality = $('competitiveStatsDataQuality');
@@ -2898,14 +2958,15 @@ function renderCompetitiveStats(data) {
   }
 }
 $('competitiveStatsVersion').onchange = () => {
-  if (!ws || ws.readyState !== WebSocket.OPEN || !adminStatsAuthorized) return;
   selectedCompetitiveStatsVersion = $('competitiveStatsVersion').value || null;
-  ws.send(JSON.stringify({ type:'admin_stats_request', statsVersion:selectedCompetitiveStatsVersion }));
+  void requestCompetitiveStatsHttp(selectedCompetitiveStatsVersion);
 };
-$('competitiveStatsButton').onclick = openCompetitiveStats;
+$('competitiveStatsButton').onclick = () => { void openCompetitiveStats(); };
+if ($('joinCompetitiveStatsButton')) $('joinCompetitiveStatsButton').onclick = () => { void openCompetitiveStats(); };
 $('competitiveStatsClose').onclick = closeCompetitiveStats;
 $('competitiveStatsCloseBottom').onclick = closeCompetitiveStats;
-$('competitiveStatsExport').onclick = exportCompetitiveStatsJson;
+$('competitiveStatsExport').onclick = () => { void exportCompetitiveStatsJson(); };
+if ($('competitiveStatsExportTop')) $('competitiveStatsExportTop').onclick = () => { void exportCompetitiveStatsJson(); };
 $('competitiveStatsOverlay').onclick = e => { if (e.target === $('competitiveStatsOverlay')) closeCompetitiveStats(); };
 
 function postGameCountdownSeconds() {

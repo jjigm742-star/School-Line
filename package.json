@@ -1,8 +1,18 @@
 {
-  "name": "school-line-mobile",
-  "version": "0.2.0",
+  "name": "school-line",
+  "version": "1.7.0-stats",
   "private": true,
-  "description": "School Line Mobile Alpha 0.2 - zero-dependency browser 4v4 prototype",
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=18" }
+  "description": "School Line classroom 4v4 game server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check durable_store.js && node --check public/game.js",
+    "test:stats": "node tests/stats_persistence_selftest.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
 }

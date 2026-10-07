@@ -45,7 +45,7 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">Mobile Alpha 1.6.2 · 일반전 / 경쟁전 · 22 캐릭터</p>
+      <p class="subtitle">Mobile Alpha 1.6.2 · 통계 1.7 · 일반전 / 경쟁전 · 22 캐릭터</p>
       <div class="account-login-grid">
         <label>내 이름<select id="accountSelect" aria-label="계정 이름"><option value="">이름 선택</option></select></label>
         <label>4자리 PIN<input id="accountPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" autocomplete="off" /></label>
@@ -69,7 +69,10 @@
         <div id="openRoomList" class="open-room-list"><div class="open-room-empty">열린 방을 불러오는 중입니다.</div></div>
       </section>
 
-      <button id="joinHelpButton" type="button" class="help-open-button">❓ 게임 방법</button>
+      <div class="join-admin-tools">
+        <button id="joinCompetitiveStatsButton" type="button" class="join-stats-button">📊 관리자 통계</button>
+        <button id="joinHelpButton" type="button" class="help-open-button">❓ 게임 방법</button>
+      </div>
 
       <div class="spectator-entry">
         <div class="spectator-entry-title">📺 교사용 관전자</div>
@@ -223,13 +226,17 @@
     <div id="competitiveStatsOverlay" class="stats-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="competitiveStatsTitle">
       <article class="stats-card">
         <header class="stats-header">
-          <div><div class="stats-kicker">📊 School Line 경쟁게임 기록</div><h2 id="competitiveStatsTitle">캐릭터 통계</h2></div>
-          <button id="competitiveStatsClose" type="button" aria-label="통계 닫기">✕</button>
+          <div><div class="stats-kicker">📊 School Line 경쟁게임 기록</div><h2 id="competitiveStatsTitle">캐릭터 통계</h2><div id="competitiveStatsPersistenceBadge" class="stats-persistence-badge">영구 저장소 확인 중…</div></div>
+          <div class="stats-header-actions">
+            <button id="competitiveStatsExportTop" type="button" class="stats-export-top">💾 전체 기록 JSON 백업</button>
+            <button id="competitiveStatsClose" type="button" aria-label="통계 닫기">✕</button>
+          </div>
         </header>
+        <div class="stats-scroll-content">
         <div id="competitiveStatsSummary" class="stats-summary"></div>
         <div class="stats-version-row"><label for="competitiveStatsVersion">통계 버전</label><select id="competitiveStatsVersion" aria-label="경쟁 통계 버전"></select></div>
-        <div class="stats-note">같은 번호의 패치는 하나의 캐릭터 통계로 합산합니다. 이제 경기별 원본 기록을 함께 저장하여 닉네임·밴픽 순서·밴 투표·조합 시너지·상대전적·개인 전투/점유 통계를 사후 분석할 수 있습니다.</div>
-        <div class="stats-note stats-note-secondary">승률 옆 95% CI는 표본 불확실성을 나타냅니다. 기존 aggregate-only 경기에는 과거에 저장하지 않았던 고급 통계를 소급 복원할 수 없습니다.</div>
+        <div class="stats-note">통계 1.7부터 PostgreSQL에 경기별 원본을 영구 저장합니다. 1.7.x는 1.7 통계로, 1.8.x는 1.8 통계로 자동 분리되며 신캐는 출시 이후 실제 선택 가능 경기만 분모에 포함됩니다.</div>
+        <div class="stats-note stats-note-secondary">승률 옆 95% CI는 표본 불확실성을 나타냅니다. GitHub/Render 재배포와 무관하게 PostgreSQL 기록이 유지되며, JSON 버튼은 별도의 수동 백업 수단입니다.</div>
         <div id="competitiveStatsDataQuality" class="stats-quality"></div>
         <h3 class="stats-recent-title">캐릭터 종합</h3>
         <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>가능</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>관여율</th><th>풀렸을 때 픽</th><th>W-L-D</th><th>승률</th><th>95% CI</th><th>K-D-A/판</th><th>피해/판</th><th>받피/판</th><th>치유/판</th><th>점유초/판</th><th>궁</th><th>픽당 궁</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
@@ -242,7 +249,8 @@
         </div>
         <h3 class="stats-recent-title">최근 경쟁 결과</h3>
         <div id="competitiveRecentMatches" class="stats-recent stats-recent-expanded"></div>
-        <div class="stats-actions"><button id="competitiveStatsExport" type="button">전체 기록 JSON 저장</button><button id="competitiveStatsCloseBottom" type="button" class="accent">확인</button></div>
+        <div class="stats-actions"><button id="competitiveStatsExport" type="button">전체 기록 JSON 백업</button><button id="competitiveStatsCloseBottom" type="button" class="accent">확인</button></div>
+        </div>
       </article>
     </div>
 

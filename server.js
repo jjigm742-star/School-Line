@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const zlib = require('zlib');
+const { DurableStore } = require('./durable_store');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -33,9 +34,8 @@ const MAX_ROOMS = 5;
 const COMPETITIVE_BAN_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_BAN_MS || 10000));
 const COMPETITIVE_PICK_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_PICK_MS || 10000));
 const COMPETITIVE_READY_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_READY_MS || 20000));
-const COMPETITIVE_DATA_DIR = process.env.SCHOOL_LINE_DATA_DIR ? path.resolve(process.env.SCHOOL_LINE_DATA_DIR) : path.join(__dirname, 'data');
-const COMPETITIVE_STATS_FILE = path.join(COMPETITIVE_DATA_DIR, 'competitive_stats.json');
-const PLAYER_ACCOUNTS_FILE = path.join(COMPETITIVE_DATA_DIR, 'player_accounts.json');
+const COMPETITIVE_DATA_DIR = path.join(__dirname, 'data'); // seed/static data only; runtime persistence lives in PostgreSQL.
+const PLAYER_ACCOUNTS_SEED_FILE = path.join(COMPETITIVE_DATA_DIR, 'player_accounts_seed.json');
 const RESPAWN_MS = 10000;
 const RESPAWN_INVULN_MS = 2000;
 const RESPAWN_POST_SHIELD = 100;
@@ -55,13 +55,22 @@ const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
 const BALANCE_VERSION = '1.6.2';
 const GAME_VERSION = `Alpha ${BALANCE_VERSION}`;
-const COMPETITIVE_STATS_SCHEMA_VERSION = 6;
-// Competitive statistics use a stable major.minor series (1.4 / 1.5 / 1.6).
-// Patch/build revisions such as 1.6.2 remain recorded separately and never split the statistics bucket.
-const COMPETITIVE_STATS_VERSION = BALANCE_VERSION.split('.').slice(0, 2).join('.');
-const KNOWN_COMPETITIVE_STATS_VERSIONS = Object.freeze(['1.4', '1.5', '1.6']);
-const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-roommodes1-roomlist3-teamswitch2-roomcap5-leave1-postgame30rematch1-ultstats1-compstats6-seriesstable1-backup1-historymerge1-waterflood2-diacrystalburst1-delayedult2s-mechafuse4s-sustainradius1-whitefieldfx3-shortultdesc1-bwopt9c6sparse-inputfix1-fixedaccounts2-teacherrole1-assist5-supportassist1-resultassist1';
+const COMPETITIVE_STATS_SCHEMA_VERSION = 7;
+// Stats series reset: historical 1.6 data is intentionally NOT imported. This build starts at 1.7.
+// From gameplay 1.7 onward the series follows major.minor automatically, so 1.7.x / 1.8.x split without hard-coded lists.
+function statsSeriesForBalanceVersion(balanceVersion) {
+  const parts = String(balanceVersion || '').match(/(\d+)\.(\d+)/);
+  if (!parts) return '1.7';
+  const major = Number(parts[1]), minor = Number(parts[2]);
+  if (major < 1 || (major === 1 && minor < 7)) return '1.7';
+  return `${major}.${minor}`;
+}
+const COMPETITIVE_STATS_VERSION = statsSeriesForBalanceVersion(BALANCE_VERSION);
+const COMPETITIVE_BUILD_ID = 'alpha-1.6.2-r22-stats1.7-postgres1-httpadmin1-durableaccounts1-autoseries1-rostersnapshot1';
 const COMPETITIVE_ROSTER_VERSION = 'alpha-1.6.2-r22-allultimates';
+const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
+const durableStore = new DurableStore();
+const pendingCompetitiveRecords = new Map();
 
 
 const DEFAULT_PLAYER_ACCOUNT_NAMES = Object.freeze([
@@ -92,33 +101,17 @@ function defaultPlayerAccounts() {
     updatedAt: new Date().toISOString()
   }));
 }
-function savePlayerAccounts() {
-  try {
-    fs.mkdirSync(COMPETITIVE_DATA_DIR, { recursive: true });
-    const tmp = `${PLAYER_ACCOUNTS_FILE}.tmp`;
-    const backup = `${PLAYER_ACCOUNTS_FILE}.bak`;
-    if (fs.existsSync(PLAYER_ACCOUNTS_FILE)) {
-      try { fs.copyFileSync(PLAYER_ACCOUNTS_FILE, backup); } catch (_) {}
-    }
-    fs.writeFileSync(tmp, JSON.stringify({ schemaVersion: 1, accounts: playerAccounts }, null, 2), 'utf8');
-    fs.renameSync(tmp, PLAYER_ACCOUNTS_FILE);
-    return true;
-  } catch (err) {
-    console.error('[accounts] save failed:', err && err.message ? err.message : err);
-    return false;
-  }
-}
-function loadPlayerAccounts() {
+function loadBundledPlayerAccountSeed() {
   let loaded = null;
   try {
-    if (fs.existsSync(PLAYER_ACCOUNTS_FILE)) loaded = JSON.parse(fs.readFileSync(PLAYER_ACCOUNTS_FILE, 'utf8'));
+    if (fs.existsSync(PLAYER_ACCOUNTS_SEED_FILE)) loaded = JSON.parse(fs.readFileSync(PLAYER_ACCOUNTS_SEED_FILE, 'utf8'));
   } catch (err) {
-    console.error('[accounts] load failed:', err && err.message ? err.message : err);
+    console.error('[accounts] seed read failed:', err && err.message ? err.message : err);
   }
   const defaults = defaultPlayerAccounts();
   const byId = new Map(Array.isArray(loaded?.accounts) ? loaded.accounts.map(a => [String(a?.id || ''), a]) : []);
   const usedPins = new Set();
-  const result = defaults.map(def => {
+  return defaults.map(def => {
     const old = byId.get(def.id) || {};
     let pin = /^\d{4}$/.test(String(old.pin || '')) ? String(old.pin) : def.pin;
     if (usedPins.has(pin)) pin = randomStudentPin(usedPins); else usedPins.add(pin);
@@ -130,12 +123,25 @@ function loadPlayerAccounts() {
       updatedAt: old.updatedAt || def.updatedAt
     };
   });
-  playerAccounts = result;
-  if (!loaded || !Array.isArray(loaded.accounts) || loaded.accounts.length !== result.length) savePlayerAccounts();
-  return playerAccounts;
 }
 let playerAccounts = [];
-loadPlayerAccounts();
+
+async function initializePlayerAccountsFromDatabase() {
+  const seed = loadBundledPlayerAccountSeed();
+  const loaded = await durableStore.loadAccounts(seed);
+  const byId = new Map(loaded.map(a => [String(a.id), a]));
+  playerAccounts = seed.map(def => {
+    const row = byId.get(def.id) || def;
+    return {
+      id: def.id,
+      name: normalizeAccountName(row.name || def.name),
+      pin: /^\d{4}$/.test(String(row.pin || '')) ? String(row.pin) : def.pin,
+      role: def.role,
+      updatedAt: row.updatedAt || def.updatedAt
+    };
+  });
+  return playerAccounts;
+}
 
 function publicPlayerAccounts() {
   return playerAccounts.map(a => ({ id: a.id, name: a.name, role: a.role }));
@@ -568,7 +574,7 @@ function publicNetworkStats() {
 }
 
 function publicAdminStatsPayload(statsVersion) {
-  return { ...publicCompetitiveStats(statsVersion), network: publicNetworkStats() };
+  return { ...publicCompetitiveStats(statsVersion), network: publicNetworkStats(), persistence: { ...durableStore.status(), pendingSaves: pendingCompetitiveRecords.size } };
 }
 
 function competitiveStatsBackupPayload() {
@@ -582,7 +588,8 @@ function competitiveStatsBackupPayload() {
       currentBalanceVersion: BALANCE_VERSION,
       gameVersion: GAME_VERSION,
       buildId: COMPETITIVE_BUILD_ID,
-      rosterVersion: COMPETITIVE_ROSTER_VERSION
+      rosterVersion: COMPETITIVE_ROSTER_VERSION,
+      persistence: { ...durableStore.status(), pendingSaves: pendingCompetitiveRecords.size }
     }
   };
 }
@@ -620,6 +627,18 @@ function normalizeStatsVersion(value) {
   if (!full) return '';
   const parts = full.split('.');
   return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : full;
+}
+
+function versionSort(a, b) {
+  const pa = String(a || '').split('.').map(Number);
+  const pb = String(b || '').split('.').map(Number);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const av = Number.isFinite(pa[i]) ? pa[i] : 0;
+    const bv = Number.isFinite(pb[i]) ? pb[i] : 0;
+    if (av !== bv) return av - bv;
+  }
+  return String(a || '').localeCompare(String(b || ''));
 }
 
 function statsVersionFromMatch(match) {
@@ -753,73 +772,82 @@ function normalizeCompetitiveStats(raw) {
   return base;
 }
 
-function loadCompetitiveStats() {
-  const backup = `${COMPETITIVE_STATS_FILE}.bak`;
-  const tryRead = file => {
-    if (!fs.existsSync(file)) return null;
-    return normalizeCompetitiveStats(JSON.parse(fs.readFileSync(file, 'utf8')));
-  };
-  try {
-    const main = tryRead(COMPETITIVE_STATS_FILE);
-    if (main) return main;
-    const recovered = tryRead(backup);
-    if (recovered) {
-      console.warn('[competitive] primary stats file missing; recovered from .bak');
-      return recovered;
+function rebuildCompetitiveStatsFromMatches(matches) {
+  const base = emptyCompetitiveStats();
+  const seen = new Set();
+  for (const rawMatch of Array.isArray(matches) ? matches : []) {
+    if (!rawMatch || typeof rawMatch !== 'object') continue;
+    const match = rawMatch;
+    const matchId = String(match.matchId || '').trim();
+    if (!matchId || seen.has(matchId)) continue;
+    seen.add(matchId);
+    if (!match.statsVersion) match.statsVersion = statsVersionFromMatch(match) || COMPETITIVE_STATS_VERSION;
+    base.matches.push(match);
+    base.totalMatches += 1;
+    if (!base.versions[match.statsVersion]) base.versions[match.statsVersion] = emptyCompetitiveVersionStats();
+    addRecordedMatchToVersionBucket(base.versions[match.statsVersion], match);
+    for (const id of Array.isArray(match.availableCharacters) ? match.availableCharacters : []) {
+      if (!base.characters[id]) base.characters[id] = emptyCompetitiveCharacterStats();
+      base.characters[id].availableMatches += 1;
     }
-    return emptyCompetitiveStats();
-  } catch (err) {
-    console.error('[competitive] stats load failed:', err && err.message ? err.message : err);
-    try {
-      const recovered = tryRead(backup);
-      if (recovered) {
-        console.warn('[competitive] recovered statistics from .bak after primary read failure');
-        return recovered;
-      }
-    } catch (_) {}
-    return emptyCompetitiveStats();
+    for (const ban of Array.isArray(match.bans) ? match.bans : []) {
+      if (!ban?.character) continue;
+      if (!base.characters[ban.character]) base.characters[ban.character] = emptyCompetitiveCharacterStats();
+      base.characters[ban.character].bans += 1;
+    }
+    const recordedPlayers = new Map((Array.isArray(match.players) ? match.players : []).map(p => [String(p?.playerId || ''), p]));
+    for (const assignment of Array.isArray(match.finalAssignments) ? match.finalAssignments : []) {
+      if (!assignment?.character) continue;
+      if (!base.characters[assignment.character]) base.characters[assignment.character] = emptyCompetitiveCharacterStats();
+      const stat = base.characters[assignment.character];
+      stat.picks += 1;
+      const playerRecord = recordedPlayers.get(String(assignment.playerId || ''));
+      stat.totalUltimateUses += Math.max(0, Number(playerRecord?.stats?.ultimateUses) || 0);
+      if (match.winner === 'DRAW') stat.draws += 1;
+      else if (match.winner === assignment.team) stat.wins += 1;
+      else stat.losses += 1;
+    }
+    const endedAt = typeof match.endedAt === 'string' ? match.endedAt : null;
+    if (endedAt && (!base.updatedAt || endedAt > base.updatedAt)) base.updatedAt = endedAt;
   }
+  if (!base.versions[COMPETITIVE_STATS_VERSION]) base.versions[COMPETITIVE_STATS_VERSION] = emptyCompetitiveVersionStats();
+  base.schemaVersion = COMPETITIVE_STATS_SCHEMA_VERSION;
+  base.statsSeriesMode = 'major.minor';
+  return base;
 }
 
-let competitiveStats = loadCompetitiveStats();
+let competitiveStats = emptyCompetitiveStats();
+competitiveStats.versions[COMPETITIVE_STATS_VERSION] = emptyCompetitiveVersionStats();
 
+function isAcceptedStatsSeries(version) {
+  const match = String(version || '').match(/^(\d+)\.(\d+)$/);
+  if (!match) return false;
+  const major = Number(match[1]), minor = Number(match[2]);
+  return major > 1 || (major === 1 && minor >= 7);
+}
+
+async function refreshCompetitiveStatsFromDatabase() {
+  const matches = await durableStore.loadMatches();
+  const accepted = matches.filter(match => isAcceptedStatsSeries(statsVersionFromMatch(match)));
+  competitiveStats = rebuildCompetitiveStatsFromMatches(accepted);
+  return competitiveStats;
+}
+
+function competitiveStatsHasMatch(matchId) {
+  const wanted = String(matchId || '');
+  return !!wanted && (competitiveStats.matches || []).some(m => String(m?.matchId || '') === wanted);
+}
+
+function applyPersistedMatchToMemory(match) {
+  if (!match || !match.matchId || competitiveStatsHasMatch(match.matchId)) return false;
+  competitiveStats = rebuildCompetitiveStatsFromMatches([...(competitiveStats.matches || []), match]);
+  return true;
+}
+
+// Kept only as a guard for older internal/test callers. Runtime JSON persistence is intentionally disabled.
 function saveCompetitiveStats() {
-  try {
-    fs.mkdirSync(COMPETITIVE_DATA_DIR, { recursive: true });
-    const tmp = `${COMPETITIVE_STATS_FILE}.tmp`;
-    const backup = `${COMPETITIVE_STATS_FILE}.bak`;
-    if (fs.existsSync(COMPETITIVE_STATS_FILE)) {
-      try { fs.copyFileSync(COMPETITIVE_STATS_FILE, backup); } catch (_) {}
-    }
-    fs.writeFileSync(tmp, JSON.stringify(competitiveStats, null, 2), 'utf8');
-    fs.renameSync(tmp, COMPETITIVE_STATS_FILE);
-    return true;
-  } catch (err) {
-    console.error('[competitive] stats save failed:', err && err.message ? err.message : err);
-    return false;
-  }
-}
-
-function versionSort(a, b) {
-  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-}
-
-function nicknameStatKey(value) {
-  const normalized = String(value || '').normalize('NFKC').trim().toLowerCase();
-  return crypto.createHash('sha256').update(normalized || 'unknown').digest('hex').slice(0, 20);
-}
-
-function combinations(items, size) {
-  const out = [];
-  const src = [...items];
-  function walk(start, chosen) {
-    if (chosen.length === size) { out.push([...chosen]); return; }
-    for (let i = start; i <= src.length - (size - chosen.length); i++) {
-      chosen.push(src[i]); walk(i + 1, chosen); chosen.pop();
-    }
-  }
-  walk(0, []);
-  return out;
+  console.warn('[competitive] local JSON save ignored: PostgreSQL is the only authoritative store in stats series 1.7+');
+  return false;
 }
 
 function wilsonInterval(wins, losses) {
@@ -1010,7 +1038,6 @@ function buildAdvancedCompetitiveStats(matches, aggregateCharacters = {}) {
 
 function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
   const availableStatsVersions = Object.keys(competitiveStats.versions || {}).sort(versionSort);
-  for (const known of KNOWN_COMPETITIVE_STATS_VERSIONS) if (!availableStatsVersions.includes(known)) availableStatsVersions.push(known);
   if (!availableStatsVersions.includes(COMPETITIVE_STATS_VERSION)) availableStatsVersions.push(COMPETITIVE_STATS_VERSION);
   availableStatsVersions.sort(versionSort);
   const requested = normalizeStatsVersion(requestedVersion);
@@ -1567,7 +1594,7 @@ function handlePlayerAccountsAdmin(req, res) {
     sendJson(res, 429, { ok:false, error:'locked_out', message:'관리자 암호 입력이 잠시 잠겼습니다. 30초 뒤 다시 시도하세요.' });
     return;
   }
-  readJsonBody(req, (err, body) => {
+  readJsonBody(req, async (err, body) => {
     if (err) { sendJson(res, 400, { ok:false, error:'bad_request', message:'요청을 처리할 수 없습니다.' }); return; }
     const adminPin = safePin(body && body.adminPin);
     if (adminPin.length !== 4 || hashText(adminPin) !== ACCESS_ADMIN_PIN_HASH) {
@@ -1598,17 +1625,67 @@ function handlePlayerAccountsAdmin(req, res) {
       sendJson(res, 409, { ok:false, error:'name_duplicate', message:'다른 계정이 이미 사용하는 이름입니다.' });
       return;
     }
-    account.name = nextName;
-    account.pin = nextPin;
-    account.updatedAt = new Date().toISOString();
-    if (!savePlayerAccounts()) { sendJson(res, 500, { ok:false, error:'save_failed', message:'계정 파일을 저장하지 못했습니다.' }); return; }
+    const updatedAccount = { ...account, name: nextName, pin: nextPin, updatedAt: new Date().toISOString() };
+    try {
+      await durableStore.saveAccount(updatedAccount);
+    } catch (dbErr) {
+      console.error('[accounts] durable save failed:', dbErr?.message || dbErr);
+      const duplicate = String(dbErr?.code || '') === '23505';
+      sendJson(res, duplicate ? 409 : 503, { ok:false, error: duplicate ? 'account_conflict' : 'database_unavailable', message: duplicate ? '다른 계정과 이름 또는 PIN이 중복됩니다.' : '영구 저장소에 계정을 저장하지 못했습니다. 잠시 뒤 다시 시도하세요.' });
+      return;
+    }
+    Object.assign(account, updatedAccount);
     // An active player's display name follows an administrator correction immediately,
     // while immutable accountId continues to identify the same statistics record.
     for (const room of rooms.values()) {
       for (const player of room.players.values()) if (player.accountId === account.id) player.name = account.name;
       broadcast(room);
     }
-    sendJson(res, 200, { ok:true, account:{ ...account }, message:`${account.name} 계정을 저장했습니다.` });
+    sendJson(res, 200, { ok:true, account:{ ...account }, message:`${account.name} 계정을 영구 저장했습니다.` });
+  });
+}
+
+function sendJsonDownload(res, filename, value) {
+  const data = Buffer.from(JSON.stringify(value, null, 2), 'utf8');
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${String(filename).replace(/[^A-Za-z0-9_.-]/g, '_')}"`,
+    'Cache-Control': 'no-store',
+    'Content-Length': data.length
+  });
+  res.end(data);
+}
+
+function handleAdminCompetitiveStatsHttp(req, res, exportMode = false) {
+  const remoteAddress = req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  if (adminStatsAuthLocked(remoteAddress, now)) {
+    sendJson(res, 429, { ok:false, error:'locked_out', message:'관리자 암호 입력이 잠시 잠겼습니다. 30초 뒤 다시 시도하세요.' });
+    return;
+  }
+  readJsonBody(req, async (err, body) => {
+    if (err) { sendJson(res, 400, { ok:false, error:'bad_request', message:'요청을 처리할 수 없습니다.' }); return; }
+    const pin = safePin(body && body.pin);
+    if (pin.length !== 4 || hashText(pin) !== ADMIN_STATS_PIN_HASH) {
+      noteAdminStatsAuthFailure(remoteAddress, Date.now());
+      sendJson(res, 403, { ok:false, error:'bad_pin', message:'관리자 암호가 올바르지 않습니다.' });
+      return;
+    }
+    clearAdminStatsAuthFailure(remoteAddress);
+    try {
+      // Read directly from PostgreSQL before every admin view/export. This deliberately avoids
+      // trusting Render's process memory as the source of truth after a restart/redeploy.
+      await refreshCompetitiveStatsFromDatabase();
+      if (exportMode) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        sendJsonDownload(res, `competitive_stats_backup_${stamp}.json`, competitiveStatsBackupPayload());
+        return;
+      }
+      sendJson(res, 200, { ok:true, data: publicAdminStatsPayload(body && body.statsVersion) });
+    } catch (dbErr) {
+      console.error('[admin-stats] database read failed:', dbErr?.message || dbErr);
+      sendJson(res, 503, { ok:false, error:'database_unavailable', message:'영구 통계 저장소를 읽을 수 없습니다. 잠시 뒤 다시 시도하세요.', persistence: durableStore.status() });
+    }
   });
 }
 
@@ -1629,6 +1706,14 @@ const server = http.createServer((req, res) => {
   }
   if (urlPath === '/player-accounts.json' && req.method === 'GET') {
     sendJson(res, 200, { accounts: publicPlayerAccounts(), updatedAt: new Date().toISOString() });
+    return;
+  }
+  if (urlPath === '/admin/competitive-stats' && req.method === 'POST') {
+    handleAdminCompetitiveStatsHttp(req, res, false);
+    return;
+  }
+  if (urlPath === '/admin/competitive-stats/export' && req.method === 'POST') {
+    handleAdminCompetitiveStatsHttp(req, res, true);
     return;
   }
   if (urlPath === '/admin/player-accounts' && req.method === 'POST') {
@@ -2027,7 +2112,9 @@ function startCompetitiveDraft(room, now = Date.now()) {
     bans: [], teamOrders, pickSequence, pickIndex: 0, picks: [],
     draftEvents: [], readySwaps: [], matchEvents: [],
     readyEndAt: 0, draftStartedAt: now, matchStartedAt: 0,
-    finalAssignments: [], recorded: false
+    finalAssignments: [],
+    matchId: crypto.randomUUID(),
+    recorded: false, recording: false, persistenceError: null, pendingResult: null
   };
   for (const p of room.players.values()) p.competitiveDisconnects = 0;
   return true;
@@ -2174,22 +2261,23 @@ function validateCompetitiveMatchRecord(result) {
   return { complete: errors.length === 0, errors, warnings, disconnects };
 }
 
-function recordCompetitiveResult(room, now = Date.now()) {
+function buildCompetitiveResult(room, now = Date.now()) {
   const comp = room && room.competitive;
-  if (!comp || room.matchMode !== 'competitive' || comp.recorded) return false;
-  comp.recorded = true;
+  if (!comp || room.matchMode !== 'competitive') return null;
   const players = [...room.players.values()].map(p => ({
     playerId: p.id, accountId: p.accountId || null, playerKey: accountStatKey(p.accountId, p.name), playerName: p.name, nickname: p.name, team: p.team, character: p.character,
     connectedAtEnd: p.connected !== false, disconnectCount: Math.max(0, Number(p.competitiveDisconnects) || 0),
     stats: { ...ensureMatchStats(p), shotsFired: Math.max(0, Number(p.shotSeq)||0), projectileHits: Math.max(0, Number(p.projectileHitSeq)||0), healFeedbackHits: Math.max(0, Number(p.healHitSeq)||0), abilityUses: Math.max(0, Number(p.abilityUseSeq)||0) }
   }));
   const result = {
-    recordSchemaVersion: 2,
-    matchId: `${now}-${crypto.randomBytes(4).toString('hex')}`,
+    recordSchemaVersion: 3,
+    matchId: String(comp.matchId || crypto.randomUUID()),
     statsVersion: COMPETITIVE_STATS_VERSION,
     balanceVersion: BALANCE_VERSION,
     gameVersion: GAME_VERSION, buildId: COMPETITIVE_BUILD_ID, rosterVersion: COMPETITIVE_ROSTER_VERSION,
-    availableCharacters: Object.keys(CHARACTERS), room: roomDisplayName(room), roomId: room.code, matchMode: room.matchMode,
+    availableCharacters: Object.keys(CHARACTERS),
+    rosterSnapshot: Object.fromEntries(Object.entries(CHARACTERS).map(([id, def]) => [id, { name: def.name, role: def.role }])),
+    room: roomDisplayName(room), roomId: room.code, matchMode: room.matchMode,
     draftStartedAt: comp.draftStartedAt ? new Date(comp.draftStartedAt).toISOString() : null,
     matchStartedAt: comp.matchStartedAt ? new Date(comp.matchStartedAt).toISOString() : (room.matchStartedAt ? new Date(room.matchStartedAt).toISOString() : null),
     endedAt: new Date(now).toISOString(),
@@ -2215,28 +2303,67 @@ function recordCompetitiveResult(room, now = Date.now()) {
     teamStats: { A: competitiveTeamStats(players, 'A'), B: competitiveTeamStats(players, 'B') }
   };
   result.dataQuality = validateCompetitiveMatchRecord(result);
-  competitiveStats.totalMatches = (competitiveStats.totalMatches || 0) + 1;
-  for (const id of result.availableCharacters) {
-    if (!competitiveStats.characters[id]) competitiveStats.characters[id] = emptyCompetitiveCharacterStats();
-    competitiveStats.characters[id].availableMatches += 1;
+  return result;
+}
+
+async function persistPendingCompetitiveRecord(matchId) {
+  const key = String(matchId || '');
+  const pending = pendingCompetitiveRecords.get(key);
+  if (!pending || pending.inFlight) return false;
+  pending.inFlight = true;
+  pending.attempts = (pending.attempts || 0) + 1;
+  pending.lastAttemptAt = Date.now();
+  try {
+    await durableStore.insertMatch(pending.result);
+    applyPersistedMatchToMemory(pending.result);
+    pendingCompetitiveRecords.delete(key);
+    const room = pending.roomCode ? rooms.get(pending.roomCode) : null;
+    if (room?.competitive && String(room.competitive.matchId || '') === key) {
+      room.competitive.recorded = true;
+      room.competitive.recording = false;
+      room.competitive.persistenceError = null;
+      room.competitive.pendingResult = null;
+      if (room.state === 'ended') room.postGameDeleteAt = Math.max(Number(room.postGameDeleteAt) || 0, Date.now() + 3000);
+    }
+    console.log(`[competitive] durable save OK ${key} (${pending.attempts} attempt${pending.attempts === 1 ? '' : 's'})`);
+    return true;
+  } catch (err) {
+    const message = String(err?.message || err || 'database_error');
+    pending.inFlight = false;
+    pending.lastError = message;
+    pending.nextAttemptAt = Date.now() + COMPETITIVE_PERSIST_RETRY_MS;
+    const room = pending.roomCode ? rooms.get(pending.roomCode) : null;
+    if (room?.competitive && String(room.competitive.matchId || '') === key) {
+      room.competitive.recording = false;
+      room.competitive.persistenceError = message;
+    }
+    console.error(`[competitive] durable save FAILED ${key}; retry scheduled:`, message);
+    return false;
   }
-  for (const b of result.bans) if (competitiveStats.characters[b.character]) competitiveStats.characters[b.character].bans += 1;
-  for (const p of result.finalAssignments) {
-    const stat = competitiveStats.characters[p.character];
-    if (!stat) continue;
-    stat.picks += 1;
-    const playerRecord = players.find(record => record.playerId === p.playerId);
-    stat.totalUltimateUses += Math.max(0, Number(playerRecord?.stats?.ultimateUses) || 0);
-    if (room.winner === 'DRAW') stat.draws += 1;
-    else if (room.winner === p.team) stat.wins += 1;
-    else stat.losses += 1;
+}
+
+function recordCompetitiveResult(room, now = Date.now()) {
+  const comp = room && room.competitive;
+  if (!comp || room.matchMode !== 'competitive' || comp.recorded) return false;
+  if (!comp.pendingResult) comp.pendingResult = buildCompetitiveResult(room, now);
+  const result = comp.pendingResult;
+  if (!result) return false;
+  const key = String(result.matchId || '');
+  if (!pendingCompetitiveRecords.has(key)) {
+    pendingCompetitiveRecords.set(key, { result, roomCode: room.code, attempts: 0, inFlight: false, nextAttemptAt: 0, lastError: null });
   }
-  competitiveStats.matches.push(result);
-  competitiveStats.updatedAt = new Date(now).toISOString();
-  if (!competitiveStats.versions[COMPETITIVE_STATS_VERSION]) competitiveStats.versions[COMPETITIVE_STATS_VERSION] = emptyCompetitiveVersionStats();
-  addRecordedMatchToVersionBucket(competitiveStats.versions[COMPETITIVE_STATS_VERSION], result);
-  saveCompetitiveStats();
+  comp.recording = true;
+  comp.persistenceError = null;
+  void persistPendingCompetitiveRecord(key);
   return true;
+}
+
+function retryPendingCompetitiveRecords(now = Date.now()) {
+  for (const [matchId, pending] of pendingCompetitiveRecords) {
+    if (pending.inFlight) continue;
+    if (Number(pending.nextAttemptAt || 0) > now) continue;
+    void persistPendingCompetitiveRecord(matchId);
+  }
 }
 
 function competitiveSnapshot(room, viewer, spectator, now) {
@@ -2386,6 +2513,7 @@ function onMessage(conn, msg) {
   }
   if (msg.type === 'competitive_start' && room.hostId === player.id && room.state === 'lobby') {
     if (normalizeRoomMode(room.mode) !== 'competitive') { conn.send({ type: 'start_error', message: '현재 방은 일반전 모드입니다.' }); return; }
+    if (!durableStore.status().ready) { conn.send({ type: 'start_error', message: '영구 통계 저장소가 연결되지 않아 경쟁전을 시작할 수 없습니다. 데이터 보호를 위해 시작이 차단되었습니다.' }); return; }
     pruneDisconnectedEndedPlayers(room);
     if (!isExactCompetitiveRoster(room)) {
       conn.send({ type: 'start_error', message: '경쟁전은 A팀 4명 + B팀 4명, 총 8명이 모두 접속해 있어야 시작할 수 있습니다.' });
@@ -4060,6 +4188,12 @@ function updateProjectiles(room, dt, now) {
 
 function closeEndedRoom(room) {
   if (!room || room.state !== 'ended') return false;
+  if (room.matchMode === 'competitive' && room.competitive && !room.competitive.recorded) {
+    // Never destroy the only in-memory copy of a finished competitive match before PostgreSQL confirms it.
+    // Keep the room alive and the retry queue running until durable insertion succeeds.
+    room.postGameDeleteAt = Date.now() + Math.max(3000, COMPETITIVE_PERSIST_RETRY_MS);
+    return false;
+  }
   const connections = new Set([...room.clients.values(), ...room.spectators.values()]);
   const notice = {
     type: 'room_closed',
@@ -4746,7 +4880,13 @@ function roomBroadcastIntervalMs(room) {
   return Infinity;
 }
 
-if (require.main === module) {
+async function startSchoolLineServer() {
+  console.log('[startup] initializing durable PostgreSQL persistence...');
+  await durableStore.init();
+  await initializePlayerAccountsFromDatabase();
+  await refreshCompetitiveStatsFromDatabase();
+  console.log(`[startup] durable persistence ready · ${competitiveStats.totalMatches} persisted competitive matches · stats series ${COMPETITIVE_STATS_VERSION}`);
+
   setInterval(() => {
     const now = Date.now();
     for (const room of rooms.values()) updateRoom(room, DT, now);
@@ -4760,6 +4900,12 @@ if (require.main === module) {
       if (!room.lastBroadcastAt || now - room.lastBroadcastAt >= interval - 1) broadcast(room, now);
     }
   }, 1000 / SNAPSHOT_SCHEDULER_HZ);
+
+  setInterval(() => retryPendingCompetitiveRecords(Date.now()), Math.min(COMPETITIVE_PERSIST_RETRY_MS, 1000));
+
+  setInterval(() => {
+    void durableStore.checkHealth().catch(err => console.error('[database] health check failed:', err?.message || err));
+  }, 30000);
 
   setInterval(() => {
     const now = Date.now();
@@ -4781,12 +4927,33 @@ if (require.main === module) {
   }, Math.min(WS_PING_INTERVAL_MS, 5000));
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`
-School Line Mobile ${GAME_VERSION} · Competitive Mode`);
+    console.log(`\nSchool Line Mobile ${GAME_VERSION} · Competitive stats ${COMPETITIVE_STATS_VERSION} · PostgreSQL durable mode`);
     console.log(`Local: http://localhost:${PORT}`);
-    console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}
-`);
+    console.log(`LAN:   http://<이 컴퓨터의 IPv4 주소>:${PORT}\n`);
   });
+}
+
+async function shutdownSchoolLine(signal) {
+  console.log(`[shutdown] ${signal} received; waiting briefly for durable match writes...`);
+  const deadline = Date.now() + 8000;
+  while (pendingCompetitiveRecords.size && Date.now() < deadline) {
+    retryPendingCompetitiveRecords(Date.now());
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  if (pendingCompetitiveRecords.size) console.error(`[shutdown] ${pendingCompetitiveRecords.size} competitive record(s) still pending when shutdown deadline expired.`);
+  try { await durableStore.close(); } catch (_) {}
+  process.exit(0);
+}
+
+if (require.main === module) {
+  startSchoolLineServer().catch(err => {
+    console.error('\n[FATAL] School Line refused to start because durable PostgreSQL persistence is unavailable.');
+    console.error('[FATAL]', err?.stack || err);
+    console.error('[FATAL] No local JSON fallback will be used; this is intentional data-loss protection.\n');
+    process.exit(1);
+  });
+  process.once('SIGTERM', () => { void shutdownSchoolLine('SIGTERM'); });
+  process.once('SIGINT', () => { void shutdownSchoolLine('SIGINT'); });
 }
 
 module.exports = {
@@ -4803,7 +4970,7 @@ module.exports = {
   traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
-  competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload,
+  competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload, rebuildCompetitiveStatsFromMatches, statsSeriesForBalanceVersion, buildCompetitiveResult,
   teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate,
   normalizeRoomMode, roomDisplayName, publicRoomList, nextRoomDisplayNumber, createRoomAndJoin, joinRoom, leaveRoomExplicit, startMatch, rooms
 };

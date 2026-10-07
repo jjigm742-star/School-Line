@@ -1,12 +1,8 @@
-This data directory is intentionally included for the one-time statistics recovery deployment.
+School Line durable data policy (stats series 1.7+)
 
-competitive_stats.json contains:
-- 1.4: 15 matches with raw historical match records
-- 1.5: 0-match historical bucket
-- 1.6: 14 aggregate matches merged from two separate 1.6.2 exports
-- all-time total: 29 matches
-
-After the server writes a new result it will also rotate the previous file to competitive_stats.json.bak.
-The administrator stats export button now creates a FULL restorable backup, not a single-version screen export.
-
-player_accounts.json: 25 fixed classroom accounts. Admin panel can view/edit 4-digit PINs; server keeps a .bak after later edits.
+- Runtime competitive statistics are NOT stored in this folder.
+- Runtime player-account edits are NOT stored in this folder.
+- PostgreSQL is the only authoritative persistence layer.
+- data/player_accounts_seed.json is bootstrap data used only when the PostgreSQL account table is empty.
+- GitHub/Render redeploys may replace this whole directory without affecting accumulated statistics.
+- The server intentionally refuses to start without DATABASE_URL (or SCHOOL_LINE_DATABASE_URL).

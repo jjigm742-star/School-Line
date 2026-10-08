@@ -30,7 +30,7 @@ const CHARACTER_META = {
   light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.7.1';
+const VISUAL_ASSET_VERSION = '1.7.1-final';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
 const CHARACTER_ART = Object.freeze({

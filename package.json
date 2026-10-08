@@ -1,6 +1,6 @@
 {
   "name": "school-line",
-  "version": "1.7.1-visual",
+  "version": "1.7.1-visual-final",
   "private": true,
   "description": "School Line classroom 4v4 game server",
   "main": "server.js",

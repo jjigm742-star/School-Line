@@ -8,3 +8,4 @@ Only visual-layer changes were applied:
 - visual asset URLs cache-busted with ?v=1.7.1
 
 No server logic, gameplay values, persistence behavior, or statistics aggregation rules were changed.
+- 1.7.1-final: character-select portraits are cropped to show illustration only, and mecha portrait corruption is fixed.

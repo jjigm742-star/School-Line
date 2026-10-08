@@ -26,3 +26,4 @@ Visual notes:
 - 13 newly finalized character cards are now wired into portrait/token asset slots.
 - Token render size is normalized by the existing small / medium / large gameplay radius classes.
 - Character art URLs are versioned with ?v=1.7.1 for client cache refresh.
+- 1.7.1-final: character-select portraits are cropped to show illustration only, and mecha portrait corruption is fixed.

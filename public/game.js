@@ -30,34 +30,37 @@ const CHARACTER_META = {
   light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' }
 };
 
+const VISUAL_ASSET_VERSION = '1.7.1';
+const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
+
 const CHARACTER_ART = Object.freeze({
-  iron:    { portrait:'/assets/characters/iron/portrait.webp',    token:'/assets/characters/iron/token.webp',    renderScale:1.12 },
-  mecha:   { portrait:'/assets/characters/mecha/portrait.webp',   token:'/assets/characters/mecha/token.webp',   renderScale:1.00 },
-  jet:     { portrait:'/assets/characters/jet/portrait.webp',     token:'/assets/characters/jet/token.webp',     renderScale:1.00 },
-  dia:     { portrait:'/assets/characters/dia/portrait.webp',     token:'/assets/characters/dia/token.webp',     renderScale:1.08 },
-  solar:   { portrait:'/assets/characters/solar/portrait.webp',   token:'/assets/characters/solar/token.webp',   renderScale:1.00 },
-  shield:  { portrait:'/assets/characters/shield/portrait.webp',  token:'/assets/characters/shield/token.webp',  renderScale:1.00 },
-  runner:  { portrait:'/assets/characters/runner/portrait.webp',  token:'/assets/characters/runner/token.webp',  renderScale:1.00 },
-  shooter: { portrait:'/assets/characters/shooter/portrait.webp', token:'/assets/characters/shooter/token.webp', renderScale:1.00 },
-  sniper:  { portrait:'/assets/characters/sniper/portrait.webp',  token:'/assets/characters/sniper/token.webp',  renderScale:.98 },
-  cannon:  { portrait:'/assets/characters/cannon/portrait.webp',  token:'/assets/characters/cannon/token.webp',  renderScale:1.00 },
-  fire:    { portrait:'/assets/characters/fire/portrait.webp',    token:'/assets/characters/fire/token.webp',    renderScale:1.02 },
-  poison:  { portrait:'/assets/characters/poison/portrait.webp',  token:'/assets/characters/poison/token.webp',  renderScale:1.00 },
-  reactor: { portrait:'/assets/characters/reactor/portrait.webp', token:'/assets/characters/reactor/token.webp', renderScale:1.00 },
-  spray:   { portrait:'/assets/characters/spray/portrait.webp',   token:'/assets/characters/spray/token.webp',   renderScale:1.00 },
-  laser:   { portrait:'/assets/characters/laser/portrait.webp',   token:'/assets/characters/laser/token.webp',   renderScale:1.05 },
-  ice:     { portrait:'/assets/characters/ice/portrait.webp',     token:'/assets/characters/ice/token.webp',     renderScale:1.00 },
-  water:   { portrait:'/assets/characters/water/portrait.webp',   token:'/assets/characters/water/token.webp',   renderScale:1.02 },
-  wind:    { portrait:'/assets/characters/wind/portrait.webp',    token:'/assets/characters/wind/token.webp',    renderScale:1.00 },
-  star:    { portrait:'/assets/characters/star/portrait.webp',    token:'/assets/characters/star/token.webp',    renderScale:1.00 },
-  angel:   { portrait:'/assets/characters/angel/portrait.webp',   token:'/assets/characters/angel/token.webp',   renderScale:1.00 },
-  buffer:  { portrait:'/assets/characters/buffer/portrait.webp',  token:'/assets/characters/buffer/token.webp',  renderScale:1.00 },
-  light:   { portrait:'/assets/characters/light/portrait.webp',   token:'/assets/characters/light/token.webp',   renderScale:1.00 }
+  iron:    { portrait:artPath('/assets/characters/iron/portrait.webp'),    token:artPath('/assets/characters/iron/token.webp'),    renderScale:1.00 },
+  mecha:   { portrait:artPath('/assets/characters/mecha/portrait.webp'),   token:artPath('/assets/characters/mecha/token.webp'),   renderScale:1.00 },
+  jet:     { portrait:artPath('/assets/characters/jet/portrait.webp'),     token:artPath('/assets/characters/jet/token.webp'),     renderScale:1.00 },
+  dia:     { portrait:artPath('/assets/characters/dia/portrait.webp'),     token:artPath('/assets/characters/dia/token.webp'),     renderScale:1.00 },
+  solar:   { portrait:artPath('/assets/characters/solar/portrait.webp'),   token:artPath('/assets/characters/solar/token.webp'),   renderScale:1.00 },
+  shield:  { portrait:artPath('/assets/characters/shield/portrait.webp'),  token:artPath('/assets/characters/shield/token.webp'),  renderScale:1.00 },
+  runner:  { portrait:artPath('/assets/characters/runner/portrait.webp'),  token:artPath('/assets/characters/runner/token.webp'),  renderScale:1.00 },
+  shooter: { portrait:artPath('/assets/characters/shooter/portrait.webp'), token:artPath('/assets/characters/shooter/token.webp'), renderScale:1.00 },
+  sniper:  { portrait:artPath('/assets/characters/sniper/portrait.webp'),  token:artPath('/assets/characters/sniper/token.webp'),  renderScale:1.00 },
+  cannon:  { portrait:artPath('/assets/characters/cannon/portrait.webp'),  token:artPath('/assets/characters/cannon/token.webp'),  renderScale:1.00 },
+  fire:    { portrait:artPath('/assets/characters/fire/portrait.webp'),    token:artPath('/assets/characters/fire/token.webp'),    renderScale:1.00 },
+  poison:  { portrait:artPath('/assets/characters/poison/portrait.webp'),  token:artPath('/assets/characters/poison/token.webp'),  renderScale:1.00 },
+  reactor: { portrait:artPath('/assets/characters/reactor/portrait.webp'), token:artPath('/assets/characters/reactor/token.webp'), renderScale:1.00 },
+  spray:   { portrait:artPath('/assets/characters/spray/portrait.webp'),   token:artPath('/assets/characters/spray/token.webp'),   renderScale:1.00 },
+  laser:   { portrait:artPath('/assets/characters/laser/portrait.webp'),   token:artPath('/assets/characters/laser/token.webp'),   renderScale:1.00 },
+  ice:     { portrait:artPath('/assets/characters/ice/portrait.webp'),     token:artPath('/assets/characters/ice/token.webp'),     renderScale:1.00 },
+  water:   { portrait:artPath('/assets/characters/water/portrait.webp'),   token:artPath('/assets/characters/water/token.webp'),   renderScale:1.00 },
+  wind:    { portrait:artPath('/assets/characters/wind/portrait.webp'),    token:artPath('/assets/characters/wind/token.webp'),    renderScale:1.00 },
+  star:    { portrait:artPath('/assets/characters/star/portrait.webp'),    token:artPath('/assets/characters/star/token.webp'),    renderScale:1.00 },
+  angel:   { portrait:artPath('/assets/characters/angel/portrait.webp'),   token:artPath('/assets/characters/angel/token.webp'),   renderScale:1.00 },
+  buffer:  { portrait:artPath('/assets/characters/buffer/portrait.webp'),  token:artPath('/assets/characters/buffer/token.webp'),  renderScale:1.00 },
+  light:   { portrait:artPath('/assets/characters/light/portrait.webp'),   token:artPath('/assets/characters/light/token.webp'),   renderScale:1.00 }
 });
 
 // Character art is visual-only. All 22 characters already have stable asset slots.
 // Missing files show a placeholder in the picker and use the legacy circle + emoji in-game.
-// Adding portrait.webp/token.webp later at the conventional path activates them without layout changes.
+// 1.7.1 visual update: all 22 characters now have wired portrait/token asset slots.
 const CHARACTER_TOKEN_IMAGES = new Map();
 function characterArt(id) { return CHARACTER_ART[id] || null; }
 function characterTokenImage(id) {

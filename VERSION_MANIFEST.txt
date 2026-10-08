@@ -1,6 +1,7 @@
 School Line Mobile
 Gameplay balance: Alpha 1.6.2 (gameplay values unchanged from the supplied authoritative build)
 Competitive statistics series: 1.7 RESET
+Visual asset update: 1.7.1 (illustration replacement + minimi replacement + size-class normalization)
 Persistence architecture: PostgreSQL durable-only v1
 
 Data policy:
@@ -19,3 +20,9 @@ Admin stats UI:
 Roster evolution:
 - Every raw match stores availableCharacters + rosterSnapshot + rosterVersion.
 - New characters only accrue availableMatches after they exist in the roster.
+
+Visual notes:
+- Server logic, statistics handling, and gameplay balance are intentionally frozen.
+- 13 newly finalized character cards are now wired into portrait/token asset slots.
+- Token render size is normalized by the existing small / medium / large gameplay radius classes.
+- Character art URLs are versioned with ?v=1.7.1 for client cache refresh.

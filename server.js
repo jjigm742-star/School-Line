@@ -2574,7 +2574,11 @@ function onMessage(conn, msg) {
     return;
   }
   if (msg.type === 'ultimate' && room.state === 'playing') {
-    activateUltimate(room, player, Date.now(), msg.targetId || null);
+    // Laser/Light cast direction is a one-shot snapshot sent with the button press.
+    // It must not depend on fire=true or on a previously received 30 Hz input packet.
+    const castAim = (player.character === 'laser' || player.character === 'light')
+      ? { x: msg.aimDirX, y: msg.aimDirY } : null;
+    activateUltimate(room, player, Date.now(), msg.targetId || null, castAim);
     return;
   }
   if (msg.type === 'link_target' && room.state === 'playing') {
@@ -3501,10 +3505,17 @@ function spawnDiaUltimateVolley(room, player, now) {
 
 // Alpha 1.8 ultimate prototype: one canonical wall-agnostic rectangular hit test.
 // A target's body center, not radius overlap, determines inclusion; snapshot caster aim.
-function ultimateRectDirection(player) {
-  const dx = player.aimX - player.x, dy = player.aimY - player.y;
+function ultimateRectDirection(player, castAim = null) {
+  // Explicit muzzle direction takes precedence at cast time, even while not attacking.
+  // Legacy clients without this field still use their last authoritative aim target.
+  const explicitX = castAim?.x, explicitY = castAim?.y;
+  const hasExplicitAim = typeof explicitX === 'number' && typeof explicitY === 'number'
+    && Number.isFinite(explicitX) && Number.isFinite(explicitY)
+    && Math.hypot(explicitX, explicitY) > 1e-6;
+  const dx = hasExplicitAim ? explicitX : player.aimX - player.x;
+  const dy = hasExplicitAim ? explicitY : player.aimY - player.y;
   const len = Math.hypot(dx, dy);
-  if (len < 1e-6) return { dx: 0, dy: player.team === 'A' ? 1 : -1 };
+  if (!(len > 1e-6) || !Number.isFinite(len)) return { dx: 0, dy: player.team === 'A' ? 1 : -1 };
   return { dx: dx / len, dy: dy / len };
 }
 function ultimateRectContains(x, y, dx, dy, length, width, target) {
@@ -3556,7 +3567,7 @@ function resolveRunnerBombs(room, now) {
   room.pendingRunnerBombs = remaining;
 }
 
-function activateUltimate(room, player, now = Date.now(), targetId = null) {
+function activateUltimate(room, player, now = Date.now(), targetId = null, castAim = null) {
   if (!room || !player || !player.alive || isStunned(player, now)) return false;
   const def = CHARACTERS[player.character];
   const cost = ultimateCostForPlayer(player);
@@ -3571,7 +3582,10 @@ function activateUltimate(room, player, now = Date.now(), targetId = null) {
     emitPrototypeUltimateFx(room, { kind: 'runner_bomb_attach', x: target.x, y: target.y, targetId: target.id, team: player.team });
     activated = true;
   } else if (player.character === 'laser' || player.character === 'light') {
-    const { dx, dy } = ultimateRectDirection(player);
+    const { dx, dy } = ultimateRectDirection(player, castAim);
+    // Keep the visible gun orientation consistent with the one-shot cast direction.
+    player.aimX = player.x + dx * 24;
+    player.aimY = player.y + dy * 24;
     let effectiveDamage = 0;
     for (const target of room.players.values()) {
       if (!target.alive || target.id === player.id) continue;

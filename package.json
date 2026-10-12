@@ -12,7 +12,8 @@
     "test:heal-pierce": "node tests/heal_pierce_selftest.js",
     "test:1.8.2": "node tests/balance_1_8_2_selftest.js",
     "test:light-buffer": "node tests/light_buffer_selftest.js",
-    "test:1.8-release": "node tests/release_1_8_selftest.js"
+    "test:1.8-release": "node tests/release_1_8_selftest.js",
+    "test:aim-hotfix": "node tests/ultimate_aim_hotfix_selftest.js"
   },
   "engines": {
     "node": ">=20"

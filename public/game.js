@@ -837,7 +837,8 @@ renderPicker('lobby');
 let keys = { up:false, down:false, left:false, right:false };
 let mouseWorld = { x: 21, y: 34 };
 let firing = false;
-let lastAimDir = { x: 0, y: 1 }; // world direction, A->B by default
+let lastAimDir = { x: 0, y: 1 }; // persisted muzzle direction even after the aim stick is released
+let desktopAimSeen = false;
 
 // Mouse-only desktop clients never use the virtual joysticks. Hide their large
 // pointer zones entirely so every battlefield mouse click reaches the canvas.
@@ -2292,8 +2293,12 @@ function handleMessage(msg) {
       startBgm();
       show('game');
       const me = spectatorMode ? null : state.players.find(p => p.id === myId);
-      if (me && !rightStick.active) {
+      // Set initial direction only on entry (or a team change), not on EVERY
+      // state snapshot. Otherwise releasing the mobile aim stick loses facing.
+      const previousMe = previousState?.players?.find(p => p.id === myId);
+      if (me && !rightStick.active && (startedPlaying || (previousMe && previousMe.team !== me.team))) {
         lastAimDir = me.team === 'A' ? {x:0,y:1} : {x:0,y:-1};
+        desktopAimSeen = false;
       }
       if (startedPlaying && me) showCharacterIntroTip(me.character);
     } else if (state.state === 'draft' || state.state === 'ready') {
@@ -2444,7 +2449,25 @@ function useUltimate() {
   }
   const payload = { type:'ultimate' };
   if (selectedTargetId) payload.targetId = selectedTargetId;
+  if (me.character === 'laser' || me.character === 'light') {
+    // Snapshot the muzzle at the button press; no need to hold the fire stick.
+    const dir = currentUltimateMuzzleDirection(me);
+    payload.aimDirX = dir.x;
+    payload.aimDirY = dir.y;
+  }
   ws.send(JSON.stringify(payload));
+}
+
+function currentUltimateMuzzleDirection(me) {
+  // Mobile: persisted right-stick heading, even after fire becomes false.
+  // Desktop: current cursor target; if untouched, use the visible server muzzle.
+  const dx = HAS_TOUCH_INPUT ? Number(lastAimDir.x) :
+    (desktopAimSeen ? mouseWorld.x - me.x : Number(me.aimX) - me.x);
+  const dy = HAS_TOUCH_INPUT ? Number(lastAimDir.y) :
+    (desktopAimSeen ? mouseWorld.y - me.y : Number(me.aimY) - me.y);
+  const len = Math.hypot(dx, dy);
+  if (Number.isFinite(len) && len > 1e-6) return { x: dx/len, y: dy/len };
+  return { x: 0, y: me.team === 'A' ? 1 : -1 };
 }
 
 async function enterGameDisplayMode() {
@@ -3182,6 +3205,7 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('mousemove', e => {
   if (matchMedia('(pointer:fine)').matches) {
     const p = clientToWorld(e.clientX, e.clientY); mouseWorld.x = p.x; mouseWorld.y = p.y;
+    desktopAimSeen = true;
   }
 });
 canvas.parentElement.addEventListener('pointerdown', e => {
@@ -3309,7 +3333,9 @@ setInterval(() => {
   if (spectatorMode) return;
   if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;
   const me = state.players.find(p => p.id === myId);
-  if (me && rightStick.active) {
+  if (me && HAS_TOUCH_INPUT) {
+    // Anchor the last muzzle heading to the moving player even while idle.
+    // A fixed world-space aim point would rotate the muzzle as the player walks.
     mouseWorld.x = me.x + lastAimDir.x * 24;
     mouseWorld.y = me.y + lastAimDir.y * 24;
   }

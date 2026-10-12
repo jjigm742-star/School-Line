@@ -1,13 +1,18 @@
 {
   "name": "school-line",
-  "version": "1.7.1-visual-final",
+  "version": "1.8.0",
   "private": true,
   "description": "School Line classroom 4v4 game server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "check": "node --check server.js && node --check durable_store.js && node --check public/game.js",
-    "test:stats": "node tests/stats_persistence_selftest.js"
+    "test:stats": "node tests/stats_persistence_selftest.js",
+    "test:ult": "node tests/ultimate_rework_selftest.js",
+    "test:heal-pierce": "node tests/heal_pierce_selftest.js",
+    "test:1.8.2": "node tests/balance_1_8_2_selftest.js",
+    "test:light-buffer": "node tests/light_buffer_selftest.js",
+    "test:1.8-release": "node tests/release_1_8_selftest.js"
   },
   "engines": {
     "node": ">=20"

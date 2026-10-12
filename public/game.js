@@ -14,7 +14,7 @@ const CHARACTER_META = {
   shield:  { role:'탱커', name:'쉴드', icon:'🛡️', summary:'멀리 있는 아군에게 순간 보호막을 씌우는 보호형 탱커' },
   runner:  { role:'딜러', name:'러너', icon:'🏃', summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러' },
   shooter: { role:'딜러', name:'슈터', icon:'🎯', summary:'가장 표준적인 원거리 딜러' },
-  sniper:  { role:'딜러', name:'스나이퍼', icon:'🔭', summary:'멀수록 한 발이 강해지는 초장거리 딜러' },
+  sniper:  { role:'딜러', name:'스나이퍼', icon:'🔭', summary:'36m까지 일정한 화력으로 공격하는 초장거리 딜러' },
   cannon:  { role:'딜러', name:'캐논', icon:'💥', summary:'기동성을 버리고 화력을 얻은 중화기 딜러' },
   fire:    { role:'딜러', name:'파이어', icon:'🔥', summary:'빠르게 움직이며 지속 피해를 남기는 딜러' },
   poison:  { role:'딜러', name:'포이즌', icon:'☠️', summary:'외부 치유를 약화시키는 안티힐 광선 딜러' },
@@ -250,9 +250,6 @@ function buildCharacterStats(id) {
   } else if (id === 'reactor' && Array.isArray(c.reactorOutputBands)) {
     throughput = c.reactorOutputBands.map(b => fmtNumber(Number(b.damage || 0) * Number(c.fireRate || 0))).join(' / ');
     rate = `${fmtNumber(c.fireRate)}발/s`;
-  } else if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) {
-    throughput = c.distanceDamageBands.map(b => fmtNumber(Number(b.damage || 0) * Number(c.fireRate || 0))).join(' / ');
-    rate = `${fmtNumber(c.fireRate)}발/s`;
   } else if (id === 'spray') {
     const centerDps = Number(c.damage || 0) * Number(c.fireRate || 0);
     const sideDps = Number(c.spraySideDamage || 0) * Number(c.fireRate || 0);
@@ -322,7 +319,6 @@ function buildCharacterMini(id, meta) {
   }
   if (c.attackType === 'lightBeam') return `${fmtNumber(c.healHps)} HPS · ${move}`;
   if (id === 'reactor' && Array.isArray(c.reactorOutputBands)) return `${c.reactorOutputBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
-  if (id === 'sniper' && Array.isArray(c.distanceDamageBands)) return `${c.distanceDamageBands.map(b=>fmtNumber(Number(b.damage||0)*Number(c.fireRate||0))).join('/')} DPS · ${move}`;
   if (id === 'spray') {
     const centerDps = Number(c.damage||0)*Number(c.fireRate||0);
     return `중심 ${fmtNumber(centerDps)} DPS`;
@@ -334,17 +330,16 @@ function buildCharacterMini(id, meta) {
 function buildCharacterMechanic(id, fallback='') {
   const c = characterPublicDef(id);
   if (!c) return fallback;
-  const bands = Array.isArray(c.distanceDamageBands) ? c.distanceDamageBands : [];
   switch (id) {
     case 'iron': return '높은 체력으로 전선을 버티며 느린 투사체로 압박합니다.';
     case 'mecha': return '짧은 사거리 대신 높은 체력과 빠른 이동속도로 공간을 장악합니다.';
     case 'jet': return '부스터로 최대 12m 돌진하고 종료 후 보호막 50을 얻습니다.';
-    case 'dia': return '6초간 다이아폼으로 변신해 이동속도 7.0과 90 DPS 광선을 얻으며, 폼에서 직접 처치하면 남은 쿨다운이 줄어듭니다.';
+    case 'dia': return '6초간 다이아폼으로 변신해 이동속도 7.0과 95 DPS 광선을 얻습니다. 폼 상태와 관계없이 적 처치 시 폼체인지 쿨타임이 6초 감소합니다.';
     case 'solar': return '광선과 태양탄을 함께 사용하며, 태양탄이 실제 HP에 피해를 주면 자신을 회복합니다.';
     case 'shield': return '거리 제한 없이 자신 또는 아군에게 보호막을 부여하며 최대 2회 충전됩니다.';
     case 'runner': return '질주를 사용하면 4초간 이동속도가 1단계 상승합니다.';
     case 'shooter': return '매우 빠른 투사체로 안정적인 기본 공격에 집중합니다.';
-    case 'sniper': return '매우 빠른 장거리 투사체를 사용합니다.';
+    case 'sniper': return '거리에 관계없이 일정한 피해를 주며, 본인에게만 36m 조준 점선이 표시됩니다.';
     case 'cannon': return '높은 연사 화력 대신 이동속도가 매우 느립니다.';
     case 'fire': return '공격 적중 시 2초간 10 DPS의 화상을 남기며, 화상 중에는 대상이 받는 외부 치유량이 30% 감소합니다.';
     case 'poison': return '광선 적중 시 대상이 받는 외부 치유량을 50% 감소시킵니다.';
@@ -356,8 +351,8 @@ function buildCharacterMechanic(id, fallback='') {
     case 'wind': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 순풍으로 팀의 이동속도도 높입니다.';
     case 'star': return '매우 빠른 장거리 투사체로 아군을 치유하고 적에게 50 DPS를 줄 수 있습니다.';
     case 'angel': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 축복으로 어디서든 아군을 도울 수 있습니다.';
-    case 'buffer': return '아군 한 명을 연결해 45 HPS와 공격속도 25% 증가를 제공합니다.';
-    case 'light': return '광선으로 아군을 치유하고 그 뒤의 적에게 동시에 피해를 줄 수 있습니다.';
+    case 'buffer': return '아군 한 명을 연결해 40 HPS와 공격속도 25% 증가를 제공합니다.';
+    case 'light': return '광선이 아군·적을 모두 관통해 각각 가장 가까운 한 명을 치유·공격합니다. (풀피 아군도 대상)';
     default: return fallback;
   }
 }
@@ -485,7 +480,7 @@ function renderPicker(kind) {
   const displayRole = publicDef?.role || m.role;
   const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
   const statHtml = buildCharacterStats(detailId).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
-  const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">빨간색 원 밖의 적에게 더 높은 피해를 줍니다.</div>' : '';
+  const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">사거리 36m 조준 점선은 스나이퍼 본인에게만 표시됩니다.</div>' : '';
   const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 25%를 자신이 회복합니다.</div>' : '';
   const portraitHtml = characterPortraitHtml(detailId, displayName);
   detail.classList.add('has-character-art');
@@ -1200,7 +1195,7 @@ function playCharacterUltimateCue(character, local=false) {
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760};
+  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,runnerBombAttached:3000,runnerBombExplosion:650};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -1409,6 +1404,8 @@ function processCombatFeedback(previousState, nextState) {
         for (const target of afterById.values()) {
           if (target.alive && target.team === after.team) addCharacterUltimateFx({...target, character:'shield'}, 'recipient');
         }
+      } else if (after.character === 'laser' || after.character === 'light') {
+        // Instant rectangle FX use the exact server-captured position and aim (ultimate_fx message).
       } else if (after.character === 'angel') {
         // Miracle is a targeted protection ultimate. Put its strong wings/halo on the
         // player whose invulnerability actually increased, rather than on Angel merely
@@ -2078,6 +2075,20 @@ $('spectatorJoinButton').onclick = () => {
 };
 
 function handleMessage(msg) {
+  if (msg.type === 'ultimate_fx') {
+    if (msg.kind === 'rect') {
+      addWorldFx('ultimateRectHit', { x:msg.x, y:msg.y, character:msg.character, team:msg.team }, {
+        dx:Number(msg.dx)||0, dy:Number(msg.dy)||0, length:Number(msg.length)||24, width:Number(msg.width)||6
+      });
+    } else if (msg.kind === 'runner_bomb_attach') {
+      addWorldFx('runnerBombAttached', { x:msg.x, y:msg.y, character:'runner', team:msg.team }, { targetId:msg.targetId });
+    } else if (msg.kind === 'runner_bomb_explode') {
+      // Discard any stale fuse indicator on that victim.
+      for (let i=worldFx.length-1;i>=0;i--) if (worldFx[i].type==='runnerBombAttached' && worldFx[i].targetId===msg.targetId) worldFx.splice(i,1);
+      addWorldFx('runnerBombExplosion', { x:msg.x, y:msg.y, character:'runner', team:msg.team });
+    }
+    return;
+  }
   if (msg.type === 'room_closed') {
     const message = msg.message || '경기가 종료되어 방이 자동으로 닫혔습니다.';
     resetPostGameSequence();
@@ -2427,6 +2438,10 @@ function useUltimate() {
   const def = config && config.characters ? config.characters[me.character] : null;
   const cost = Math.max(0, Number(def && def.ultimateCost) || 0);
   if (cost <= 0 || (Number(me.ultimateCharge) || 0) + 1e-9 < cost) return;
+  if (me.character === 'runner') {
+    const target = state.players.find(p => p.id === selectedTargetId && p.alive);
+    if (!target || target.team === me.team || !targetSelectionState(me, target)?.inRange) return;
+  }
   const payload = { type:'ultimate' };
   if (selectedTargetId) payload.targetId = selectedTargetId;
   ws.send(JSON.stringify(payload));
@@ -2452,7 +2467,6 @@ function contributionSpecialLine(character, stats) {
   if (character === 'wind') return `순풍으로 가속된 팀원 ${formatContributionNumber(stats.tailwindApplications)}명`;
   if (character === 'poison') return `감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
   if (character === 'reactor') return `출력 에너지 3단계 유지 시간 ${formatContributionNumber(stats.reactorStage3Seconds)}초`;
-  if (character === 'sniper') return `장거리 피해량 ${formatContributionNumber(stats.sniperLongRangeDamage)}`;
   if (character === 'solar') return `태양탄으로 회복한 체력 ${formatContributionNumber(stats.solarProjectileHealing)}`;
   if (character === 'angel') return `축복으로 회복한 체력 ${formatContributionNumber(stats.angelBlessingHealing)}`;
   if (character === 'dia') return `다이아폼 킬 ${formatContributionNumber(stats.diaFormKills)}회`;
@@ -3114,7 +3128,7 @@ function currentTargetingRule() {
   if (!state || !config || !myId) return null;
   const me = state.players.find(p => p.id === myId);
   const def = me && config.characters && config.characters[me.character] ? config.characters[me.character] : null;
-  return def ? (def.linkTargeting || def.abilityTargeting || null) : null;
+  return def ? (def.ultimateTargeting || def.linkTargeting || def.abilityTargeting || null) : null;
 }
 function selectableTargetAt(clientX, clientY) {
   const rule = currentTargetingRule();
@@ -3354,7 +3368,9 @@ function liveVisualBeams(viewState, nowMs=performance.now()) {
       const t=visualSegmentAabbT(x1,y1,x2,y2,Number(w.x),Number(w.y),Number(w.x)+Number(w.w),Number(w.y)+Number(w.h));
       if (t!==null && t>1e-6 && t<bestT) { bestT=t; impact='wall'; }
     }
-    for (const target of viewState.players) {
+    // Light's dual-purpose beam pierces both teams. Only world/solid walls
+    // truncate its visual ray; other beam characters still stop on enemies.
+    if (p.character!=='light') for (const target of viewState.players) {
       if (!target?.alive || target.id===p.id || target.team===p.team) continue;
       const tr=Number(config?.characters?.[target.character]?.radius || .8);
       const targetPos=renderedPlayerWorldPosition(target, nowMs);
@@ -3552,7 +3568,36 @@ function drawWorldFx(nowMs) {
     const a=worldToScreen(fx.x,fx.y);
     const c=fxCharacterColor(fx.character);
     ctx.save();
-    if (fx.type==='muzzle') {
+    if (fx.type === 'ultimateRectHit') {
+      const length=(Number(fx.length)||24), half=(Number(fx.width)||6)/2;
+      const dx=Number(fx.dx)||0, dy=Number(fx.dy)||0;
+      const ax=-dy, ay=dx;
+      const verts=[
+        worldToScreen(fx.x+ax*half,fx.y+ay*half),
+        worldToScreen(fx.x+dx*length+ax*half,fx.y+dy*length+ay*half),
+        worldToScreen(fx.x+dx*length-ax*half,fx.y+dy*length-ay*half),
+        worldToScreen(fx.x-ax*half,fx.y-ay*half)
+      ];
+      const col=fx.character==='light' ? '#e7cc43' : '#d83273';
+      ctx.beginPath(); verts.forEach((v,k)=>k===0?ctx.moveTo(v.x,v.y):ctx.lineTo(v.x,v.y)); ctx.closePath();
+      ctx.globalAlpha=(1-q)*.22; ctx.fillStyle=col; ctx.fill();
+      ctx.globalAlpha=(1-q)*.92; ctx.strokeStyle=col; ctx.lineWidth=5-2*q; ctx.stroke();
+      const c1=worldToScreen(fx.x,fx.y), c2=worldToScreen(fx.x+dx*length,fx.y+dy*length);
+      ctx.globalAlpha=(1-q)*.86; ctx.lineWidth=2.3; ctx.beginPath();ctx.moveTo(c1.x,c1.y);ctx.lineTo(c2.x,c2.y);ctx.stroke();
+    } else if (fx.type === 'runnerBombAttached') {
+      const victim=state?.players?.find(p=>p.id===fx.targetId && p.alive);
+      if (victim) {
+        const pos=worldToScreen(victim.x,victim.y);
+        const r=13+2*Math.sin(nowMs*.015);
+        ctx.globalAlpha=.85; ctx.strokeStyle='#d46b13'; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(pos.x,pos.y,r,-Math.PI/2,-Math.PI/2+2*Math.PI*(1-q));ctx.stroke();
+        ctx.font='bold 17px system-ui';ctx.textAlign='center';ctx.fillText('💣',pos.x,pos.y-18);
+      }
+    } else if (fx.type === 'runnerBombExplosion') {
+      ctx.globalAlpha=(1-q)*.92; ctx.strokeStyle='#e6781d'; ctx.lineWidth=5*(1-q)+1;
+      ctx.beginPath();ctx.arc(a.x,a.y,7+q*38,0,Math.PI*2);ctx.stroke();
+      ctx.globalAlpha=(1-q)*.21;ctx.fillStyle='#f4a236';ctx.beginPath();ctx.arc(a.x,a.y,6+q*23,0,Math.PI*2);ctx.fill();
+    } else if (fx.type==='muzzle') {
       ctx.globalAlpha=(1-q)*.85;
       ctx.fillStyle=c;
       ctx.beginPath(); ctx.arc(a.x,a.y,2.5+(1-q)*3.5,0,Math.PI*2); ctx.fill();
@@ -3937,23 +3982,34 @@ function renderGame() {
 
   drawWorldFx(beamFxNow);
 
-  // Sniper-only local distance guide. This is a purely client-side aid: the
-  // first damage-band boundary (currently 16 m) is drawn only for the player
-  // controlling Sniper, never for opponents or spectators.
+  // Only the player controlling Sniper sees their 36 m directional guide.
+  // Rendered locally, never sent as a separate network event or shown to spectators.
   if (!spectatorMode) {
     const sniperGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && p.character === 'sniper');
     if (sniperGuidePlayer) {
       const sniperDef = characterPublicDef('sniper');
-      const guideRadiusWorld = Number(sniperDef?.distanceDamageBands?.[0]?.max || 16);
-      const guideWorld = renderedPlayerWorldPosition(sniperGuidePlayer, beamFxNow);
-      const guideScreen = worldToScreen(guideWorld.x, guideWorld.y);
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255,0,0,.92)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(guideScreen.x, guideScreen.y, guideRadiusWorld * SCALE, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+      const range = Number(sniperDef?.range) || 36;
+      const origin = renderedPlayerWorldPosition(sniperGuidePlayer, beamFxNow);
+      // Prefer active local thumb aim to avoid 10 Hz snapshot-angle lag on mobile.
+      // Otherwise match the direction that the server uses for projectile firing.
+      const guideDx = rightStick.active ? lastAimDir.x : Number(sniperGuidePlayer.aimX) - Number(sniperGuidePlayer.x);
+      const guideDy = rightStick.active ? lastAimDir.y : Number(sniperGuidePlayer.aimY) - Number(sniperGuidePlayer.y);
+      const len = Math.hypot(guideDx, guideDy);
+      if (len > 1e-6 && range > 0) {
+        const from = worldToScreen(origin.x, origin.y);
+        const to = worldToScreen(origin.x + guideDx / len * range, origin.y + guideDy / len * range);
+        ctx.save();
+        ctx.globalAlpha = .38;
+        ctx.strokeStyle = '#9676cc';
+        ctx.lineWidth = 1.4;
+        ctx.lineCap = 'round';
+        ctx.setLineDash([4, 8]);
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // Local-only pre-cast radius guide for Iron/Water. Opponents never see this readiness guide;
@@ -4312,8 +4368,12 @@ function renderGame() {
     if (ultCost > 0) {
       ultimateButton.classList.remove('hidden');
       ultimateButton.classList.toggle('ready', ultReady);
-      ultimateButton.disabled = !me.alive || me.stunned || !ultReady;
-      ultimateButton.textContent = ultReady ? `⚡ ${ultDef?.ultimateName || '궁극기'} · R` : `⚡ ${ultPct}%`;
+      const bombTarget = me.character === 'runner' ? viewState.players.find(p => p.id === selectedTargetId && p.alive && p.team !== me.team) : null;
+      const bombReady = me.character !== 'runner' || (bombTarget && targetSelectionState(me, bombTarget)?.inRange);
+      ultimateButton.disabled = !me.alive || me.stunned || !ultReady || !bombReady;
+      ultimateButton.textContent = !ultReady ? `⚡ ${ultPct}%` : (me.character === 'runner'
+        ? (bombReady ? `💣 부착 · ${bombTarget.name} · R` : '💣 적 선택 (6m)')
+        : `⚡ ${ultDef?.ultimateName || '궁극기'} · R`);
     } else {
       ultimateButton.classList.add('hidden');
       ultimateButton.classList.remove('ready');

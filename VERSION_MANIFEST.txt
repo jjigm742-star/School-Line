@@ -1,3 +1,36 @@
+SCHOOL LINE 1.8 OFFICIAL SOURCE RELEASE
+==================================
+Official source package version: 1.8 (package.json: 1.8.0), competitive stats series: 1.8.
+Based on the isolated 1.8.2 Light/Buffer adjustment prototype, with final Dia/Iron changes.
+
+Dia: Normal-form OR Dia-form credited kills reduce remaining Form Change cooldown by 6s; Form beam 90 -> 95 DPS.
+Iron: incoming DR 20% -> 10%, projectile speed 14 -> 20m/s, Pulverize stun 1.5 -> 2.0s.
+All earlier 1.8 ultimate, heal-pierce, Runner/Sniper/Shooter, Light/Buffer changes retained.
+Source archive only: NOT deployed; GitHub, live service, PostgreSQL, account records, and historical match records untouched.
+See README_1.8_RELEASE.md for verification and deployment precautions.
+
+--- Historical development notes (pre-1.8 release) ---
+ALPHA 1.8.2 LIGHT / BUFFER ADJUSTMENT PROTOTYPE — NOT THE 1.7 PRODUCTION BUILD
+Based on School_Line_1.8.2_Sniper_Tuning_Prototype.zip.
+Gameplay version: 1.8.2-light-buffer-prototype; competitive stats series: 1.8 (no reset).
+Changes: Light basic beam +0.5m ally/+0.2m enemy collision padding, 1 allied + 1 enemy independently selected, ray passes all character bodies but stops at walls; Buffer base link heal 40 HPS (ultimate 65 HPS unchanged).
+The official live 1.7 game and its accounts/match statistics were not modified.
+See README_LIGHT_BUFFER_ADJUSTMENT.md.
+
+--- Historical 1.8.2 manifest ---
+ALPHA 1.8.2 ULTIMATE REWORK + HEAL-PIERCE + RUNNER/SNIPER/SHOOTER TUNING — NOT THE 1.7 PRODUCTION BUILD
+Input: School_Line_1.8.1_Heal_Pierce_Prototype.zip
+Gameplay version: 1.8.2-prototype; competitive stats series: 1.8. Production match/account data are untouched.
+See README_1.8.2_TUNING.md for new changes, independent verification and deployment cautions.
+
+--- Historical 1.8.1 / 1.8 / 1.7.1 manifest ---
+ALPHA 1.8.1 ULTIMATE REWORK + FULL-HP HEAL-PIERCE PROTOTYPE — NOT THE 1.7 PRODUCTION BUILD
+Source: School_Line_1.7.1_Visual_Update_Final_for_download(1).zip
+Gameplay differences: 5 ultimate reworks (Runner/Laser/Fire/Spray/Light) + full-HP ally pass-through for heal-type projectiles.
+Gameplay version: 1.8.1-prototype; competitive stats series 1.8 is logically separate from 1.7.
+DO NOT DEPLOY AGAINST THE LIVE PRODUCTION DATABASE DURING EXPERIMENTS.
+
+--- Original 1.7.1 source manifest (historical baseline) ---
 School Line Mobile
 Gameplay balance: Alpha 1.6.2 (gameplay values unchanged from the supplied authoritative build)
 Competitive statistics series: 1.7 RESET

@@ -54,7 +54,7 @@ ok(serverSrc.includes('x: msg.aimDirX, y: msg.aimDirY'),'server forwards one-sho
 ok(clientSrc.includes('payload.aimDirX = dir.x')&&clientSrc.includes('payload.aimDirY = dir.y'),'client sends fresh aim in ultimate packet');
 ok(clientSrc.includes('startedPlaying || (previousMe && previousMe.team !== me.team)'),'snapshot facing reset limited to match entry/team change');
 ok(clientSrc.includes('if (me && HAS_TOUCH_INPUT)'),'mobile idle aiming position follows player while walking');
-ok(html.includes('game.js?v=1.8-aim-buffer-display-fix1'),'JS cache bust present');
+ok(html.includes('game.js?v=1.9-four-heroes-release1'),'JS cache bust present');
 eq(game.CHARACTERS.buffer.linkHealHps,40,'buffer server base 40 HPS');
 eq(game.CHARACTERS.buffer.ultimateLinkHealHps,65,'buffer ult 65 HPS');
 ok(clientSrc.includes("case 'buffer': return '아군 한 명을 연결해 40 HPS"),'buffer description 40 HPS');

@@ -33,7 +33,7 @@ function run(room,time){updateRoom(room,1/50,time);}
 {
  const room=newTestRoom(),r=makePlayer(room,'r','runner','A',21,21),enemy=makePlayer(room,'e','iron','B',21,24);
  eq(activateUltimate(room,r,NOW,'e'),true,'bomb attach second');game.die(room,r,NOW+50);eq(r.alive,false,'owner dead');
- run(room,NOW+3020);near(enemy.hp,397.5,'bomb persists after owner death with new iron 10% DR');
+ run(room,NOW+3020);near(enemy.hp,375,'bomb persists after owner death with new iron 10% DR');
 }
 {
  const room=newTestRoom(),r=makePlayer(room,'r','runner','A',21,21),e=makePlayer(room,'e','shooter','B',21,24);
@@ -45,8 +45,8 @@ function run(room,time){updateRoom(room,1/50,time);}
  const room=newTestRoom(),l=makePlayer(room,'l','laser','A',21,21),a=makePlayer(room,'a','iron','B',21,30),b=makePlayer(room,'b','shooter','B',23.5,40),outside=makePlayer(room,'o','runner','B',25,30),rear=makePlayer(room,'back','water','B',21,20);
  b.hp=80;b.shield=40;b.maxShield=500;
  eq(activateUltimate(room,l,NOW),true,'laser cast');
- near(a.hp,429,'iron 600 HP -> 190 raw × 0.9 = 171 actual');near(b.hp,35,'250 max HP -> 85 effective; 40 shield then 45 hp');eq(outside.hp,175,'outside rectangle safe');eq(rear.hp,250,'behind caster safe');
- near(l.shield,256,'laser shield equals effective 171+85');eq(l.shieldUntil,NOW+3000,'shield expires 3s');
+ near(a.hp,410,'iron 600 HP -> 190 raw × 0.9 = 171 actual');near(b.hp,35,'250 max HP -> 85 effective; 40 shield then 45 hp');eq(outside.hp,175,'outside rectangle safe');eq(rear.hp,250,'behind caster safe');
+ near(l.shield,275,'laser shield equals effective 171+85');eq(l.shieldUntil,NOW+3000,'shield expires 3s');
  eq(room.projectiles.size,0,'rect attack spawns no real projectiles');
  eq(room.sentFx.some(x=>x.type==='ultimate_fx'&&x.kind==='rect'&&x.character==='laser'),true,'laser rectangle FX dispatched');
  eq(l.ultimateCharge,0,'laser impact not recycled');
@@ -106,7 +106,7 @@ console.log(`PASS: ${tests} focused School Line 1.8 ultimate rework assertions`)
  activateUltimate(room,f,NOW);
  for(const proj of room.projectiles.values()) {proj.x=21;proj.y=22;proj.vx=0;proj.vy=28;}
  updateProjectiles(room,.10,NOW+100);
- near(e.hp,564,'five guaranteed fire hit candidates resolve only one 40 × iron DR 0.9');
+ near(e.hp,560,'five guaranteed fire hit candidates resolve only one 40 × iron DR 0.9');
  const burn=game.getStatus(e,'burn',NOW+100);
  ok(burn && burn.until===NOW+2100,'guaranteed fire burn exactly 2s');
  eq(f.ultimateCharge,0,'fire status no charge');
@@ -116,7 +116,7 @@ console.log(`PASS: ${tests} focused School Line 1.8 ultimate rework assertions`)
  activateUltimate(room,s,NOW);
  for(const proj of room.projectiles.values()) {proj.x=21;proj.y=22;proj.vx=0;proj.vy=28;}
  updateProjectiles(room,.10,NOW+100);
- near(e.hp,577.5,'eight guaranteed spray hit candidates resolve only one 25 × iron DR 0.9');
+ near(e.hp,575,'eight guaranteed spray hit candidates resolve only one 25 × iron DR 0.9');
 }
 {
  const room=newTestRoom(),l=makePlayer(room,'l','laser','A',21,21),e=makePlayer(room,'e','iron','B',21,30);

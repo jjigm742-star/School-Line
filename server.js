@@ -53,7 +53,7 @@ const ADMIN_STATS_LOCK_MS = 30000;
 const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN hash; plaintext never leaves the browser request.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.8';
+const BALANCE_VERSION = '1.9';
 const GAME_VERSION = BALANCE_VERSION;
 const COMPETITIVE_STATS_SCHEMA_VERSION = 7;
 // Stats series reset: historical 1.6 data is intentionally NOT imported. This build starts at 1.7.
@@ -66,8 +66,8 @@ function statsSeriesForBalanceVersion(balanceVersion) {
   return `${major}.${minor}`;
 }
 const COMPETITIVE_STATS_VERSION = statsSeriesForBalanceVersion(BALANCE_VERSION);
-const COMPETITIVE_BUILD_ID = '1.8-official-release-1';
-const COMPETITIVE_ROSTER_VERSION = '1.8-release-roster-22';
+const COMPETITIVE_BUILD_ID = '1.9-four-heroes-release-1';
+const COMPETITIVE_ROSTER_VERSION = '1.9-release-roster-26';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
 const pendingCompetitiveRecords = new Map();
@@ -184,7 +184,7 @@ const HEAL_FEEDBACK_INTERVAL_MS = 250;
 // Small private healer HUD numbers are aggregated in 200 ms windows. They are sent only
 // when effective healing was actually delivered to another ally, never as a recurring field.
 const HEAL_NUMBER_INTERVAL_MS = 200;
-const DAMAGE_TAKEN_MULTIPLIERS = Object.freeze({ iron: 0.90, shield: 0.90, mecha: 0.90 });
+const DAMAGE_TAKEN_MULTIPLIERS = Object.freeze({ iron: 1.00, shield: 1.00, mecha: 1.00 });
 // Dual-purpose healing projectiles are intentionally easier to land on allies only.
 // This is a server-side collision rule, so it adds no recurring WebSocket payload.
 const DUAL_PURPOSE_HEAL_ALLY_RADIUS_MULTIPLIER = 1.4;
@@ -197,6 +197,8 @@ const STATUS_DEFS = Object.freeze({
   radiation:{ kind: 'harmful', clearOnDeath: true },
   slow:     { kind: 'harmful', clearOnDeath: true },
   stun:     { kind: 'harmful', clearOnDeath: true },
+  // Curse: ability-specific duration, additive +25 percentage points to damage taken.
+  curse:    { kind: 'harmful', clearOnDeath: true, damageTakenBonus: 0.25 },
   tailwind: { kind: 'beneficial', clearOnDeath: true }
 });
 
@@ -370,6 +372,38 @@ const CHARACTERS = {
     formDuration: 6, formCooldown: 16, formHp: 450, formSpeed: 7.0,
     formRange: 16, formBeamDps: 95, formKillCooldownReduction: 6, abilityId: 'form',
     ultimateName: '수정 폭발', ultimateCost: 800, ultimateDescription: '3번에 걸쳐 총 48개의 수정 투사체를 사방으로 발사해 24m 이내의 적에게 투사체당 40 피해를 준다.', ultimateDamage: 40, ultimateProjectileCount: 16, ultimateVolleyCount: 3, ultimateVolleyInterval: 1
+  },
+  witch: {
+    name: '위치', role: '탱커', hp: 500, speed: 5.0, radius: 1.00,
+    attackType: 'beam', range: 16, beamDps: 70,
+    abilityId: 'curse', abilityCooldown: 10, curseDuration: 5,
+    abilityTargeting: { relations: [TARGET_RELATION.ENEMY], requireLos: false },
+    ultimateName: '마법약', ultimateCost: 1400, ultimateDescription: '2초 경고 후 현재 위치 반경 16m의 적에게 5초간 저주와 이동속도 1단계 감소를 부여한다.',
+    ultimateRadius: 16, ultimateDelay: 2, ultimateDuration: 7, ultimateEffectDuration: 5, ultimateSpeedTierDelta: -1
+  },
+  hacker: {
+    name: '해커', role: '딜러', hp: 225, speed: 7.0, radius: 0.80,
+    fireRate: 5, range: 12, projectileSpeed: 28, projectileRadius: 0.32,
+    projectileType: 'attack', damage: 18,
+    abilityId: 'stealth', abilityCooldown: 12, stealthDuration: 4,
+    ultimateName: 'EMP', ultimateCost: 1000, ultimateDescription: '반경 16m 적을 1초 기절시키고 기존 개인 보호막을 제거한다. HP 피해는 없다.',
+    ultimateRadius: 16, ultimateStunDuration: 1, ultimateDuration: 1
+  },
+  rescue: {
+    name: '레스큐', role: '힐러', hp: 200, speed: 6.0, radius: 0.65,
+    fireRate: 5, range: 16, projectileSpeed: 20, projectileRadius: 0.52,
+    projectileType: 'heal', heal: 12, damage: 10,
+    abilityId: 'rescue', abilityCooldown: 12, abilityHeal: 30,
+    abilityTargeting: { relations: [TARGET_RELATION.ALLY], requireLos: false },
+    ultimateName: '골골대기', ultimateCost: 1000, ultimateDescription: '반경 12m 자신과 아군을 75 회복하고 초과량을 3초 개인 보호막으로 전환한다.',
+    ultimateRadius: 12, ultimateHeal: 75, ultimateShieldDuration: 3, ultimateDuration: 3
+  },
+  drain: {
+    name: '드레인', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
+    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
+    projectileType: 'attack', damage: 16, lifestealOnHit: 4,
+    ultimateName: '뱀파이어', ultimateCost: 1000, ultimateDescription: 'HP 100을 즉시 회복하고 8초간 공격속도 25% 증가.',
+    ultimateHeal: 100, ultimateDuration: 8, ultimateAttackSpeedBoost: 0.25
   }
 };
 
@@ -1311,14 +1345,17 @@ function linkedBufferUltimateSpeedDelta(room, player, now = Date.now()) {
 
 function periodicActionRateMultiplier(room, player, now = Date.now()) {
   if (!room || !player || !player.alive) return 1;
+  let boost = 0;
   for (const buffer of room.players.values()) {
     if (buffer.character !== 'buffer' || buffer.team !== player.team) continue;
     const state = bufferLinkState(room, buffer, now);
     if (state.active && state.target && state.target.id === player.id) {
-      return 1 + Math.max(0, Number(CHARACTERS.buffer.actionSpeedBoost) || 0);
+      boost += Math.max(0, Number(CHARACTERS.buffer.actionSpeedBoost) || 0);
+      break; // Existing Buffer support does not stack from multiple Buffers.
     }
   }
-  return 1;
+  if (player.character === 'drain' && isUltimateActive(player, now)) boost += CHARACTERS.drain.ultimateAttackSpeedBoost;
+  return 1 + boost;
 }
 
 function periodicActionReady(room, player, baseRate, now = Date.now()) {
@@ -1415,6 +1452,7 @@ function ensureShieldAttribution(player, shieldAmount = null) {
 }
 function clearShield(player) {
   player.shield = 0; player.maxShield = 0; player.shieldUntil = 0;
+  player.rescueShieldEntries = [];
   resetShieldAttribution(player);
   if (player.character === 'jet') player.jetShieldUntil = 0;
 }
@@ -1442,8 +1480,27 @@ function applyShield(room, source, target, amount, options = {}) {
       target.shieldUncredited = Math.max(0, Number(target.shieldUncredited) || 0) + added;
     }
   }
+  if (added > 0 && Number(options.rescueShieldUntil) > 0) {
+    if (!Array.isArray(target.rescueShieldEntries)) target.rescueShieldEntries = [];
+    target.rescueShieldEntries.push({ amount: added, until: Number(options.rescueShieldUntil) });
+  }
   ensureShieldAttribution(target, target.shield);
   return added;
+}
+function expireRescueShieldGrants(target, now) {
+  if (!Array.isArray(target.rescueShieldEntries) || !target.rescueShieldEntries.length) return;
+  const remaining = [];
+  for (const entry of target.rescueShieldEntries) {
+    if (entry.until > now) { remaining.push(entry); continue; }
+    const expired = Math.min(Math.max(0, Number(entry.amount) || 0), Math.max(0, Number(target.shield) || 0));
+    if (expired <= 0) continue;
+    ensureShieldAttribution(target);
+    target.shield = Math.max(0, target.shield - expired);
+    target.shieldUncredited = Math.max(0, Number(target.shieldUncredited || 0) - expired);
+    ensureShieldAttribution(target, target.shield);
+  }
+  target.rescueShieldEntries = remaining;
+  if (target.shield <= 1e-9) clearShield(target);
 }
 function consumeShieldAttribution(room, target, shieldDamage, shieldBefore) {
   const damage = Math.max(0, Number(shieldDamage) || 0);
@@ -1451,6 +1508,11 @@ function consumeShieldAttribution(room, target, shieldDamage, shieldBefore) {
   if (damage <= 0 || before <= 0) return;
   ensureShieldAttribution(target, before);
   const ratio = Math.min(1, damage / before);
+  // Rescue grants have their own 3-second expiry within the shared shield pool.
+  // Attribute incoming shield damage proportionally so expiry only removes surviving Rescue shield.
+  if (Array.isArray(target.rescueShieldEntries)) {
+    for (const entry of target.rescueShieldEntries) entry.amount *= (1 - ratio);
+  }
   for (const key of Object.keys(target.shieldCreditBySource || {})) {
     const amount = Math.max(0, Number(target.shieldCreditBySource[key]) || 0);
     if (amount <= 0) continue;
@@ -2496,7 +2558,7 @@ function onMessage(conn, msg) {
     player.respawnShieldAt = 0;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.pendingUltimateId = null; player.pendingUltimateAt = 0; player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0; player.patternUltimateRemaining = 0; player.patternUltimateNextAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
+    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.pendingUltimateId = null; player.pendingUltimateAt = 0; player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0; player.patternUltimateRemaining = 0; player.patternUltimateNextAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.newAbilityCooldownUntil = 0; player.stealthUntil = 0; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
     resetPerkState(player);
     broadcast(room);
     return;
@@ -2567,6 +2629,7 @@ function onMessage(conn, msg) {
     if (msg.ability === 'blessing') activated = activateAngelBlessing(room, player, abilityTarget, now);
     if (msg.ability === 'shield') activated = activateShieldAbility(room, player, abilityTarget, now);
     if (msg.ability === 'boost') activated = activateJetBoost(room, player, now);
+    if (['curse', 'stealth', 'rescue'].includes(msg.ability)) activated = activateNewHeroAbility(room, player, abilityTarget, now);
     if (activated) {
       player.abilityUseSeq = (player.abilityUseSeq || 0) + 1;
       player.lastAbilityTargetId = abilityTarget ? abilityTarget.id : null;
@@ -2912,6 +2975,7 @@ function publicCharacterDefs() {
     'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
     'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction',
+    'curseDuration', 'stealthDuration', 'lifestealOnHit', 'ultimateAttackSpeedBoost', 'ultimateEffectDuration',
     'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedTierDelta', 'ultimateProjectileCount', 'ultimateVolleyCount', 'ultimateVolleyInterval', 'ultimateFanAngleDeg', 'ultimateRotationDeg', 'ultimateWidth', 'ultimateMaxHpDamageRatio', 'ultimateSelfHeal'
   ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
@@ -3171,6 +3235,23 @@ function activateAngelBlessing(room, player, target, now) {
   return true;
 }
 
+function activateNewHeroAbility(room, player, target, now) {
+  const def = CHARACTERS[player.character];
+  if (!def || (player.newAbilityCooldownUntil || 0) > now) return false;
+  if (player.character === 'witch') {
+    if (!target || !applyStatus(room, player, target, 'curse', def.curseDuration * 1000, now)) return false;
+  } else if (player.character === 'hacker') {
+    player.stealthUntil = now + def.stealthDuration * 1000;
+  } else if (player.character === 'rescue') {
+    if (!target || !target.alive || target.id === player.id || target.team !== player.team) return false;
+    // Character overlap is allowed; target can be across any wall or distance.
+    player.x = target.x; player.y = target.y;
+    applyHealing(room, player, target, def.abilityHeal, now);
+  } else return false;
+  player.newAbilityCooldownUntil = now + def.abilityCooldown * 1000;
+  return true;
+}
+
 function endDiaForm(player) {
   if (player.character !== 'dia' || player.diaFormUntil <= 0) return;
   const def = CHARACTERS.dia;
@@ -3261,6 +3342,7 @@ function die(room, player, now) {
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
   player.invulnerableUntil = 0;
+  player.stealthUntil = 0;
   player.respawnShieldAt = 0;
   clearAllStatuses(player); clearShield(player);
   if (player.character === 'dia') {
@@ -3287,6 +3369,7 @@ function respawn(room, player, now) {
   player.respawnShieldAt = player.invulnerableUntil;
   player.damageContributors = Object.create(null); player.supportContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
   clearAllStatuses(player); clearShield(player);
+  player.stealthUntil = 0;
   player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
   if (player.character === 'runner') player.sprintUntil = 0;
@@ -3430,12 +3513,21 @@ function scheduleDelayedUltimate(player, character, now, delaySeconds) {
   player.pendingUltimateAt = now + delayMs;
   // The charge remains locked at 0 during the telegraph window. The effect itself
   // is still a one-shot ultimate rather than a sustained buff.
-  player.ultimateUntil = player.pendingUltimateAt;
+  player.ultimateUntil = player.pendingUltimateAt + (character === 'witch' ? 5000 : 0);
 }
 
 function resolveDelayedUltimate(room, player, character, now, centerX = player.x, centerY = player.y) {
   const def = CHARACTERS[character];
   if (!def) return false;
+  if (character === 'witch') {
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team === player.team) continue;
+      if (distance(centerX, centerY, target.x, target.y) > def.ultimateRadius + 1e-9) continue;
+      applyStatus(room, player, target, 'curse', def.ultimateEffectDuration * 1000, now);
+      applyStatus(room, player, target, 'slow', def.ultimateEffectDuration * 1000, now, { tierDelta: -1 });
+    }
+    return true;
+  }
   if (character === 'iron') {
     const radius = Number(def.ultimateRadius) || 12;
     for (const target of room.players.values()) {
@@ -3618,8 +3710,41 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
     player.patternUltimateRemaining = def.ultimateVolleyCount - 1;
     spawnPatternUltimateVolley(room, player, now, 0);
     activated = true;
+  } else if (player.character === 'witch') {
+    scheduleDelayedUltimate(player, 'witch', now, def.ultimateDelay);
+    activated = true;
   } else if (player.character === 'iron') {
     scheduleDelayedUltimate(player, 'iron', now, Number(def.ultimateDelay) || 2);
+    activated = true;
+  } else if (player.character === 'hacker') {
+    const radius = def.ultimateRadius;
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team === player.team) continue;
+      if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
+      clearShield(target); // Existing personal shield only; future shields are unaffected.
+      applyStatus(room, player, target, 'stun', def.ultimateStunDuration * 1000, now);
+    }
+    player.ultimateUntil = now + 1000;
+    activated = true;
+  } else if (player.character === 'rescue') {
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team !== player.team) continue;
+      if (distance(player.x, player.y, target.x, target.y) > def.ultimateRadius + 1e-9) continue;
+      // The HP deficit is evaluated before healing; reductions can affect actual HP restored.
+      const hpDeficit = Math.max(0, target.maxHp - target.hp);
+      applyHealing(room, player, target, def.ultimateHeal, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+      // Anti-heal that prevents HP restoration is not converted into free shielding.
+      const overflow = Math.max(0, def.ultimateHeal - hpDeficit);
+      if (overflow > 0) {
+        const added = applyShield(room, player, target, overflow, { now, rescueShieldUntil: now + def.ultimateShieldDuration * 1000 });
+        if (added > 0) target.shieldUntil = Math.max(target.shieldUntil || 0, now + def.ultimateShieldDuration * 1000);
+      }
+    }
+    player.ultimateUntil = now + 3000;
+    activated = true;
+  } else if (player.character === 'drain') {
+    applyHealing(room, player, player, def.ultimateHeal, now, { countsForUltimate: false });
+    player.ultimateUntil = now + def.ultimateDuration * 1000;
     activated = true;
   } else if (player.character === 'water') {
     // Flood is an instantaneous radial pulse. Snapshot the caster position at the exact
@@ -3725,7 +3850,13 @@ function dealDamageDetailed(room, attackerId, target, amount, now, options = nul
   // every damage path that reaches this resolver (projectiles, beams, DoT, etc.).
   // These remain intentionally hidden from student-facing trait text.
   const damageTakenMultiplier = Number(DAMAGE_TAKEN_MULTIPLIERS[target.character]) || 1;
-  const raw = incoming * damageTakenMultiplier;
+  // Treat incoming-damage mitigation and Curse as additive percentage-point modifiers,
+  // NOT successive multipliers: e.g. 10% mitigation + 25% Curse => 115% damage.
+  // Curse applies to both HP and personal shields without stacking, and the status
+  // source is not changed by a teammate's subsequent attack.
+  const curseDamageBonus = hasStatus(target, 'curse', now) ? STATUS_DEFS.curse.damageTakenBonus : 0;
+  const effectiveDamageMultiplier = Math.max(0, damageTakenMultiplier + curseDamageBonus);
+  const raw = incoming * effectiveDamageMultiplier;
   let remaining = raw;
   const shieldBefore = Math.max(0, Number(target.shield) || 0);
   const shieldDamage = Math.min(shieldBefore, remaining);
@@ -4251,6 +4382,12 @@ function updateProjectiles(room, dt, now) {
                 applyStatus(room, reactorOwner, t, 'radiation', reactorDef.radiationDuration * 1000, now, { healReduction: reactorDef.radiationHealReduction });
               }
             }
+            if (p.character === 'drain' && !p.ultimateProjectile && p.countsForUltimate !== false && damageResult.total > 0) {
+              const drainer = room.players.get(p.ownerId);
+              if (drainer && drainer.alive && drainer.character === 'drain') {
+                applyHealing(room, drainer, drainer, CHARACTERS.drain.lifestealOnHit, now);
+              }
+            }
             // Solar self-heal requires actual HP damage; shield-only hits do not count.
             if (damageResult.hp > 0 && p.selfHealOnHit > 0) {
               const owner = room.players.get(p.ownerId);
@@ -4415,6 +4552,7 @@ function updateRoom(room, dt, now) {
         player.reactorOutput = Math.max(0, player.reactorOutput - reactorDef.reactorDecayPerSecond * dt);
       }
     }
+    expireRescueShieldGrants(player, now);
     if (player.shieldUntil > 0 && now >= player.shieldUntil) clearShield(player);
     const burn = getStatus(player, 'burn', now);
     if (burn && player.invulnerableUntil <= now) {
@@ -4436,7 +4574,7 @@ function updateRoom(room, dt, now) {
       const centerX = player.x, centerY = player.y;
       player.pendingUltimateId = null;
       player.pendingUltimateAt = 0;
-      player.ultimateUntil = 0;
+      if (pendingId !== 'witch') player.ultimateUntil = 0;
       // Reaching this branch means the caster survived the full server-authoritative warning delay.
       resolveDelayedUltimate(room, player, pendingId, now, centerX, centerY);
       if (!player.alive) continue;
@@ -4643,7 +4781,14 @@ function snapshot(room, viewerId = null, spectator = false) {
       if (hasStatus(p, 'tailwind', now)) row.tailwind = true;
       if (hasStatus(p, 'slow', now)) row.frozen = true;
       if (hasStatus(p, 'stun', now)) row.stunned = true;
+      if (hasStatus(p, 'curse', now)) row.cursed = true;
+      if (p.character === 'hacker' && p.alive && p.stealthUntil > now) row.stealthed = true;
 
+      if (!hideCharacter && ['witch','hacker','rescue'].includes(p.character)) {
+        const cd = Math.max(0, (p.newAbilityCooldownUntil || 0) - now);
+        if (cd > 0) row.newAbilityCooldownMs = cd;
+        if (p.character === 'hacker' && p.stealthUntil > now) row.stealthMs = p.stealthUntil - now;
+      }
       if (!hideCharacter && p.character === 'dia') {
         const active = isDiaForm(p, now);
         if (active) {
@@ -4779,6 +4924,8 @@ function compactPlayerWireRow(p) {
   if (p.sprint) flags |= 1 << 8;
   if (p.jetBoost) flags |= 1 << 9;
   if (p.bufferLinkActive) flags |= 1 << 10;
+  if (p.cursed) flags |= 1 << 13;
+  if (p.stealthed) flags |= 1 << 14;
   const ms = value => value == null ? null : Math.max(0, Math.round(Number(value) || 0));
   const num = (value, digits = 3) => value == null ? null : roundWireNumber(value, digits);
   const row = [
@@ -4793,7 +4940,7 @@ function compactPlayerWireRow(p) {
     ms(p.jetBoostMs), num(p.jetBoostStartX), num(p.jetBoostStartY), num(p.jetBoostEndX), num(p.jetBoostEndY), num(p.jetBoostDistance),
     ms(p.jetBoostCooldownMs), ms(p.jetShieldMs), p.reactorOutput == null ? null : num(p.reactorOutput, 2),
     p.bufferTargetId || null, p.lastHealTargetId || null, p.lastAbilityTargetId || null,
-    p.ultimateCharge == null ? null : num(p.ultimateCharge, 2), p.ultimateUseSeq || 0, ms(p.ultimateActiveMs)
+    p.ultimateCharge == null ? null : num(p.ultimateCharge, 2), p.ultimateUseSeq || 0, ms(p.ultimateActiveMs), ms(p.newAbilityCooldownMs), ms(p.stealthMs)
   ];
   while (row.length && row[row.length - 1] == null) row.pop();
   return row;
@@ -4815,6 +4962,8 @@ function compactPlayerWireRowV5(p, beamActive = false, beamDidDamage = false) {
   if (p.sprint) flags |= 1 << 8;
   if (p.jetBoost) flags |= 1 << 9;
   if (p.bufferLinkActive) flags |= 1 << 10;
+  if (p.cursed) flags |= 1 << 13;
+  if (p.stealthed) flags |= 1 << 14;
   if (beamActive) flags |= 1 << 11;
   if (beamDidDamage) flags |= 1 << 12;
   const ms = value => value == null ? null : Math.max(0, Math.round(Number(value) || 0));
@@ -4830,7 +4979,7 @@ function compactPlayerWireRowV5(p, beamActive = false, beamDidDamage = false) {
     ms(p.jetBoostMs), num(p.jetBoostStartX), num(p.jetBoostStartY), num(p.jetBoostEndX), num(p.jetBoostEndY), num(p.jetBoostDistance),
     ms(p.jetBoostCooldownMs), ms(p.jetShieldMs), p.reactorOutput == null ? null : num(p.reactorOutput, 2),
     p.bufferTargetId || null, p.lastHealTargetId || null, p.lastAbilityTargetId || null,
-    p.ultimateCharge == null ? null : num(p.ultimateCharge, 2), p.ultimateUseSeq || 0, ms(p.ultimateActiveMs)
+    p.ultimateCharge == null ? null : num(p.ultimateCharge, 2), p.ultimateUseSeq || 0, ms(p.ultimateActiveMs), ms(p.newAbilityCooldownMs), ms(p.stealthMs)
   ];
   while (row.length && row[row.length - 1] == null) row.pop();
   return row;
@@ -4854,6 +5003,8 @@ function compactPlayerWireRowV6(p, beamActive = false, beamDidDamage = false) {
   if (p.sprint) flags |= 1 << 8;
   if (p.jetBoost) flags |= 1 << 9;
   if (p.bufferLinkActive) flags |= 1 << 10;
+  if (p.cursed) flags |= 1 << 13;
+  if (p.stealthed) flags |= 1 << 14;
   if (beamActive) flags |= 1 << 11;
   if (beamDidDamage) flags |= 1 << 12;
 
@@ -4897,6 +5048,8 @@ function compactPlayerWireRowV6(p, beamActive = false, beamDidDamage = false) {
   add(28, ms(p.ultimateActiveMs));
   add(29, ms(p.pendingUltimateMs));
   add(30, p.pendingUltimateId || null);
+  add(31, ms(p.newAbilityCooldownMs));
+  add(32, ms(p.stealthMs));
   if (ext.length) row.push(ext);
   return row;
 }
@@ -5096,7 +5249,7 @@ module.exports = {
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
   POST_GAME_ROOM_CLOSE_MS, MAX_ROOMS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
-  traceBeam, traceLightBeam, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
+  traceBeam, traceLightBeam, activateNewHeroAbility, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload, rebuildCompetitiveStatsFromMatches, statsSeriesForBalanceVersion, buildCompetitiveResult, buildAdvancedCompetitiveStats, combinations,

@@ -27,10 +27,14 @@ const CHARACTER_META = {
   star:    { role:'힐러', name:'스타', icon:'⭐', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러' },
   angel:   { role:'힐러', name:'엔젤', icon:'😇', summary:'축복으로 어디서든 아군을 즉시 구조하는 힐러' },
   buffer:  { role:'힐러', name:'버퍼', icon:'🎛️', summary:'한 명을 계속 연결해 치유와 행동속도를 함께 증폭하는 힐러' },
-  light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' }
+  light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' },
+  witch:   { role:'탱커', name:'위치', icon:'🧹', summary:'저주로 적이 받는 피해를 증폭시키는 마법 탱커' },
+  hacker:  { role:'딜러', name:'해커', icon:'👾', summary:'은신으로 적의 시야에서 사라지는 기동 딜러' },
+  rescue:  { role:'힐러', name:'레스큐', icon:'🐈', summary:'순간이동과 초과 치유 보호막을 가진 구조 힐러' },
+  drain:   { role:'딜러', name:'드레인', icon:'🩸', summary:'공격을 적중시키며 자신을 치유하는 흡혈 딜러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.7.1-final';
+const VISUAL_ASSET_VERSION = '1.9-portrait-cropfix';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
 const CHARACTER_ART = Object.freeze({
@@ -55,10 +59,14 @@ const CHARACTER_ART = Object.freeze({
   star:    { portrait:artPath('/assets/characters/star/portrait.webp'),    token:artPath('/assets/characters/star/token.webp'),    renderScale:1.00 },
   angel:   { portrait:artPath('/assets/characters/angel/portrait.webp'),   token:artPath('/assets/characters/angel/token.webp'),   renderScale:1.00 },
   buffer:  { portrait:artPath('/assets/characters/buffer/portrait.webp'),  token:artPath('/assets/characters/buffer/token.webp'),  renderScale:1.00 },
-  light:   { portrait:artPath('/assets/characters/light/portrait.webp'),   token:artPath('/assets/characters/light/token.webp'),   renderScale:1.00 }
+  light:   { portrait:artPath('/assets/characters/light/portrait.webp'),   token:artPath('/assets/characters/light/token.webp'),   renderScale:1.00 },
+  witch:   { portrait:artPath('/assets/characters/witch/portrait.webp'),   token:artPath('/assets/characters/witch/token.webp'),   renderScale:1.00 },
+  hacker:  { portrait:artPath('/assets/characters/hacker/portrait.webp'),  token:artPath('/assets/characters/hacker/token.webp'),  renderScale:1.00 },
+  rescue:  { portrait:artPath('/assets/characters/rescue/portrait.webp'),  token:artPath('/assets/characters/rescue/token.webp'),  renderScale:1.00 },
+  drain:   { portrait:artPath('/assets/characters/drain/portrait.webp'),   token:artPath('/assets/characters/drain/token.webp'),   renderScale:1.00 }
 });
 
-// Character art is visual-only. All 22 characters already have stable asset slots.
+// Character art is visual-only; all 26 characters have stable asset slots.
 // Missing files show a placeholder in the picker and use the legacy circle + emoji in-game.
 // 1.7.1 visual update: all 22 characters now have wired portrait/token asset slots.
 const CHARACTER_TOKEN_IMAGES = new Map();
@@ -177,7 +185,11 @@ const CHARACTER_STORIES = {
   buffer: {
     title:'버퍼', icon:'🎛️',
     text:'남을 칭찬하는 것을 좋아하는 과학자. 버퍼가 칭찬해준 사람은 반드시 큰 일을 해낸다고 한다. 하지만 정작 본인은 아무에게도 칭찬받은 적이 없어서 공격 능력이 전혀 없다.'
-  }
+  },
+  witch: { title:'위치', icon:'🧹', text:'다이아의 여동생. 과거 솔라를 사랑했지만 언니와의 싸움에서 패배해 그를 양보할 수밖에 없었다. 분노하여 수련을 거듭한 결과, 누군가를 저주하여 고통을 증폭하는 강력한 힘을 얻었다.' },
+  hacker: { title:'해커', icon:'👾', text:'자신이 게임 속 캐릭터임을 알고 있다.' },
+  rescue: { title:'레스큐', icon:'🐈', text:'버퍼가 키우던 고양이. 그녀의 실험실에 우연히 들어갔다가 순간이동 능력을 얻었다. 순간이동 능력으로 버퍼의 치유탄 발사기를 들고 도망가버렸다.' },
+  drain: { title:'드레인', icon:'🩸', text:'유서 깊은 뱀파이어 가문의 후계자. 하지만 피를 무서워하는 탓에, 직접 피를 마시는 대신 상대의 생명력을 흡수하는 마법을 익혔다.' }
 };
 
 const ROLE_ORDER = ['탱커','딜러','힐러'];
@@ -353,6 +365,10 @@ function buildCharacterMechanic(id, fallback='') {
     case 'angel': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 축복으로 어디서든 아군을 도울 수 있습니다.';
     case 'buffer': return '아군 한 명을 연결해 40 HPS와 공격속도 25% 증가를 제공합니다.';
     case 'light': return '광선이 아군·적을 모두 관통해 각각 가장 가까운 한 명을 치유·공격합니다. (풀피 아군도 대상)';
+    case 'witch': return '저주(쿨 10초)는 거리·시야 제한 없이 적 한 명에게 5초간 받는 피해 +25%를 부여합니다.';
+    case 'hacker': return '은신(쿨 12초)은 4초간 적에게 몸을 숨기며, 이동·공격·거점 판정이 유지됩니다. 투사체는 보입니다.';
+    case 'rescue': return '긴급출동(쿨 12초)은 거리·시야 제한 없이 살아 있는 다른 아군에게 순간이동하고 30 HP 치유합니다.';
+    case 'drain': return '기본 공격이 적 HP 또는 보호막에 적중할 때마다 자신을 4 HP 회복합니다. 실제 회복분도 궁극기 충전에 반영됩니다.';
     default: return fallback;
   }
 }
@@ -1269,7 +1285,7 @@ function addCharacterUltimateFx(player, phase='cast', extra={}) {
 }
 
 function isDelayedWarningUltimate(character) {
-  return character === 'iron' || character === 'ice' || character === 'star';
+  return character === 'iron' || character === 'ice' || character === 'star' || character === 'witch';
 }
 
 function processCombatFeedback(previousState, nextState) {
@@ -1283,7 +1299,7 @@ function processCombatFeedback(previousState, nextState) {
     if (!before) continue;
 
     if (before.alive && !after.alive) {
-      addWorldFx('death', after);
+      if (!(after.character === 'hacker' && before.stealthed && !spectatorMode && after.team !== afterById.get(myId)?.team)) addWorldFx('death', after);
       if (after.id===myId) playDeathFeedback(); else playRemoteDeathCue();
     } else if (!before.alive && after.alive) {
       addWorldFx('respawn', after);
@@ -1340,7 +1356,7 @@ function processCombatFeedback(previousState, nextState) {
     }
 
     if ((after.shotSeq||0) > (before.shotSeq||0)) {
-      addMuzzleFx(after);
+      if (!(after.character === 'hacker' && after.stealthed && !spectatorMode && after.team !== afterById.get(myId)?.team)) addMuzzleFx(after);
       if (after.id===myId && after.character==='sniper') playSniperShotCue();
     }
 
@@ -1387,7 +1403,7 @@ function processCombatFeedback(previousState, nextState) {
         if (after.id===myId || after.lastAbilityTargetId===myId) playAngelBlessCue();
         if (after.id===myId) pulseAbilityButton();
       } else {
-        addWorldFx('ability', after);
+        if (!(after.character === 'hacker' && !spectatorMode && after.team !== afterById.get(myId)?.team)) addWorldFx('ability', after);
         if (after.id===myId) { playAbilityUseFeedback(); pulseAbilityButton(); }
       }
     }
@@ -1845,6 +1861,8 @@ function expandCompactPlayerRow(p) {
   if (flags & (1 << 3)) out.tailwind = true;
   if (flags & (1 << 4)) out.frozen = true;
   if (flags & (1 << 5)) out.stunned = true;
+  if (flags & (1 << 13)) out.cursed = true;
+  if (flags & (1 << 14)) out.stealthed = true;
   if (flags & (1 << 6)) out.invulnerable = true;
   if (flags & (1 << 7)) out.diaForm = true;
   if (flags & (1 << 8)) out.sprint = true;
@@ -1865,6 +1883,7 @@ function expandCompactPlayerRow(p) {
   if (p[45] != null) out.ultimateCharge = Number(p[45] || 0);
   if (p[46] != null) out.ultimateUseSeq = Number(p[46] || 0);
   if (p[47] != null) out.ultimateActiveMs = Number(p[47] || 0);
+  setNum('newAbilityCooldownMs', 48); setNum('stealthMs', 49);
   return out;
 }
 
@@ -1888,6 +1907,8 @@ function expandCompactPlayerRowC5(p, meta) {
   if (flags & (1 << 3)) out.tailwind = true;
   if (flags & (1 << 4)) out.frozen = true;
   if (flags & (1 << 5)) out.stunned = true;
+  if (flags & (1 << 13)) out.cursed = true;
+  if (flags & (1 << 14)) out.stealthed = true;
   if (flags & (1 << 6)) out.invulnerable = true;
   if (flags & (1 << 7)) out.diaForm = true;
   if (flags & (1 << 8)) out.sprint = true;
@@ -1910,6 +1931,7 @@ function expandCompactPlayerRowC5(p, meta) {
   if (p[41] != null) out.ultimateCharge = Number(p[41] || 0);
   if (p[42] != null) out.ultimateUseSeq = Number(p[42] || 0);
   if (p[43] != null) out.ultimateActiveMs = Number(p[43] || 0);
+  setNum('newAbilityCooldownMs', 44); setNum('stealthMs', 45);
   return out;
 }
 
@@ -1931,6 +1953,8 @@ function expandCompactPlayerRowC6(p, meta) {
   if (flags & (1 << 3)) out.tailwind = true;
   if (flags & (1 << 4)) out.frozen = true;
   if (flags & (1 << 5)) out.stunned = true;
+  if (flags & (1 << 13)) out.cursed = true;
+  if (flags & (1 << 14)) out.stealthed = true;
   if (flags & (1 << 6)) out.invulnerable = true;
   if (flags & (1 << 7)) out.diaForm = true;
   if (flags & (1 << 8)) out.sprint = true;
@@ -1975,6 +1999,8 @@ function expandCompactPlayerRowC6(p, meta) {
       case 28: out.ultimateActiveMs = Number(value || 0); break;
       case 29: out.pendingUltimateMs = Number(value || 0); break;
       case 30: if (value) out.pendingUltimateId = value; break;
+      case 31: out.newAbilityCooldownMs = Number(value || 0); break;
+      case 32: out.stealthMs = Number(value || 0); break;
       default: break;
     }
   }
@@ -2431,6 +2457,8 @@ function useAbility() {
   if (me.character === 'jet' && (me.jetBoost || me.jetBoostCooldownMs > 0)) return;
   if (me.character === 'angel' && (me.angelBlessCooldownMs > 0 || !selectedTargetId)) return;
   if (me.character === 'shield' && ((Number(me.shieldAbilityCharges)||0) <= 0 || !selectedTargetId)) return;
+  if (['witch','hacker','rescue'].includes(me.character) && me.newAbilityCooldownMs > 0) return;
+  if (['witch','rescue'].includes(me.character) && !selectedTargetId) return;
   const payload = { type:'ability', ability:abilityId };
   if (selectedTargetId) payload.targetId = selectedTargetId;
   ws.send(JSON.stringify(payload));
@@ -3164,6 +3192,7 @@ function selectableTargetAt(clientX, clientY) {
     if (!target.alive) continue;
     const relation = localTargetRelation(me, target);
     if (!rule.relations.includes(relation)) continue;
+    if (target.stealthed && target.team !== me.team) continue;
     const radius = (config.characters[target.character]?.radius || 0.5) + 0.8;
     const d = Math.hypot(target.x - world.x, target.y - world.y);
     if (d <= radius && d < bestD) { best = target; bestD = d; }
@@ -3452,7 +3481,7 @@ function drawBeamFx(beam, nowMs) {
 }
 
 function fxCharacterColor(character) {
-  return ({iron:'#b56d00',mecha:'#168f55',jet:'#1179a8',solar:'#c98200',shield:'#1268c4',runner:'#d97900',shooter:'#176dc1',sniper:'#7442b6',cannon:'#a86100',fire:'#e24818',poison:'#7436a8',reactor:'#c14b12',spray:'#087f9f',water:'#0879b8',wind:'#16875a',star:'#ad7c00',angel:'#a86f00',buffer:'#7050a3',light:'#a87c00',laser:'#c52864',ice:'#087f9f',dia:'#276fae'})[character] || '#46515f';
+  return ({witch:'#ca9740',hacker:'#4d69ff',rescue:'#f47670',drain:'#db2a54',iron:'#b56d00',mecha:'#168f55',jet:'#1179a8',solar:'#c98200',shield:'#1268c4',runner:'#d97900',shooter:'#176dc1',sniper:'#7442b6',cannon:'#a86100',fire:'#e24818',poison:'#7436a8',reactor:'#c14b12',spray:'#087f9f',water:'#0879b8',wind:'#16875a',star:'#ad7c00',angel:'#a86f00',buffer:'#7050a3',light:'#a87c00',laser:'#c52864',ice:'#087f9f',dia:'#276fae'})[character] || '#46515f';
 }
 
 const ULTIMATE_FX_STYLE = Object.freeze({
@@ -3463,7 +3492,9 @@ const ULTIMATE_FX_STYLE = Object.freeze({
   spray:{color:'#087f9f',dark:'#06475a'}, water:{color:'#087cbf',dark:'#06456d'}, wind:{color:'#168b5c',dark:'#075033'},
   star:{color:'#b47e00',dark:'#654500'}, angel:{color:'#ad7100',dark:'#614000'}, buffer:{color:'#7250aa',dark:'#3b2860'},
   light:{color:'#aa7c00',dark:'#5e4300'}, laser:{color:'#c92968',dark:'#6d1035'}, ice:{color:'#0785a5',dark:'#064858'},
-  dia:{color:'#2478ba',dark:'#0b416c'}
+  dia:{color:'#2478ba',dark:'#0b416c'},
+  witch:{color:'#cb9239',dark:'#6b4619'}, hacker:{color:'#4d69ff',dark:'#1e277b'},
+  rescue:{color:'#e56c68',dark:'#793038'}, drain:{color:'#e22852',dark:'#71152d'}
 });
 
 function traceRegularPolygon(cx, cy, radius, sides, rotation=0) {
@@ -3950,7 +3981,7 @@ function renderGame() {
   // Solar/Wind are moving area ultimates. Keep the exact gameplay radius visible
   // for the whole active duration, underneath character art and combat effects.
   for (const p of viewState.players) {
-    if (!p.alive || Number(p.ultimateActiveMs||0) <= 0 || (p.character !== 'solar' && p.character !== 'wind')) continue;
+    if (!p.alive || (p.stealthed && !spectatorMode && p.team !== viewState.players.find(q=>q.id===myId)?.team) || Number(p.ultimateActiveMs||0) <= 0 || (p.character !== 'solar' && p.character !== 'wind')) continue;
     const activeDef=characterPublicDef(p.character) || {};
     const activeRadius=Math.max(0,Number(activeDef.ultimateRadius)||0)*SCALE;
     if (!(activeRadius > 0)) continue;
@@ -4040,7 +4071,7 @@ function renderGame() {
 
     // Local-only pre-cast radius guide for Iron/Water. Opponents never see this readiness guide;
     // the authoritative warning/effect rings are rendered for everyone after use.
-    const ultGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && (p.character === 'iron' || p.character === 'water'));
+    const ultGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && ['iron','water','witch','hacker','rescue'].includes(p.character));
     if (ultGuidePlayer) {
       const udef = characterPublicDef(ultGuidePlayer.character);
       const cost = Math.max(0, Number(udef?.ultimateCost) || 0);
@@ -4050,18 +4081,18 @@ function renderGame() {
         const uw = renderedPlayerWorldPosition(ultGuidePlayer, beamFxNow);
         const us = worldToScreen(uw.x, uw.y);
         const pulse=.26+.06*Math.sin(beamFxNow*.006);
-        ctx.save(); ctx.globalAlpha=pulse+.12; ctx.strokeStyle=ultGuidePlayer.character==='iron'?'#9a5a00':'#0876af'; ctx.lineWidth=2.0; ctx.setLineDash([7,7]);
+        ctx.save(); ctx.globalAlpha=pulse+.12; ctx.strokeStyle=fxCharacterColor(ultGuidePlayer.character); ctx.lineWidth=2.0; ctx.setLineDash([7,7]);
         ctx.beginPath(); ctx.arc(us.x,us.y,radiusWorld*SCALE,0,Math.PI*2); ctx.stroke(); ctx.restore();
       }
     }
   }
 
   for (const p of viewState.players) {
-    if (!p.alive) continue;
+    if (!p.alive || (p.stealthed && !spectatorMode && p.team !== viewState.players.find(q=>q.id===myId)?.team)) continue;
     const hitRadius = characterRadiusWorld(p.character) * SCALE;
     const renderWorld = renderedPlayerWorldPosition(p, beamFxNow);
     const s=worldToScreen(renderWorld.x,renderWorld.y), x=s.x,y=s.y;
-    const characterFill = ({iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',shield:'#4f9ed6',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character] || '#8793a3';
+    const characterFill = ({witch:'#dfbb86',hacker:'#879bff',rescue:'#ffa5a5',drain:'#e87492',iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',shield:'#4f9ed6',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character] || '#8793a3';
     const tokenImg = characterTokenImage(p.character);
     const art = characterArt(p.character);
     const tokenSize = tokenImg ? Math.max(30, Math.min(58, hitRadius * 3.65 * Number(art?.renderScale || 1))) : 0;
@@ -4072,6 +4103,7 @@ function renderGame() {
     ctx.beginPath(); ctx.arc(x,y,hitRadius,0,Math.PI*2); ctx.fill(); ctx.restore();
     if (tokenImg) {
       ctx.save();
+      if (p.character === 'hacker' && p.stealthed && p.id === myId) ctx.globalAlpha = 0.42;
       ctx.imageSmoothingEnabled = true;
       ctx.drawImage(tokenImg, x-tokenSize/2, y-tokenSize/2, tokenSize, tokenSize);
       if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
@@ -4150,6 +4182,10 @@ function renderGame() {
       ctx.strokeText('!',x,y-radius-31); ctx.fillText('!',x,y-radius-31);
       ctx.restore();
     }
+    if (p.character === 'hacker' && p.stealthed && p.id === myId) {
+      ctx.save(); ctx.strokeStyle='#5b74ff'; ctx.lineWidth=2.4; ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.arc(x,y,radius+8,0,Math.PI*2); ctx.stroke(); ctx.restore();
+    }
     if (p.shield > 0) {
       const spulse=.72 + .18*Math.sin(beamFxNow*.010 + x*.01);
       ctx.save();
@@ -4173,6 +4209,7 @@ function renderGame() {
     }
     if (p.burning) { ctx.save(); ctx.globalAlpha=.68+.24*Math.sin(beamFxNow*.018+x*.02); ctx.lineWidth=2.2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
     if (p.poisoned) { ctx.save(); ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.012+y*.02); ctx.lineWidth=2.5; ctx.strokeStyle='#c58cff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+    if (p.cursed) { ctx.save(); ctx.globalAlpha=.72+.20*Math.sin(beamFxNow*.014+x*.011); ctx.strokeStyle='#8e44e9'; ctx.lineWidth=3.2; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.arc(x,y,radius+11,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
     if (p.radiated) {
       ctx.save(); ctx.globalAlpha=.68+.18*Math.sin(beamFxNow*.013+x*.017); ctx.lineWidth=2.3; ctx.strokeStyle='#ff8a3d';
       const rr=radius+6, rp=beamFxNow*.0022;
@@ -4364,8 +4401,13 @@ function renderGame() {
       extra = `<br>☢️ 출력 에너지 ${Math.round(reactorOutput)}% · ${reactorStage}단계`;
       if (reactorStage === 3) extra += ' · 방사능 활성';
     }
+    if (['witch','hacker','rescue'].includes(me.character)) {
+      extra = `<br>${CHARACTER_META[me.character].icon} 능력 ${me.newAbilityCooldownMs > 0 ? '쿨 '+(me.newAbilityCooldownMs/1000).toFixed(1)+'초' : '준비 완료'}`;
+      if (me.character==='hacker' && me.stealthMs > 0) extra += ` · 은신 ${(me.stealthMs/1000).toFixed(1)}초`;
+    }
     const shieldLine = me.shield > 0 ? `<br>🛡️ 보호막 ${Math.ceil(me.shield)}/${Math.ceil(me.maxShield || me.shield)}${me.shieldMs > 0 ? ` · ${(me.shieldMs/1000).toFixed(1)}초` : ''}` : '';
     const stunLine = me.stunned ? '<br>💫 기절' : '';
+    const curseLine = me.cursed ? '<br>🔮 저주 (받는 피해 +25%)' : '';
     const ultDef = characterPublicDef(me.character);
     const ultCost = Math.max(0, Number(ultDef?.ultimateCost) || 0);
     const ultCharge = ultCost > 0 ? Math.max(0, Math.min(ultCost, Number(me.ultimateCharge) || 0)) : 0;
@@ -4383,7 +4425,7 @@ function renderGame() {
         ultInfoLine = `<span class="my-info-ultimate">⚡ ${ultName} ${ultPct}% · ${Math.floor(ultCharge)}/${Math.floor(ultCost)}</span>`;
       }
     }
-    $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${extra}${ultInfoLine}`;
+    $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}`;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 
     // Alpha 1.6.1: ultimate charge now lives in the top-left personal info card.
@@ -4407,7 +4449,7 @@ function renderGame() {
     }
 
     const ability = $('abilityButton');
-    const hasAbility = me.character === 'dia' || me.character === 'runner' || me.character === 'wind' || me.character === 'angel' || me.character === 'shield' || me.character === 'jet';
+    const hasAbility = ['dia','runner','wind','angel','shield','jet','witch','hacker','rescue'].includes(me.character);
     ability.classList.toggle('hidden', !hasAbility);
     const actionButtons = $('actionButtons');
     actionButtons.classList.toggle('hidden', !hasAbility && ultCost <= 0);
@@ -4440,6 +4482,16 @@ function renderGame() {
       else if (charges <= 0) { ability.textContent = `🛡️ 충전 0/${maxCharges}${me.shieldRechargeMs > 0 ? ` · ${(me.shieldRechargeMs/1000).toFixed(1)}초` : ''}`; ability.disabled = true; ability.classList.remove('active'); }
       else if (!target) { ability.textContent = `🛡️ 대상 선택 · ${charges}/${maxCharges}`; ability.disabled = true; ability.classList.remove('active'); }
       else { ability.textContent = `🛡️ 보호막 · ${target.name} · ${charges}/${maxCharges}`; ability.disabled = false; ability.classList.remove('active'); }
+    } else if (['witch','hacker','rescue'].includes(me.character)) {
+      const icon = CHARACTER_META[me.character].icon;
+      const name = ({witch:'저주',hacker:'은신',rescue:'긴급출동'})[me.character];
+      const target = viewState.players.find(p => p.id === selectedTargetId && p.alive);
+      const needsTarget = me.character !== 'hacker';
+      if (!me.alive) { ability.textContent = `${icon} 부활 대기`; ability.disabled = true; }
+      else if (me.newAbilityCooldownMs > 0) { ability.textContent = `${icon} 쿨 ${(me.newAbilityCooldownMs/1000).toFixed(1)}초`; ability.disabled = true; }
+      else if (needsTarget && (!target || !targetSelectionState(me, target)?.valid)) { ability.textContent = `${icon} 대상 선택`; ability.disabled = true; }
+      else { ability.textContent = `${icon} ${name}${needsTarget ? ' · '+target.name : ''}`; ability.disabled = false; }
+      ability.classList.toggle('active', !!(me.character==='hacker' && me.stealthMs > 0));
     } else if (me.character === 'angel') {
       const target = viewState.players.find(p => p.id === selectedTargetId && p.alive);
       if (!me.alive) { ability.textContent = '😇 부활 대기'; ability.disabled = true; ability.classList.remove('active'); }

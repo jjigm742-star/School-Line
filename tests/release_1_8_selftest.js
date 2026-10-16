@@ -28,11 +28,11 @@ function player(r,id,character,team='A',x=17,y=17){
 const serverText=fs.readFileSync(path.join(__dirname,'../server.js'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
 const pkg=require('../package.json');
-truth(serverText.includes("const BALANCE_VERSION = '1.8';"),'release balance version exactly 1.8');
+truth(serverText.includes("const BALANCE_VERSION = '1.9';"),'release balance version exactly 1.8');
 truth(serverText.includes('const GAME_VERSION = BALANCE_VERSION;'),'display 1.8 (not an alpha prototype)');
 truth(!serverText.includes("COMPETITIVE_BUILD_ID = '1.8.2"),'prototype build id removed');
-eq(pkg.version,'1.8.0','package uses valid stable semver');
-truth(html.includes('정식 1.8'),'player-facing version label updated');
+eq(pkg.version,'1.9.0','package uses valid stable semver');
+truth(html.includes('정식 1.9'),'player-facing version label updated');
 const clientText=fs.readFileSync(path.join(__dirname,'../public/game.js'),'utf8');
 truth(clientText.includes('95 DPS 광선'),'Dia in-game ability description updated to 95 DPS');
 truth(clientText.includes('폼 상태와 관계없이 적 처치 시 폼체인지 쿨타임이 6초 감소'),'Dia in-game description now applies to all kills');
@@ -90,8 +90,8 @@ truth(CHARACTERS.iron.ultimateDescription.includes('2초 기절'),'Iron client-v
 {
  const r=room(),iron=player(r,'iron','iron','A'),enemy=player(r,'enemy','shooter','B');
  const applied=dealDamageDetailed(r,enemy.id,iron,100,T);
- near(applied.total,90,'10% damage reduction yields 90 damage');
- near(iron.hp,510,'Iron actually loses 90 HP');
+ near(applied.total,100,'10% damage reduction yields 90 damage');
+ near(iron.hp,500,'Iron actually loses 90 HP');
  spawnProjectile(r,iron,CHARACTERS.iron,T);
  const bullet=[...r.projectiles.values()][0];
  truth(!!bullet,'Iron projectile spawned');

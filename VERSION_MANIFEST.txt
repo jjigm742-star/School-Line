@@ -1,3 +1,14 @@
+SCHOOL LINE 1.9 OFFICIAL SOURCE PACKAGE
+=======================================
+Gameplay: 1.9; npm: 1.9.0; competitive stats series: 1.9; roster: 26.
+Source baseline: user-supplied 1.8 + additive Curse status infrastructure.
+Added Witch (tanker), Hacker (dealer), Rescue (healer), Drain (dealer): combat abilities, ultimates, portraits, chibi tokens, stories and UI.
+Iron/Shield/Mecha damage reduction is 0% (multiplier 1.00).
+Portrait crop fix: all 26 character-select / enlarged-view portraits were recropped per character so the illustration is shown without the right-side description/minimi panels.
+Data and account preservation: database schema unchanged, no production DB access or deployment; runtime data/ excluded from ZIP.
+Verify with README_1.9_RELEASE.md and npm test:1.9 plus regression suites.
+
+--- Historical 1.8 release manifest (retained for traceability, not current) ---
 SCHOOL LINE 1.8 OFFICIAL SOURCE RELEASE
 ==================================
 Official source package version: 1.8 (package.json: 1.8.0), competitive stats series: 1.8.

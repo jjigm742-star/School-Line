@@ -632,3 +632,14 @@ body.access-locked .access-admin-floating { display: none; }
 @media(max-width:640px){.account-login-grid{grid-template-columns:1fr 100px}.account-admin-row{grid-template-columns:42px minmax(84px,1fr) 68px 52px;gap:4px}.account-admin-row button{padding:7px 4px;font-size:.8rem}}
 
 @media (max-width:560px) { .join-admin-tools { grid-template-columns:1fr; } }
+
+/* 1.9.1 randomized competitive queue: independent from manual room UI. */
+.random-queue-launch{margin:12px 0;padding:13px;border:1px solid #6694ce;border-radius:12px;background:rgba(65,108,168,.12)}
+.random-queue-launch button{width:100%;min-height:45px;font-weight:900;font-size:17px}
+.random-queue-launch p{margin:7px 0 0;font-size:12px;color:#c2d5ef}
+.random-queue-panel{margin:12px 0;padding:16px;border:2px solid #6da5ea;border-radius:15px;background:#17283e;text-align:center;box-shadow:0 6px 25px rgba(0,0,0,.18)}
+.random-queue-panel h2{margin:0 0 8px;font-size:19px}
+.random-queue-panel #randomQueueStatus{font-size:19px;font-weight:900;margin:8px 0}
+.random-queue-panel #randomQueueDetails{font-size:13px;line-height:1.6}
+.random-queue-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:14px}
+.random-queue-actions button{min-height:40px;padding:8px 16px}

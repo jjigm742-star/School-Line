@@ -144,9 +144,9 @@ eq(Object.hasOwn(game.STATUS_DEFS.curse, 'durationMs'), false, 'no durationMs on
 const serverText=fs.readFileSync(path.join(__dirname,'../server.js'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
 const pkg=require('../package.json');
-eq(pkg.version,'1.9.0','stable version bumped');
+eq(pkg.version,'1.9.1','1.9.1 version updated');
 ok(serverText.includes("const BALANCE_VERSION = '1.9';"),'game balance remains 1.8');
 eq(Object.keys(game.CHARACTERS).length,26,'existing 22-character roster unchanged');
 ok(Object.hasOwn(game.CHARACTERS,'witch'),'Witch implemented');
-ok(html.includes('game.js?v=1.9-four-heroes-release1'),'cache invalidation for visual state');
+ok(html.includes('game.js?v=1.9.1-queue-fps1'),'cache invalidation for visual state');
 console.log(`PASS: ${checks} curse-only status and wire/client tests`);

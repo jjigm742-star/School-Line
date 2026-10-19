@@ -33,6 +33,8 @@ const POST_GAME_ROOM_CLOSE_MS = 30000;
 const MAX_ROOMS = 5;
 const COMPETITIVE_BAN_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_BAN_MS || 10000));
 const COMPETITIVE_PICK_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_PICK_MS || 10000));
+const RANDOM_QUEUE_CONFIRM_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_QUEUE_CONFIRM_MS || 20000));
+const RANDOM_QUEUE_RECONNECT_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_QUEUE_RECONNECT_MS || 30000));
 const COMPETITIVE_READY_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_READY_MS || 20000));
 const COMPETITIVE_DATA_DIR = path.join(__dirname, 'data'); // seed/static data only; runtime persistence lives in PostgreSQL.
 const PLAYER_ACCOUNTS_SEED_FILE = path.join(COMPETITIVE_DATA_DIR, 'player_accounts_seed.json');
@@ -44,7 +46,7 @@ const NONCOMBAT_REGEN_DELAY_MS = 4000;
 const NONCOMBAT_REGEN_HPS = 30;
 const ULTIMATE_AUTO_CHARGE_INTERVAL_MS = 4000;
 const ULTIMATE_AUTO_CHARGE_RATIO = 0.03;
-const SPECTATOR_PIN_HASH = '72a2d4365f37780690ee9d05b9a173e9036187fbfd5b5ae61785c5d5b0bf8a8a'; // SHA-256 of teacher PIN
+const SPECTATOR_PIN_HASH = 'e0687aaa8689e196e8bdb1d9c79b6c7631067a21246bfd7372657e6cd129bd72'; // SHA-256 of administrator PIN
 const SPECTATOR_MAX_FAILURES = 5;
 const SPECTATOR_LOCK_MS = 30000;
 const ADMIN_STATS_PIN_HASH = SPECTATOR_PIN_HASH; // Same administrator PIN, kept hashed server-side.
@@ -54,7 +56,7 @@ const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN 
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
 const BALANCE_VERSION = '1.9';
-const GAME_VERSION = BALANCE_VERSION;
+const GAME_VERSION = '1.9.1';
 const COMPETITIVE_STATS_SCHEMA_VERSION = 7;
 // Stats series reset: historical 1.6 data is intentionally NOT imported. This build starts at 1.7.
 // From gameplay 1.7 onward the series follows major.minor automatically, so 1.7.x / 1.8.x split without hard-coded lists.
@@ -66,7 +68,7 @@ function statsSeriesForBalanceVersion(balanceVersion) {
   return `${major}.${minor}`;
 }
 const COMPETITIVE_STATS_VERSION = statsSeriesForBalanceVersion(BALANCE_VERSION);
-const COMPETITIVE_BUILD_ID = '1.9-four-heroes-release-1';
+const COMPETITIVE_BUILD_ID = '1.9.1-random-queue-fps-1';
 const COMPETITIVE_ROSTER_VERSION = '1.9-release-roster-26';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
@@ -1095,13 +1097,31 @@ function buildAdvancedCompetitiveStats(matches, aggregateCharacters = {}) {
   };
 }
 
-function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
+function publicCompetitiveStats(requestedVersion = null) {
   const availableStatsVersions = Object.keys(competitiveStats.versions || {}).sort(versionSort);
   if (!availableStatsVersions.includes(COMPETITIVE_STATS_VERSION)) availableStatsVersions.push(COMPETITIVE_STATS_VERSION);
   availableStatsVersions.sort(versionSort);
-  const requested = normalizeStatsVersion(requestedVersion);
-  const statsVersion = requested && availableStatsVersions.includes(requested) ? requested : COMPETITIVE_STATS_VERSION;
-  const bucket = competitiveStats.versions?.[statsVersion] || emptyCompetitiveVersionStats();
+  if (availableStatsVersions.includes('1.9')) {
+    for (const filter of ['1.9.1','1.9-combined']) if (!availableStatsVersions.includes(filter)) availableStatsVersions.push(filter);
+    availableStatsVersions.sort(versionSort);
+  }
+  const requested = String(requestedVersion || '').trim();
+  const statsVersion = requested && availableStatsVersions.includes(requested) ? requested : '1.9-combined';
+  const rawMatches = Array.isArray(competitiveStats.matches) ? competitiveStats.matches : [];
+  const is19Filter = ['1.9','1.9.1','1.9-combined'].includes(statsVersion);
+  const versionMatches = rawMatches.filter(m => {
+    if (!is19Filter) return (statsVersionFromMatch(m) || COMPETITIVE_STATS_VERSION) === statsVersion;
+    if (statsVersionFromMatch(m) !== '1.9') return false;
+    const gameVersion=String(m?.gameVersion || '').trim();
+    if (statsVersion === '1.9') return gameVersion === '1.9';
+    if (statsVersion === '1.9.1') return gameVersion === '1.9.1';
+    return gameVersion === '1.9' || gameVersion === '1.9.1';
+  });
+  let bucket = competitiveStats.versions?.[statsVersion] || emptyCompetitiveVersionStats();
+  if (is19Filter) {
+    bucket=emptyCompetitiveVersionStats();
+    for (const match of versionMatches) addRecordedMatchToVersionBucket(bucket, match);
+  }
   const characters = {};
   const ids = new Set([...Object.keys(CHARACTERS), ...Object.keys(bucket.characters || {})]);
   for (const id of ids) {
@@ -1122,11 +1142,11 @@ function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
       winRateCI: wilsonInterval(src.wins || 0, src.losses || 0)
     };
   }
-  const versionMatches = (Array.isArray(competitiveStats.matches) ? competitiveStats.matches : []).filter(m => (statsVersionFromMatch(m) || COMPETITIVE_STATS_VERSION) === statsVersion);
   const advanced = buildAdvancedCompetitiveStats(versionMatches, characters);
   return {
     schemaVersion: competitiveStats.schemaVersion || COMPETITIVE_STATS_SCHEMA_VERSION,
     statsVersion,
+    statsFilterLabel: statsVersion === '1.9' ? '1.9 단독' : statsVersion === '1.9.1' ? '1.9.1 단독' : statsVersion === '1.9-combined' ? '1.9 통합' : statsVersion,
     availableStatsVersions,
     totalMatches: Math.max(0, Number(bucket.totalMatches) || 0),
     allTimeTotalMatches: Math.max(0, Number(competitiveStats.totalMatches) || 0),
@@ -1139,6 +1159,7 @@ function publicCompetitiveStats(requestedVersion = COMPETITIVE_STATS_VERSION) {
     },
     characters,
     advanced,
+    statsFilterCaveat: is19Filter ? '동일 밸런스 1.9의 수동 방·랜덤 매칭 환경이 섞일 수 있습니다. 경기별 원본 버전으로 재집계합니다.' : null,
     matches: versionMatches
   };
 }
@@ -1603,6 +1624,7 @@ function setSchoolLineAccess(open) {
   for (const room of rooms.values()) {
     for (const player of room.players.values()) neutralizePlayerInput(player);
   }
+  resetRandomMatchQueue('관리자가 입장을 제한했습니다.');
   rooms.clear();
   setTimeout(() => {
     for (const conn of conns) {
@@ -1981,7 +2003,7 @@ function publicRoomList() {
     const countB = connectedPlayers.filter(p => p.team === 'B').length;
     const count = connectedPlayers.length;
     const hasTeamSlot = countA < 4 || countB < 4;
-    const joinable = room.state === 'lobby' && count < 8 && hasTeamSlot;
+    const joinable = !room.queueLocked && room.state === 'lobby' && count < 8 && hasTeamSlot;
     return {
       id: room.code, number: Math.max(0, Number(room.displayNumber) || 0), name: roomDisplayName(room),
       mode: normalizeRoomMode(room.mode), state: room.state, count, countA, countB, capacity: 8,
@@ -2007,6 +2029,8 @@ function newRoom(code, options = {}) {
     displayNumber: requestedDisplayNumber,
     state: 'lobby',
     mode: normalizeRoomMode(options.mode),
+    matchmakingMode: options.matchmakingMode || 'manual_room',
+    queueLocked: options.matchmakingMode === 'random_queue',
     matchMode: null,
     competitive: null,
     players: new Map(),
@@ -2032,6 +2056,198 @@ function newRoom(code, options = {}) {
     lastBroadcastAt: 0,
     network: null
   };
+}
+
+
+// 1.9.1 ranked-entry (NOT MMR) FIFO. The single-threaded event loop serializes all
+// queue mutations; confirmations/reservations are server authoritative.
+const randomQueue = new Map(); // accountId -> entry
+const randomConfirmGroups = new Map(); // groupId -> { members:Set<accountId>, deadline }
+let randomQueueSequence = 0;
+const queueAccount = id => randomQueue.get(String(id || '').trim().toUpperCase());
+const queueSorted = () => [...randomQueue.values()].sort((a,b) => a.seq - b.seq);
+const connectedQueueCount = () => randomQueue.size;
+function queueSend(entry, payload) {
+  if (entry && entry.conn && !entry.conn.closed) entry.conn.send(payload);
+}
+function queueStatus(entry, now = Date.now(), force = false) {
+  if (!entry) return;
+  const group = entry.groupId ? randomConfirmGroups.get(entry.groupId) : null;
+  const position = queueSorted().findIndex(q => q.accountId === entry.accountId) + 1;
+  const roomWait=!!(group && group.members.size===8 && [...group.members].every(id=>queueAccount(id)?.confirmed) && !queueRoomAvailable());
+  const payload = {
+    type:'random_queue_status', phase:roomWait ? 'waiting_room' : group ? 'confirm' : 'waiting',
+    count:connectedQueueCount(), required:8, position,
+    confirmed:!!entry.confirmed, groupSize: group ? group.members.size : 0,
+    confirmSeconds: group ? Math.max(0, Math.ceil(((entry.confirmed ? group.deadline : entry.confirmDeadlineAt) - now) / 1000)) : 0,
+    reconnectSeconds: entry.disconnectedAt ? Math.max(0, Math.ceil((entry.disconnectedAt + RANDOM_QUEUE_RECONNECT_MS - now) / 1000)) : null
+  };
+  const signature = JSON.stringify(payload);
+  if (force || signature !== entry.lastStatus) {
+    entry.lastStatus = signature;
+    queueSend(entry,payload);
+  }
+}
+function notifyRandomQueue(now = Date.now()) {
+  for (const entry of randomQueue.values()) queueStatus(entry,now);
+}
+function removeRandomQueueEntry(entry, reason = null, now = Date.now()) {
+  if (!entry || randomQueue.get(entry.accountId) !== entry) return;
+  randomQueue.delete(entry.accountId);
+  const group = entry.groupId ? randomConfirmGroups.get(entry.groupId) : null;
+  if (group) {
+    group.members.delete(entry.accountId);
+    if (!group.members.size) randomConfirmGroups.delete(entry.groupId);
+    else group.deadline = now + RANDOM_QUEUE_CONFIRM_MS; // summary clock; individual deadlines remain unchanged
+  }
+  entry.groupId = null;
+  if (reason) queueSend(entry, { type:'random_queue_left', message:reason });
+}
+function resetRandomMatchQueue(message) {
+  for (const entry of randomQueue.values()) queueSend(entry,{type:'random_queue_left',message});
+  randomQueue.clear();
+  randomConfirmGroups.clear();
+}
+function enrollRandomQueue(conn, msg, now = Date.now()) {
+  if (conn.playerId || conn.spectatorId || conn.roomCode) return queueSend({conn},{type:'random_queue_error',message:'이미 다른 경기에 참여하고 있어요.'});
+  const account = authenticatePlayerAccount(msg.accountId,msg.pin);
+  if (!account) return queueSend({conn},{type:'random_queue_error',message:'이름 또는 PIN이 올바르지 않아요.'});
+  if (conn.queueAccountId && conn.queueAccountId !== account.id) return queueSend({conn},{type:'random_queue_error',message:'한 기기에서는 한 명만 대기할 수 있어요.'});
+  if (findAccountReservation(account.id)) return queueSend({conn},{type:'random_queue_error',message:'이 계정은 이미 다른 경기에 참가 중이에요.'});
+  const existing = queueAccount(account.id);
+  if (existing) {
+    if (existing.conn && !existing.conn.closed && !existing.disconnectedAt && existing.conn !== conn)
+      return queueSend({conn},{type:'random_queue_error',message:'다른 기기에서 이미 매칭을 기다리고 있어요.'});
+    if (existing.disconnectedAt && now - existing.disconnectedAt > RANDOM_QUEUE_RECONNECT_MS) {
+      removeRandomQueueEntry(existing, null, now);
+    } else {
+      existing.conn = conn;
+      existing.disconnectedAt = 0;
+      if (existing.groupId && !existing.confirmed) existing.confirmDeadlineAt=now+RANDOM_QUEUE_CONFIRM_MS;
+      conn.queueAccountId = account.id;
+      queueStatus(existing,now,true);
+      processRandomMatchQueue(now);
+      return;
+    }
+  }
+  const entry={ accountId:account.id, name:account.name, seq:++randomQueueSequence,
+    conn, disconnectedAt:0, groupId:null, confirmed:false, confirmDeadlineAt:0, lastStatus:null };
+  randomQueue.set(account.id,entry);
+  conn.queueAccountId=account.id;
+  processRandomMatchQueue(now);
+}
+function cancelRandomQueue(conn, now = Date.now()) {
+  const entry=queueAccount(conn.queueAccountId);
+  if (!entry || entry.conn !== conn) return;
+  removeRandomQueueEntry(entry,'매칭을 취소했어요.',now);
+  conn.queueAccountId=null;
+  processRandomMatchQueue(now);
+}
+function confirmRandomQueue(conn, now = Date.now()) {
+  const entry=queueAccount(conn.queueAccountId);
+  if (!entry || entry.conn !== conn || !entry.groupId || entry.disconnectedAt) return;
+  const group=randomConfirmGroups.get(entry.groupId);
+  if (!group || now > Math.max(entry.confirmDeadlineAt,entry.disconnectedAt ? entry.disconnectedAt + RANDOM_QUEUE_RECONNECT_MS : 0)) return;
+  entry.confirmed=true;
+  processRandomMatchQueue(now);
+}
+function refuseRandomQueue(conn, now = Date.now()) {
+  const entry=queueAccount(conn.queueAccountId);
+  if (!entry || entry.conn !== conn) return;
+  removeRandomQueueEntry(entry,'참가를 거절했어요. 다시 신청할 수 있어요.',now);
+  conn.queueAccountId=null;
+  processRandomMatchQueue(now);
+}
+function queueRoomAvailable() {
+  const number=nextRoomDisplayNumber();
+  return rooms.size < MAX_ROOMS ? number : null;
+}
+function finalizeRandomQueueGroup(group, now = Date.now()) {
+  const members=[...group.members].map(id=>queueAccount(id));
+  if (members.length!==8 || members.some(e=>!e || !e.confirmed || !e.conn || e.conn.closed || e.disconnectedAt || findAccountReservation(e.accountId))) return false;
+  const roomNumber=queueRoomAvailable();
+  if (!roomNumber || !durableStore.status().ready) return false;
+  // cryptographically secure unbiased Fisher-Yates; no skill, history or team affinity.
+  const shuffledEntries=[...members];
+  for (let i=shuffledEntries.length-1;i>0;i--) {
+    const j=crypto.randomInt(i+1);
+    [shuffledEntries[i],shuffledEntries[j]]=[shuffledEntries[j],shuffledEntries[i]];
+  }
+  const code=newInternalRoomCode();
+  const room=newRoom(code,{mode:'competitive',displayNumber:roomNumber,matchmakingMode:'random_queue'});
+  rooms.set(code,room);
+  for (let i=0;i<shuffledEntries.length;i++) {
+    const entry=shuffledEntries[i];
+    const conn=entry.conn;
+    // The account has already been authenticated to enter the queue. Never store a PIN.
+    const success=joinRoom(conn,{room:code,team:i<4?'A':'B',accountId:entry.accountId},
+      {allowCreate:false,queueInternal:true,authenticatedAccount:playerAccountById(entry.accountId)});
+    if (!success) {
+      // Unexpected invariant failure: no partial draft, restore previously attached seats.
+      for (const joinedConn of room.clients.values()) {
+        joinedConn.playerId=null;joinedConn.roomCode=null;
+        joinedConn.send({type:'random_queue_error',message:'방 연결을 다시 시도하고 있어요.'});
+      }
+      rooms.delete(code);
+      return false;
+    }
+  }
+  for (const entry of members) {
+    randomQueue.delete(entry.accountId);
+    entry.conn.queueAccountId=null;
+    entry.groupId=null;
+  }
+  randomConfirmGroups.delete(group.id);
+  // Reuse the existing ranked competitive ban/pick engine unchanged.
+  if (!startCompetitiveDraft(room,now)) throw new Error('random_queue_draft_failed');
+  for (const entry of members) entry.conn.send({type:'random_queue_assigned',team:room.players.get(entry.conn.playerId)?.team});
+  broadcast(room,now);
+  return true;
+}
+function processRandomMatchQueue(now = Date.now()) {
+  // Disconnections retain FIFO priority for up to 30 seconds, but never count as
+  // a confirmed player. A 20-second confirmation deadline pauses for no one.
+  for (const entry of [...randomQueue.values()]) {
+    if (entry.disconnectedAt && now - entry.disconnectedAt >= RANDOM_QUEUE_RECONNECT_MS)
+      removeRandomQueueEntry(entry,null,now);
+  }
+  for (const group of [...randomConfirmGroups.values()]) {
+    for (const id of [...group.members]) {
+      const entry=queueAccount(id);
+      if (!entry || entry.confirmed) continue;
+      const expireAt=Math.max(entry.confirmDeadlineAt || group.deadline,
+        entry.disconnectedAt ? entry.disconnectedAt + RANDOM_QUEUE_RECONNECT_MS : 0);
+      if (now >= expireAt) {
+        removeRandomQueueEntry(entry,'참가 확인 시간이 지나 대기열에서 빠졌어요.',now);
+        if (entry.conn) entry.conn.queueAccountId=null;
+      }
+    }
+  }
+  // Refill older confirmation groups first; existing members retain their original
+  // queue timestamp and yes-vote across a failed round.
+  for (const group of randomConfirmGroups.values()) {
+    const waiting=queueSorted().filter(e=>!e.groupId);
+    while(group.members.size<8 && waiting.length) {
+      const entry=waiting.shift();
+      group.members.add(entry.accountId);
+      entry.groupId=group.id;
+      entry.confirmed=false;
+      entry.confirmDeadlineAt=now+RANDOM_QUEUE_CONFIRM_MS;
+      group.deadline=now+RANDOM_QUEUE_CONFIRM_MS;
+    }
+  }
+  // Form further groups from the earliest eight eligible, without MMR.
+  while(true) {
+    const waiting=queueSorted().filter(e=>!e.groupId);
+    if (waiting.length<8) break;
+    const group={id:crypto.randomUUID(),members:new Set(),deadline:now+RANDOM_QUEUE_CONFIRM_MS};
+    for(const entry of waiting.slice(0,8)) {entry.groupId=group.id;entry.confirmed=false;entry.confirmDeadlineAt=now+RANDOM_QUEUE_CONFIRM_MS;group.members.add(entry.accountId);}
+    randomConfirmGroups.set(group.id,group);
+  }
+  for (const group of [...randomConfirmGroups.values()]) {
+    if(group.members.size===8 && [...group.members].every(id=>queueAccount(id)?.confirmed)) finalizeRandomQueueGroup(group,now);
+  }
+  notifyRandomQueue(now);
 }
 
 function countTeam(room, team) {
@@ -2342,6 +2558,7 @@ function buildCompetitiveResult(room, now = Date.now()) {
     availableCharacters: Object.keys(CHARACTERS),
     rosterSnapshot: Object.fromEntries(Object.entries(CHARACTERS).map(([id, def]) => [id, { name: def.name, role: def.role }])),
     room: roomDisplayName(room), roomId: room.code, matchMode: room.matchMode,
+    matchmakingMode: room.matchmakingMode || 'manual_room',
     draftStartedAt: comp.draftStartedAt ? new Date(comp.draftStartedAt).toISOString() : null,
     matchStartedAt: comp.matchStartedAt ? new Date(comp.matchStartedAt).toISOString() : (room.matchStartedAt ? new Date(room.matchStartedAt).toISOString() : null),
     endedAt: new Date(now).toISOString(),
@@ -2489,6 +2706,10 @@ function onMessage(conn, msg) {
   if (msg.type === 'admin_stats_request') return sendAdminCompetitiveStats(conn, msg);
   if (msg.type === 'admin_stats_export_request') return sendAdminCompetitiveStatsBackup(conn);
   if (msg.type === 'spectator_join') return joinSpectator(conn, msg);
+  if (msg.type === 'random_queue_join') return enrollRandomQueue(conn,msg);
+  if (msg.type === 'random_queue_cancel') return cancelRandomQueue(conn);
+  if (msg.type === 'random_queue_confirm') return confirmRandomQueue(conn);
+  if (msg.type === 'random_queue_decline') return refuseRandomQueue(conn);
   if (msg.type === 'resume') return resumeRoom(conn, msg);
   if (msg.type === 'create_room') return createRoomAndJoin(conn, msg);
   if (msg.type === 'join_room') return joinRoom(conn, { ...msg, room: msg.roomId }, { allowCreate: false });
@@ -2501,6 +2722,7 @@ function onMessage(conn, msg) {
   if (!player) return;
 
   if (msg.type === 'rematch_prepare') {
+    if (room.queueLocked) {conn.send({type:'rematch_error',message:'자동 매칭 경기에서는 다시 매칭을 신청해주세요.'});return;}
     if (room.hostId !== player.id) { conn.send({ type: 'rematch_error', message: '방장만 다시 게임 준비를 시작할 수 있습니다.' }); return; }
     if (room.state !== 'ended') { conn.send({ type: 'rematch_error', message: '경기가 종료된 뒤에만 다시 게임 준비를 할 수 있습니다.' }); return; }
     if (!reopenEndedRoomForRematch(room, player, Date.now())) { conn.send({ type: 'rematch_error', message: '다시 게임 준비를 시작하지 못했습니다.' }); return; }
@@ -2509,6 +2731,7 @@ function onMessage(conn, msg) {
   }
 
   if (msg.type === 'set_team') {
+    if (room.queueLocked) {conn.send({type:'team_change_error',message:'랜덤 매칭에서 팀을 바꿀 수 없어요.'});return;}
     if (room.state !== 'lobby') { conn.send({ type: 'team_change_error', message: '경기 준비 또는 시작 후에는 팀을 변경할 수 없습니다.' }); return; }
     const nextTeam = msg.team === 'A' || msg.team === 'B' ? msg.team : null;
     if (!nextTeam) { conn.send({ type: 'team_change_error', message: 'A팀 또는 B팀을 선택하세요.' }); return; }
@@ -2539,6 +2762,7 @@ function onMessage(conn, msg) {
   }
 
   if (msg.type === 'set_room_mode') {
+    if (room.queueLocked) return;
     if (room.hostId !== player.id) { conn.send({ type: 'room_mode_error', message: '방장만 게임 모드를 변경할 수 있습니다.' }); return; }
     if (room.state !== 'lobby') { conn.send({ type: 'room_mode_error', message: '경기 시작 후에는 게임 모드를 변경할 수 없습니다.' }); return; }
     const nextMode = normalizeRoomMode(msg.mode);
@@ -2548,6 +2772,7 @@ function onMessage(conn, msg) {
     return;
   }
   if (msg.type === 'select' && room.state === 'lobby') {
+    if (room.queueLocked) return;
     const requested = validCharacter(msg.character);
     if (requested !== player.character && isCharacterTakenOnTeam(room, player.team, requested, player.id)) {
       conn.send({ type: 'pick_error', character: requested, message: '같은 팀에서 이미 사용 중인 캐릭터입니다.' });
@@ -2575,6 +2800,7 @@ function onMessage(conn, msg) {
     startMatch(room);
     return;
   }
+  if (msg.type === 'competitive_start' && room.queueLocked) return;
   if (msg.type === 'competitive_start' && room.hostId === player.id && room.state === 'lobby') {
     if (normalizeRoomMode(room.mode) !== 'competitive') { conn.send({ type: 'start_error', message: '현재 방은 일반전 모드입니다.' }); return; }
     if (!durableStore.status().ready) { conn.send({ type: 'start_error', message: '영구 통계 저장소가 연결되지 않아 경쟁전을 시작할 수 없습니다. 데이터 보호를 위해 시작이 차단되었습니다.' }); return; }
@@ -2733,11 +2959,15 @@ function joinSpectator(conn, msg) {
 }
 
 function joinRoom(conn, msg, options = {}) {
-  if (conn.playerId) return false;
+  if (conn.playerId || (conn.queueAccountId && !options.queueInternal)) return false;
   const code = safeRoom(msg.roomId || msg.room);
-  const account = authenticatePlayerAccount(msg.accountId, msg.pin);
+  const account = options.queueInternal ? options.authenticatedAccount : authenticatePlayerAccount(msg.accountId, msg.pin);
   if (!account) {
     conn.send({ type:'error', code:'account_login_failed', message:'이름 또는 4자리 PIN이 올바르지 않습니다.' });
+    return false;
+  }
+  if (!options.queueInternal && queueAccount(account.id)) {
+    conn.send({type:'error',code:'account_in_queue',message:'이 계정은 이미 경쟁전 매칭 대기 중이에요.'});
     return false;
   }
   const requestedName = account.name;
@@ -2771,6 +3001,7 @@ function joinRoom(conn, msg, options = {}) {
     rooms.set(code, room);
   }
   if (!room) { conn.send({ type: 'error', code: 'room_missing', message: '이 방은 더 이상 열려 있지 않습니다. 방 목록을 새로고침해주세요.' }); return false; }
+  if (room.queueLocked && !options.queueInternal) {conn.send({type:'error',message:'자동 매칭 방에는 직접 입장할 수 없어요.'});return false;}
   if (room.players.size >= 8) { conn.send({ type: 'error', message: '이 방은 이미 8명입니다.' }); return; }
   if (room.state === 'ended') { conn.send({ type: 'error', code: 'room_ending', message: '경기가 종료되어 이 방은 곧 자동으로 닫힙니다. 잠시 후 다시 입장해주세요.' }); return; }
   if (room.state !== 'lobby') { conn.send({ type: 'error', message: '이미 게임 준비 또는 경기가 진행 중입니다.' }); return; }
@@ -2816,10 +3047,14 @@ function joinRoom(conn, msg, options = {}) {
 }
 
 function createRoomAndJoin(conn, msg) {
-  if (conn.playerId || conn.spectatorId) return false;
+  if (conn.playerId || conn.spectatorId || conn.queueAccountId) return false;
   const account = authenticatePlayerAccount(msg.accountId, msg.pin);
   if (!account) {
     conn.send({ type:'error', code:'account_login_failed', message:'이름 또는 4자리 PIN이 올바르지 않습니다.' });
+    return false;
+  }
+  if (queueAccount(account.id)) {
+    conn.send({type:'error',code:'account_in_queue',message:'이 계정은 이미 경쟁전 매칭을 기다리는 중이에요.'});
     return false;
   }
   if (findAccountReservation(account.id)) {
@@ -2936,7 +3171,7 @@ function attachExistingPlayerConnection(conn, room, player, options = {}) {
 }
 
 function resumeRoom(conn, msg) {
-  if (conn.playerId || conn.spectatorId) return;
+  if (conn.playerId || conn.spectatorId || conn.queueAccountId) return;
   const code = safeRoom(msg.room);
   const token = safeResumeToken(msg.resumeToken);
   if (!token) {
@@ -2998,8 +3233,11 @@ function publicCharacterDefs() {
 }
 
 function disconnect(conn) {
-  if (conn.closed && !conn.playerId && !conn.spectatorId) return;
+  if (conn.closed && !conn.playerId && !conn.spectatorId && !conn.queueAccountId) return;
   conn.closed = true;
+  const queueEntry=queueAccount(conn.queueAccountId);
+  if (queueEntry && queueEntry.conn===conn) {queueEntry.conn=null;queueEntry.disconnectedAt=Date.now();processRandomMatchQueue();}
+  conn.queueAccountId=null;
   const room = rooms.get(conn.roomCode);
   if (!room) return;
   if (conn.spectatorId) {
@@ -4731,7 +4969,7 @@ function updateRoom(room, dt, now) {
 function competitivePhaseWireSnapshot(room, viewerId = null, spectator = false, now = Date.now()) {
   const viewer = viewerId ? room.players.get(viewerId) : null;
   return {
-    type: 'state', wireFormat: 'd1', state: room.state, mode: normalizeRoomMode(room.mode), matchMode: room.matchMode, room: roomDisplayName(room), roomNumber: room.displayNumber,
+    type: 'state', wireFormat: 'd1', state: room.state, mode: normalizeRoomMode(room.mode), matchMode: room.matchMode, matchmakingMode:room.matchmakingMode, room: roomDisplayName(room), roomNumber: room.displayNumber,
     scoreA: roundWireNumber(room.scoreA, 3), scoreB: roundWireNumber(room.scoreB, 3), timeLeft: 0,
     players: [...room.players.values()].map(p => [p.id, p.name, p.team, p.character || null, p.connected === false ? 0 : 1]),
     projectiles: [], beams: [],
@@ -4750,7 +4988,7 @@ function snapshot(room, viewerId = null, spectator = false) {
   const ended = room.state === 'ended';
 
   const out = {
-    type: 'state', state: room.state, mode: playing ? (room.matchMode || normalizeRoomMode(room.mode)) : normalizeRoomMode(room.mode), matchMode: room.matchMode, room: roomDisplayName(room), roomNumber: room.displayNumber,
+    type: 'state', state: room.state, mode: playing ? (room.matchMode || normalizeRoomMode(room.mode)) : normalizeRoomMode(room.mode), matchMode: room.matchMode, matchmakingMode:room.matchmakingMode, room: roomDisplayName(room), roomNumber: room.displayNumber,
     scoreA: room.scoreA, scoreB: room.scoreB,
     timeLeft: playing ? Math.max(0, (room.matchEndAt - now) / 1000) : 0,
     players: [...room.players.values()].map(p => {
@@ -5183,6 +5421,8 @@ async function startSchoolLineServer() {
     }
   }, 1000 / SNAPSHOT_SCHEDULER_HZ);
 
+  setInterval(() => processRandomMatchQueue(Date.now()), 250);
+
   setInterval(() => retryPendingCompetitiveRecords(Date.now()), Math.min(COMPETITIVE_PERSIST_RETRY_MS, 1000));
 
   setInterval(() => {
@@ -5253,6 +5493,15 @@ module.exports = {
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload, rebuildCompetitiveStatsFromMatches, statsSeriesForBalanceVersion, buildCompetitiveResult, buildAdvancedCompetitiveStats, combinations,
+  queueAccount, randomQueue, randomConfirmGroups, enrollRandomQueue, confirmRandomQueue, refuseRandomQueue, cancelRandomQueue, processRandomMatchQueue, resetRandomMatchQueue, finalizeRandomQueueGroup,
   teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate,
   normalizeRoomMode, roomDisplayName, publicRoomList, nextRoomDisplayNumber, createRoomAndJoin, joinRoom, leaveRoomExplicit, startMatch, rooms
+};
+
+if (process.env.NODE_ENV === 'test') module.exports.__test191 = {
+  setAccounts(accounts) { playerAccounts = accounts.map(a => ({...a})); },
+  setDurableReady(ready) { durableStore.ready=!!ready; },
+  getQueueSnapshot() { return queueSorted().map(e => ({id:e.accountId,seq:e.seq,groupId:e.groupId,confirmed:e.confirmed,disconnectedAt:e.disconnectedAt})); },
+  setStats(matches) { competitiveStats = rebuildCompetitiveStatsFromMatches(matches); },
+  getStats() { return competitiveStats; }
 };

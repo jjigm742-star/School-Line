@@ -1,6 +1,6 @@
 {
   "name": "school-line",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "private": true,
   "description": "School Line classroom 4v4 game server",
   "main": "server.js",
@@ -15,7 +15,10 @@
     "test:1.8-release": "node tests/release_1_8_selftest.js",
     "test:aim-hotfix": "node tests/ultimate_aim_hotfix_selftest.js",
     "test:curse": "node tests/curse_status_selftest.js",
-    "test:1.9": "node tests/patch_1_9_selftest.js"
+    "test:1.9": "node tests/patch_1_9_selftest.js",
+    "test:1.9.1": "node tests/patch_1_9_1_selftest.js",
+    "test:perf": "node tests/performance_1_9_selftest.js",
+    "test:1.9.1-ws": "node tests/patch_1_9_1_ws_selftest.js"
   },
   "engines": {
     "node": ">=20"

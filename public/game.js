@@ -1709,7 +1709,7 @@ function updateRoomCreationAvailability() {
   const atLimit = Array.isArray(roomDirectory) && roomDirectory.length >= maxRooms;
   for (const id of ['createCasualRoomButton','createCompetitiveRoomButton']) {
     const btn = $(id);
-    if (btn) btn.disabled = !schoolLineAccessOpen || atLimit;
+    if (btn) btn.disabled = randomQueueActive || !schoolLineAccessOpen || atLimit;
   }
   const help = $('roomCreateHelp');
   if (help) help.textContent = atLimit
@@ -1742,7 +1742,7 @@ function renderRoomDirectory() {
         btn.type = 'button';
         btn.className = `open-room-join ${team === 'A' ? 'team-a-choice' : 'team-b-choice'}`;
         const teamFull = count >= 4;
-        btn.disabled = !schoolLineAccessOpen || !entry.joinable || teamFull;
+        btn.disabled = randomQueueActive || !schoolLineAccessOpen || !entry.joinable || teamFull;
         btn.textContent = !entry.joinable ? '입장 불가' : teamFull ? `${team}팀 4/4` : `${team === 'A' ? '🔵' : '🔴'} ${team}팀 입장 ${count}/4`;
         btn.onclick = () => joinExistingRoom(entry.id, team);
         actions.appendChild(btn);
@@ -1791,6 +1791,7 @@ function selectedAccountCredentials() {
   return { accountId, pin };
 }
 function createRoom(mode) {
+  if(randomQueueActive) return;
   ensureAudio();
   updateSoundButton();
   $('joinError').textContent = '';
@@ -1799,6 +1800,7 @@ function createRoom(mode) {
   openConnection(() => ws.send(JSON.stringify({ type:'create_room', ...credentials, team:'A', mode })));
 }
 function joinExistingRoom(roomId, team) {
+  if(randomQueueActive) return;
   ensureAudio();
   updateSoundButton();
   $('joinError').textContent = '';
@@ -1812,6 +1814,83 @@ function joinExistingRoom(roomId, team) {
   rememberJoinedTeam(team);
   openConnection(() => ws.send(JSON.stringify({ type:'join_room', ...credentials, roomId, team })));
 }
+// Queue is independent of the existing join/lobby/draft screens.
+let randomQueueActive=false;
+let randomQueueLastCredentials=null;
+let randomQueueReconnectTimer=null;
+let randomQueueManualCancel=false;
+function randomQueueBusyUi(active) {
+  randomQueueActive=active;
+  $('randomQueuePanel').classList.toggle('hidden',!active);
+  $('randomQueueJoinButton').disabled=active;
+  for(const id of ['createCasualRoomButton','createCompetitiveRoomButton']) if($(id)) $(id).disabled=active;
+  if(!active) {randomQueueLastCredentials=null;clearTimeout(randomQueueReconnectTimer);randomQueueReconnectTimer=null;refreshRoomDirectory();}
+}
+function randomQueueJoin() {
+  ensureAudio();updateSoundButton();
+  $('joinError').textContent='';
+  const credentials=selectedAccountCredentials();
+  if(!credentials) return;
+  if(myId || spectatorMode) {$('joinError').textContent='이미 경기에 참가 중이에요.';return;}
+  randomQueueManualCancel=false;
+  randomQueueLastCredentials=credentials;
+  randomQueueBusyUi(true);
+  $('randomQueueStatus').textContent='매칭 신청 중…';
+  $('randomQueueDetails').textContent='서버에 연결하고 있어요.';
+  $('randomQueueConfirmButton').classList.add('hidden');
+  $('randomQueueDeclineButton').classList.add('hidden');
+  openConnection(()=>ws.send(JSON.stringify({type:'random_queue_join',...credentials})));
+}
+$('randomQueueJoinButton').onclick=randomQueueJoin;
+$('randomQueueCancelButton').onclick=()=>{
+  randomQueueManualCancel=true;
+  if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'random_queue_cancel'}));
+  randomQueueBusyUi(false);
+  $('joinError').textContent='매칭을 취소했어요.';
+  if(ws && ws.readyState===WebSocket.OPEN) {const old=ws;ws=null;setTimeout(()=>old.close(),60);}
+};
+$('randomQueueConfirmButton').onclick=()=>{
+  if(ws?.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'random_queue_confirm'}));
+  $('randomQueueConfirmButton').disabled=true;
+  $('randomQueueDetails').textContent='참가 확인을 전송했어요. 다른 친구들을 기다리고 있어요.';
+};
+$('randomQueueDeclineButton').onclick=()=>{
+  if(ws?.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'random_queue_decline'}));
+};
+function onRandomQueueMessage(msg) {
+  if(msg.type==='random_queue_status') {
+    randomQueueBusyUi(true);
+    const confirming=msg.phase==='confirm';
+    const waitingRoom=msg.phase==='waiting_room';
+    $('randomQueueTitle').textContent=(confirming||waitingRoom)?'🎉 경기를 찾았어요!':'🏆 경쟁전 매칭';
+    $('randomQueueStatus').textContent=waitingRoom ? '✅ 8명 확인 완료' : confirming
+      ? `참가 확인 · ${msg.groupSize}/8명`
+      : `매칭 대기 중… ${msg.count}/8명`;
+    $('randomQueueDetails').textContent=waitingRoom ? '현재 경기방이 가득 차 잠시 기다리고 있어요. 빈 방이 생기면 자동으로 시작해요.' : confirming
+      ? msg.confirmed ? `✅ 확인 완료! 다른 친구들을 기다려요. (${msg.confirmSeconds}초)` : `⏱️ ${msg.confirmSeconds}초 안에 참가를 확인하세요.`
+      : `현재 순서: ${msg.position}번째 · 먼저 기다린 친구부터 참여해요.`;
+    const confirm=$('randomQueueConfirmButton');
+    confirm.classList.toggle('hidden',!confirming||msg.confirmed);
+    confirm.disabled=!confirming||!!msg.confirmed;
+    $('randomQueueDeclineButton').classList.toggle('hidden',!confirming);
+    return true;
+  }
+  if(msg.type==='random_queue_assigned') {
+    randomQueueBusyUi(false);
+    $('joinError').textContent=`🎲 팀이 무작위로 결정되었어요! ${msg.team}팀`;
+    return true;
+  }
+  if(msg.type==='random_queue_left' || msg.type==='random_queue_error') {
+    randomQueueBusyUi(false);
+    $('joinError').textContent=msg.message||'매칭을 종료했어요.';
+    if(msg.type==='random_queue_error' && ws?.readyState===WebSocket.OPEN && !myId) {
+      const old=ws;ws=null;old.close();
+    }
+    return true;
+  }
+  return false;
+}
+
 $('createCasualRoomButton').onclick = () => createRoom('casual');
 $('createCompetitiveRoomButton').onclick = () => createRoom('competitive');
 $('refreshRoomsButton').onclick = refreshRoomDirectory;
@@ -2071,6 +2150,17 @@ ws.onmessage = ev => handleMessage(expandWireMessage(JSON.parse(ev.data)));
   ws.onerror = () => $('joinError').textContent = '서버에 연결하지 못했습니다.';
   ws.onclose = () => {
     if (accessLockActive) return;
+    if(randomQueueActive && !randomQueueManualCancel && !myId) {
+      $('randomQueueStatus').textContent='연결이 끊겼어요. 재접속 중…';
+      ws=null;
+      clearTimeout(randomQueueReconnectTimer);
+      randomQueueReconnectTimer=setTimeout(()=>{
+        if(!randomQueueActive || !randomQueueLastCredentials) return;
+        const credentials=randomQueueLastCredentials;
+        openConnection(()=>ws.send(JSON.stringify({type:'random_queue_join',...credentials})));
+      },1200);
+      return;
+    }
     if (myId || spectatorMode) {
       alert(spectatorMode ? '서버 연결이 끊겼습니다.' : '서버 연결이 끊겼습니다. 돌아가기 버튼을 누르거나, 같은 방에 같은 이름으로 다시 입장하면 기존 자리로 복귀합니다.');
       location.reload();
@@ -2102,6 +2192,7 @@ $('spectatorJoinButton').onclick = () => {
 };
 
 function handleMessage(msg) {
+  if(onRandomQueueMessage(msg)) return;
   if (msg.type === 'ultimate_fx') {
     if (msg.kind === 'rect') {
       addWorldFx('ultimateRectHit', { x:msg.x, y:msg.y, character:msg.character, team:msg.team }, {
@@ -2171,6 +2262,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'access_locked') {
+    if(randomQueueActive) randomQueueBusyUi(false);
     resetClientForAccessLock(msg.message || '관리자가 입장을 제한했습니다.');
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
     return;
@@ -2183,6 +2275,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'joined') {
+    if(randomQueueActive) randomQueueBusyUi(false);
     if (msg.accountId) localStorage.setItem(PLAYER_ACCOUNT_KEY, msg.accountId);
     if ($('accountPinInput')) $('accountPinInput').value = '';
     clearLiveProjectileRegistry();
@@ -2923,7 +3016,7 @@ function renderCompetitiveStats(data) {
   for (const version of versions) {
     const option = document.createElement('option');
     option.value = String(version);
-    option.textContent = `${version} 통계`;
+    option.textContent = version==='1.9-combined'?'1.9 통합 (1.9 + 1.9.1)':version==='1.9'?'1.9 단독':version==='1.9.1'?'1.9.1 단독':`${version} 통계`;
     option.selected = String(version) === statsVersion;
     versionSelect.appendChild(option);
   }
@@ -2931,7 +3024,7 @@ function renderCompetitiveStats(data) {
   const rosterLabel = data.currentBuild?.rosterVersion ? ` · 현재 로스터 ${data.currentBuild.rosterVersion}` : '';
   const net = data.network || null;
   const netLabel = net ? ` · WS ${Number(net.totalMiB || 0).toFixed(1)}MB / 현재 ${Number(net.activeConnections || 0)}연결 / 차단 ${Number(net.skippedLiveSnapshots || 0)}회` : '';
-  $('competitiveStatsSummary').textContent = `${statsVersion || '현재'} 버전 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${netLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
+  $('competitiveStatsSummary').textContent = `${data.statsFilterLabel || statsVersion || '현재'} 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${netLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
   const persistence = data.persistence || {};
   const persistenceBadge = $('competitiveStatsPersistenceBadge');
   if (persistenceBadge) {
@@ -2951,6 +3044,7 @@ function renderCompetitiveStats(data) {
   const quality = $('competitiveStatsDataQuality');
   if (quality) {
     quality.textContent = `고급 원본 기록 ${Number(adv.recordedMatches||0)}판 · 완전 기록 ${Number(adv.completeMatches||0)}판 · 부분/불완전 ${Number(adv.partialMatches||0)}판 · 연결끊김 발생 경기 ${Number(adv.disconnectMatches||0)}판 · 원본 없이 누적치만 남은 과거 경기 ${Number(adv.legacyAggregateOnlyMatches||0)}판`;
+    if (data.statsFilterCaveat) quality.textContent += ` · ${data.statsFilterCaveat}`;
   }
   const charText = id => {
     const m = CHARACTER_META[id];
@@ -3021,7 +3115,7 @@ function renderCompetitiveStats(data) {
     const teamLine=team=>assigns.filter(p=>p.team===team).map(p=>`${escapeHtml(p.playerName||'학생')}(${escapeHtml(characterPublicDef(p.character)?.name||p.character||'?')})`).join(', ');
     const bans=(Array.isArray(m.bans)?m.bans:[]).map(b=>`${b.team}:${escapeHtml(characterPublicDef(b.character)?.name||b.character||'?')}`).join(' / ');
     const dq=m.dataQuality?.complete===false?' ⚠️ 불완전':'';
-    row.innerHTML = `<span>${escapeHtml(m.room || '')} · ${m.endedAt ? new Date(m.endedAt).toLocaleString('ko-KR') : ''}<small class="stats-match-detail">밴 ${bans||'—'}<br>A ${teamLine('A')||'—'}<br>B ${teamLine('B')||'—'}</small></span><b>${result} · ${scoreA}:${scoreB}${killTie}${dq}</b>`;
+    row.innerHTML = `<span>${escapeHtml(m.room || '')} · ${escapeHtml(m.gameVersion || '?')} · ${m.matchmakingMode === 'random_queue' ? '🎲 랜덤 매칭' : m.matchmakingMode === 'manual_room' ? '수동 방' : '기존 방식'} · ${m.endedAt ? new Date(m.endedAt).toLocaleString('ko-KR') : ''}<small class="stats-match-detail">밴 ${bans||'—'}<br>A ${teamLine('A')||'—'}<br>B ${teamLine('B')||'—'}</small></span><b>${result} · ${scoreA}:${scoreB}${killTie}${dq}</b>`;
     recent.appendChild(row);
   }
 }
@@ -3052,6 +3146,11 @@ function updatePostGameCountdownUi() {
   const hint = $('modeStartHint');
   const rematch = $('rematchPrepareButton');
   if (label) label.textContent = `🏁 경기가 종료되었습니다. 방 자동 삭제까지 ${seconds}초`;
+  if (state.matchmakingMode === 'random_queue') {
+    if(hint) hint.textContent='🎲 랜덤 매칭 종료! 다시 참가하려면 「방 나가기」를 누른 뒤 「경쟁전 매칭」을 신청하세요.';
+    if(rematch) rematch.classList.add('hidden');
+    return;
+  }
   if (hint) hint.textContent = isHost
     ? '↻ 다시 게임 준비를 누르면 삭제 예약이 즉시 취소되고 같은 방에서 다음 경기를 준비할 수 있습니다.'
     : '방장이 다시 게임 준비를 누르면 이 방을 유지하고 다음 경기를 준비할 수 있습니다.';
@@ -3095,7 +3194,7 @@ function renderLobby() {
   const countB = state.players.filter(p => p.team === 'B' && p.connected !== false).length;
   const competitiveReady = state.players.length === 8 && countA === 4 && countB === 4 && state.players.every(p => p.connected !== false);
   const teamControls = $('lobbyTeamControls');
-  if (teamControls) teamControls.classList.toggle('hidden', spectatorMode || roomEnding || state.state !== 'lobby' || !me);
+  if (teamControls) teamControls.classList.toggle('hidden', spectatorMode || state.matchmakingMode === 'random_queue' || roomEnding || state.state !== 'lobby' || !me);
   if (me) {
     const switchA = $('switchTeamAButton');
     const switchB = $('switchTeamBButton');
@@ -3109,13 +3208,13 @@ function renderLobby() {
     if (status) status.textContent = `현재 ${me.team}팀`;
   }
   const modeControls = $('roomModeControls');
-  if (modeControls) modeControls.classList.toggle('hidden', !isHost || roomEnding || state.state !== 'lobby');
+  if (modeControls) modeControls.classList.toggle('hidden', state.matchmakingMode === 'random_queue' || !isHost || roomEnding || state.state !== 'lobby');
   $('setCasualModeButton').classList.toggle('active', roomMode === 'casual');
   $('setCompetitiveModeButton').classList.toggle('active', roomMode === 'competitive');
   const rematchPrepareButton = $('rematchPrepareButton');
-  if (rematchPrepareButton) rematchPrepareButton.classList.toggle('hidden', !isHost || !roomEnding);
+  if (rematchPrepareButton) rematchPrepareButton.classList.toggle('hidden', state.matchmakingMode === 'random_queue' || !isHost || !roomEnding);
   $('normalStartButton').classList.toggle('hidden', !isHost || roomEnding || roomMode !== 'casual');
-  $('competitiveStartButton').classList.toggle('hidden', !isHost || roomEnding || roomMode !== 'competitive');
+  $('competitiveStartButton').classList.toggle('hidden', state.matchmakingMode === 'random_queue' || !isHost || roomEnding || roomMode !== 'competitive');
   $('competitiveStartButton').disabled = roomEnding || !competitiveReady;
   if (roomEnding) {
     updatePostGameCountdownUi();
@@ -3912,7 +4011,7 @@ function updateScoringStatusUi(viewState) {
   el.classList.add(team === 'A' ? 'score-a' : 'score-b');
 }
 
-function drawHomeZoneLabels(viewState) {
+function drawHomeZoneLabels(viewState, targetCtx=ctx) {
   if (!config?.world) return;
   const me = !spectatorMode ? (viewState.players || []).find(p => p.id === myId) : null;
   let left='A 구역', right='B 구역';
@@ -3921,13 +4020,13 @@ function drawHomeZoneLabels(viewState) {
   const leftX=(Number(config.world.aZoneEnd)/2)*SCALE;
   const rightX=((Number(config.world.bZoneStart)+Number(config.world.height))/2)*SCALE;
   const y=canvas.height*0.50;
-  ctx.save();
-  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='900 22px system-ui';
-  ctx.lineWidth=3; ctx.globalAlpha=.18; ctx.strokeStyle='rgba(0,0,0,.9)';
-  ctx.strokeText(left,leftX,y); ctx.strokeText(right,rightX,y);
-  ctx.fillStyle='#43689a'; ctx.fillText(left,leftX,y);
-  ctx.fillStyle='#9b5151'; ctx.fillText(right,rightX,y);
-  ctx.restore();
+  targetCtx.save();
+  targetCtx.textAlign='center'; targetCtx.textBaseline='middle'; targetCtx.font='900 22px system-ui';
+  targetCtx.lineWidth=3; targetCtx.globalAlpha=.18; targetCtx.strokeStyle='rgba(0,0,0,.9)';
+  targetCtx.strokeText(left,leftX,y); targetCtx.strokeText(right,rightX,y);
+  targetCtx.fillStyle='#43689a'; targetCtx.fillText(left,leftX,y);
+  targetCtx.fillStyle='#9b5151'; targetCtx.fillText(right,rightX,y);
+  targetCtx.restore();
 }
 
 function updateHealerLowHpAttention(viewState, localPlayer) {
@@ -3952,36 +4051,82 @@ function updateHealerLowHpAttention(viewState, localPlayer) {
   return true;
 }
 
+// Static map content is baked once per arena, canvas size and viewer perspective.
+// This removes dozens of fill/stroke/text operations from every animation frame.
+// All moving players, projectiles, status rings, warning areas and combat FX remain live.
+let battlefieldBackgroundCache = null;
+function drawCachedBattlefield(viewState) {
+  const me = !spectatorMode ? (viewState.players || []).find(p => p.id === myId) : null;
+  const perspective = me?.team || 'spectator';
+  let cached = battlefieldBackgroundCache;
+  if (!cached || cached.config !== config || cached.width !== canvas.width ||
+      cached.height !== canvas.height || cached.perspective !== perspective) {
+    const image = document.createElement('canvas');
+    image.width = canvas.width;
+    image.height = canvas.height;
+    const background = image.getContext('2d');
+    if (!background) return false;
+    background.fillStyle = '#ffffff';
+    background.fillRect(0, 0, image.width, image.height);
+    background.fillStyle = 'rgba(65,130,255,.09)';
+    background.fillRect(0, 0, config.world.aZoneEnd*SCALE, image.height);
+    background.fillStyle = 'rgba(255,80,80,.075)';
+    background.fillRect(config.world.bZoneStart*SCALE,0,(config.world.height-config.world.bZoneStart)*SCALE,image.height);
+    background.strokeStyle = 'rgba(55,65,81,.28)';
+    background.setLineDash([7,7]);
+    for (const y of [config.world.aZoneEnd, config.world.bZoneStart]) {
+      background.beginPath(); background.moveTo(y*SCALE,0);
+      background.lineTo(y*SCALE,image.height); background.stroke();
+    }
+    background.setLineDash([]);
+    drawHomeZoneLabels(viewState, background);
+    background.fillStyle = '#5c6675';
+    for (const w of config.walls) background.fillRect(w.y*SCALE,w.x*SCALE,w.h*SCALE,w.w*SCALE);
+    cached = { config, width:canvas.width, height:canvas.height, perspective, image };
+    battlefieldBackgroundCache = cached;
+  }
+  ctx.drawImage(cached.image, 0, 0);
+  return true;
+}
+
+// HUD content is based on 10 Hz authoritative snapshots, not the display refresh
+// rate. Keep the action buttons interactive on every new snapshot / target selection,
+// but avoid destroying/recreating HUD DOM 60-120 times per second.
+// Reuse the same palette object across players and frames (Dia form is the sole dynamic exception).
+const CHARACTER_FILL_COLORS = Object.freeze({
+  witch:'#dfbb86',hacker:'#879bff',rescue:'#ffa5a5',drain:'#e87492',iron:'#8893a3',
+  mecha:'#7fd3a7',solar:'#e6a93d',shield:'#4f9ed6',runner:'#f0a64b',shooter:'#58a6ff',
+  sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',
+  spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',
+  buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:'#79c8e8'
+});
+
+const HUD_REFRESH_MS = 90;
+let lastHudRefreshAt = -Infinity;
+let lastHudTargetId = null;
+let lastHudSnapshot = null;
+
 function renderGame() {
   requestAnimationFrame(renderGame);
   const viewState = state;
-  if (!viewState || viewState.state !== 'playing' || !config) { clearScoringStatusUi(); return; }
+  if (!viewState || viewState.state !== 'playing' || !config) {
+    if (scoringStatusUiKey) clearScoringStatusUi();
+    lastHudRefreshAt = -Infinity;
+    lastHudSnapshot = null;
+    return;
+  }
   updateScoringStatusUi(viewState);
   const healerViewer = spectatorMode ? null : viewState.players.find(p => p.id === myId);
+  const viewerTeam = healerViewer?.team;
   const healerAttentionEnabled = updateHealerLowHpAttention(viewState, healerViewer);
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  // Owned zones are left/right in mobile landscape view.
-  ctx.fillStyle = 'rgba(65,130,255,.09)'; ctx.fillRect(0,0,config.world.aZoneEnd*SCALE,canvas.height);
-  ctx.fillStyle = 'rgba(255,80,80,.075)'; ctx.fillRect(config.world.bZoneStart*SCALE,0,(config.world.height-config.world.bZoneStart)*SCALE,canvas.height);
-  ctx.strokeStyle = 'rgba(55,65,81,.28)'; ctx.setLineDash([7,7]);
-  for (const y of [config.world.aZoneEnd, config.world.bZoneStart]) { ctx.beginPath(); ctx.moveTo(y*SCALE,0); ctx.lineTo(y*SCALE,canvas.height); ctx.stroke(); }
-  ctx.setLineDash([]);
-
-  // Player-perspective home labels are local-only orientation aids. Spectators keep neutral A/B labels.
-  drawHomeZoneLabels(viewState);
-
-  // Walls rotated into landscape view.
-  ctx.fillStyle = '#5c6675';
-  for (const w of config.walls) ctx.fillRect(w.y*SCALE,w.x*SCALE,w.h*SCALE,w.w*SCALE);
+  if (!drawCachedBattlefield(viewState)) return;
 
   const beamFxNow = performance.now();
 
   // Solar/Wind are moving area ultimates. Keep the exact gameplay radius visible
   // for the whole active duration, underneath character art and combat effects.
   for (const p of viewState.players) {
-    if (!p.alive || (p.stealthed && !spectatorMode && p.team !== viewState.players.find(q=>q.id===myId)?.team) || Number(p.ultimateActiveMs||0) <= 0 || (p.character !== 'solar' && p.character !== 'wind')) continue;
+    if (!p.alive || (p.stealthed && !spectatorMode && p.team !== viewerTeam) || Number(p.ultimateActiveMs||0) <= 0 || (p.character !== 'solar' && p.character !== 'wind')) continue;
     const activeDef=characterPublicDef(p.character) || {};
     const activeRadius=Math.max(0,Number(activeDef.ultimateRadius)||0)*SCALE;
     if (!(activeRadius > 0)) continue;
@@ -4088,11 +4233,11 @@ function renderGame() {
   }
 
   for (const p of viewState.players) {
-    if (!p.alive || (p.stealthed && !spectatorMode && p.team !== viewState.players.find(q=>q.id===myId)?.team)) continue;
+    if (!p.alive || (p.stealthed && !spectatorMode && p.team !== viewerTeam)) continue;
     const hitRadius = characterRadiusWorld(p.character) * SCALE;
     const renderWorld = renderedPlayerWorldPosition(p, beamFxNow);
     const s=worldToScreen(renderWorld.x,renderWorld.y), x=s.x,y=s.y;
-    const characterFill = ({witch:'#dfbb86',hacker:'#879bff',rescue:'#ffa5a5',drain:'#e87492',iron:'#8893a3',mecha:'#7fd3a7',solar:'#e6a93d',shield:'#4f9ed6',runner:'#f0a64b',shooter:'#58a6ff',sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',buffer:'#bda7e8',light:'#f6d86b',laser:'#e04b88',ice:'#68d9f5',dia:(p.diaForm?'#d9fbff':'#79c8e8')})[p.character] || '#8793a3';
+    const characterFill = p.character === 'dia' && p.diaForm ? '#d9fbff' : (CHARACTER_FILL_COLORS[p.character] || '#8793a3');
     const tokenImg = characterTokenImage(p.character);
     const art = characterArt(p.character);
     const tokenSize = tokenImg ? Math.max(30, Math.min(58, hitRadius * 3.65 * Number(art?.renderScale || 1))) : 0;
@@ -4345,8 +4490,14 @@ function renderGame() {
     }
   }
 
-  const me = spectatorMode ? null : viewState.players.find(p => p.id === myId);
-  if (me && me.character === 'buffer') {
+  // Keep HUD at snapshot cadence, with immediate refresh after target selection.
+  // Canvas animation remains full-rate; only DOM changes are throttled.
+  if (viewState !== lastHudSnapshot || selectedTargetId !== lastHudTargetId ||
+      beamFxNow - lastHudRefreshAt >= HUD_REFRESH_MS) {
+    lastHudRefreshAt = beamFxNow;
+    lastHudSnapshot = viewState;
+    const me = spectatorMode ? null : viewState.players.find(p => p.id === myId);
+    if (me && me.character === 'buffer') {
     const serverTarget = me.bufferTargetId ? viewState.players.find(p => p.id === me.bufferTargetId && p.alive) : null;
     selectedTargetId = serverTarget ? serverTarget.id : null;
   } else if (!currentTargetingRule() || !viewState.players.some(p => p.id === selectedTargetId && p.alive)) selectedTargetId = null;
@@ -4425,7 +4576,8 @@ function renderGame() {
         ultInfoLine = `<span class="my-info-ultimate">⚡ ${ultName} ${ultPct}% · ${Math.floor(ultCharge)}/${Math.floor(ultCost)}</span>`;
       }
     }
-    $('myInfo').innerHTML = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}`;
+    const infoHtml = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}`;
+    if ($('myInfo').innerHTML !== infoHtml) $('myInfo').innerHTML = infoHtml;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 
     // Alpha 1.6.1: ultimate charge now lives in the top-left personal info card.
@@ -4499,6 +4651,8 @@ function renderGame() {
       else if (!target) { ability.textContent = '😇 대상 선택'; ability.disabled = true; ability.classList.remove('active'); }
       else { ability.textContent = `😇 축복 · ${target.name}`; ability.disabled = false; ability.classList.remove('active'); }
     }
+  }
+    lastHudTargetId = selectedTargetId;
   }
 }
 renderGame();

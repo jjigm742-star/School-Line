@@ -1,3 +1,12 @@
+SCHOOL LINE 1.9.1 RANDOM MATCHMAKING + FPS SOURCE PACKAGE
+============================================================
+Game/npm version: 1.9.1 | Balance: 1.9 | Competitive stats series: 1.9 | Roster: 26.
+Adds FIFO random competitive matchmaking (8 seats, 20s acceptance, 30s disconnect grace), secure 4+4 random teams, preserves all manual rooms and competitive draft.
+Stats views: 1.9-only, 1.9.1-only, combined 1.9; uses original per-match gameVersion without overwriting old records.
+Carries 1.9 FPS render caching optimizations and shared administrator PIN hash update, plus 26 individual portrait crops.
+Never bundled production account/stat data; PostgreSQL schema unchanged. NOT DEPLOYED. See README_1.9.1_RANDOM_MATCHMAKING.md.
+
+--- Historical 1.9 source manifest (retained for traceability) ---
 SCHOOL LINE 1.9 OFFICIAL SOURCE PACKAGE
 =======================================
 Gameplay: 1.9; npm: 1.9.0; competitive stats series: 1.9; roster: 26.

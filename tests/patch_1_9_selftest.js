@@ -149,6 +149,6 @@ for(const id of ['iron','shield','mecha']){
  ok(src.includes("p.id === myId) ctx.globalAlpha = 0.42"),'stealth caster-only alpha effect exists');
  for(const id of Object.keys(expected)){ok(src.includes(`${id}: { title:`),`story ${id} available`);}
 }
-eq(require('../package.json').version,'1.9.0','package version');
+eq(require('../package.json').version,'1.9.1','package version; 1.9 gameplay preserved');
 const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');ok(html.includes('정식 1.9'),'client label 1.9');
 console.log(`PASS: ${n} School Line 1.9 hero/DR/wire/asset integration assertions`);

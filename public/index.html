@@ -45,7 +45,7 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">정식 1.9 · 신규 4종(위치·해커·레스큐·드레인) · 26 캐릭터</p>
+      <p class="subtitle">정식 1.9.1 · 26 캐릭터 · 랜덤 경쟁전 매칭</p>
       <div class="account-login-grid">
         <label>내 이름<select id="accountSelect" aria-label="계정 이름"><option value="">이름 선택</option></select></label>
         <label>4자리 PIN<input id="accountPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" autocomplete="off" /></label>
@@ -55,6 +55,20 @@
       <button id="resumeButton" type="button" class="resume-game-button hidden">↩️ 진행 중인 게임으로 돌아가기</button>
       <div id="resumeHint" class="resume-game-hint hidden"></div>
 
+      <section class="random-queue-launch" aria-label="랜덤 경쟁전 매칭">
+        <button id="randomQueueJoinButton" type="button" class="competitive-start">🏆 경쟁전 매칭</button>
+        <p>먼저 신청한 8명이 만나고, A팀·B팀은 무작위로 나뉘어요.</p>
+      </section>
+      <section id="randomQueuePanel" class="random-queue-panel hidden" aria-live="polite">
+        <h2 id="randomQueueTitle">🏆 경쟁전 매칭</h2>
+        <p id="randomQueueStatus">매칭 대기 중… 0/8명</p>
+        <p id="randomQueueDetails">매칭을 기다리고 있어요.</p>
+        <div class="random-queue-actions">
+          <button id="randomQueueConfirmButton" class="accent hidden" type="button">✅ 참가 확인</button>
+          <button id="randomQueueDeclineButton" class="hidden" type="button">참가 거절</button>
+          <button id="randomQueueCancelButton" type="button">매칭 취소</button>
+        </div>
+      </section>
       <div class="room-create-shell">
         <div class="picker-heading">새 방 만들기</div>
         <div class="room-create-buttons">
@@ -235,7 +249,7 @@
         <div class="stats-scroll-content">
         <div id="competitiveStatsSummary" class="stats-summary"></div>
         <div class="stats-version-row"><label for="competitiveStatsVersion">통계 버전</label><select id="competitiveStatsVersion" aria-label="경쟁 통계 버전"></select></div>
-        <div class="stats-note">통계 1.7부터 PostgreSQL에 경기별 원본을 영구 저장합니다. 1.7.x / 1.8.x / 1.9.x 통계는 각각 독립된 시리즈로 분리되며 신캐는 출시 이후 실제 선택 가능 경기만 분모에 포함됩니다.</div>
+        <div class="stats-note">통계 1.7부터 PostgreSQL에 경기별 원본을 영구 저장합니다. 1.7 / 1.8 / 1.9 통계는 시리즈별로 분리하고, 1.9와 1.9.1은 단독·통합 조회를 지원되며 신캐는 출시 이후 실제 선택 가능 경기만 분모에 포함됩니다.</div>
         <div class="stats-note stats-note-secondary">승률 옆 95% CI는 표본 불확실성을 나타냅니다. GitHub/Render 재배포와 무관하게 PostgreSQL 기록이 유지되며, JSON 버튼은 별도의 수동 백업 수단입니다.</div>
         <div id="competitiveStatsDataQuality" class="stats-quality"></div>
         <h3 class="stats-recent-title">캐릭터 종합</h3>
@@ -366,6 +380,6 @@
       </article>
     </div>
   </main>
-  <script src="/game.js?v=1.9-four-heroes-release1"></script>
+  <script src="/game.js?v=1.9.1-queue-fps1"></script>
 </body>
 </html>

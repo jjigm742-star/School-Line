@@ -643,3 +643,84 @@ body.access-locked .access-admin-floating { display: none; }
 .random-queue-panel #randomQueueDetails{font-size:13px;line-height:1.6}
 .random-queue-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:14px}
 .random-queue-actions button{min-height:40px;padding:8px 16px}
+
+/* 1.10 PRE5: shared lobby/in-game character card; accessible, scrollable overlay. */
+.character-ability-section { margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.10); }
+.character-guide-control { margin-top:9px; padding:8px 10px; color:#dceaff; background:#1b2b3e; border:1px solid #355171; border-radius:8px; font-size:12px; line-height:1.55; }
+.character-guide-control b { color:#ffdb80; margin-right:6px; }
+.in-game-guide-overlay { position:fixed; inset:0; z-index:610; display:grid; place-items:center; background:rgba(4,8,16,.82); padding:12px; backdrop-filter:blur(4px); }
+.in-game-guide-overlay.hidden { display:none; }
+.in-game-guide-card { width:min(580px,96vw); max-height:min(90dvh,840px); display:flex; flex-direction:column; overflow:hidden; border-radius:15px; background:#101927; border:1px solid #445a77; box-shadow:0 20px 65px #000b; color:#ecf3ff; }
+.in-game-guide-header { flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 16px; border-bottom:1px solid #314059; }
+.in-game-guide-kicker { font-size:11px; color:#93b2e0; font-weight:800; }
+.in-game-guide-header h2 { margin:4px 0 0; font-size:18px; }
+#inGameCharacterGuideClose { flex:none; width:38px; height:38px; padding:0; border-radius:8px; background:#283b55; color:white; font-size:20px; }
+.in-game-guide-scroll { overflow-y:auto; min-height:0; flex:1; padding:0 13px 14px; overscroll-behavior:contain; }
+.in-game-guide-scroll .character-detail { margin-top:12px; }
+.in-game-guide-footer { flex:none; padding:9px 14px; border-top:1px solid #314059; font-size:11px; text-align:center; color:#b5c6dc; }
+.in-game-guide-footer kbd { border:1px solid #7084a0; padding:2px 5px; border-radius:4px; margin:0 2px; }
+@media (max-height:520px) { .in-game-guide-card { max-height:96dvh; } .in-game-guide-header { padding:6px 12px; } .in-game-guide-header h2 { font-size:14px; } .in-game-guide-scroll { padding:0 10px 8px; } .in-game-guide-scroll .character-detail { margin-top:7px; } }
+
+/* 1.10 PRE5B: small mobile-only character guide trigger in the upper-left HUD.
+   Shift personal status right instead of covering health/ultimate information.
+   Desktop retains its original HUD and keyboard shortcut. */
+.mobile-character-guide-button { display:none; }
+body.mobile-guide-available .mobile-character-guide-button {
+  display:grid; place-items:center;
+  position:absolute; left:max(8px, env(safe-area-inset-left));
+  top:max(8px, env(safe-area-inset-top)); z-index:25;
+  width:34px; height:34px; min-width:34px; min-height:34px;
+  padding:0; border-radius:10px;
+  border:1px solid rgba(165,201,242,.65);
+  background:rgba(10,20,34,.84); color:#edf6ff;
+  font-size:22px; line-height:1; font-weight:750;
+  box-shadow:0 3px 11px rgba(0,0,0,.24);
+  touch-action:manipulation; -webkit-user-select:none; user-select:none;
+}
+body.mobile-guide-available .mobile-character-guide-button:focus-visible {
+  outline:2px solid #ffe28a; outline-offset:2px;
+}
+body.mobile-guide-available .my-info {
+  left:max(51px, calc(env(safe-area-inset-left) + 43px));
+  max-width:min(calc(42vw - 40px), 230px);
+}
+body.spectator-mode .mobile-character-guide-button,
+body.post-game-sequence .mobile-character-guide-button { display:none !important; }
+
+/* 1.10 RELEASE: visible current-patch entry directly under competitive matchmaking. */
+.random-queue-launch .latest-patch-launch-button {
+  display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;
+  margin-top:9px; min-height:46px; padding:10px 13px;
+  background:linear-gradient(115deg,#3d638a,#386b7c);
+  border:1px solid #7ccbd4; color:#f8fcff;
+  box-shadow:0 2px 10px rgba(0,0,0,.22); font-size:15px; font-weight:900;
+}
+.latest-patch-launch-button small { font-size:11px; font-weight:700; color:#c9eef3; }
+.latest-patch-launch-button:focus-visible,
+.latest-patch-x:focus-visible,
+.latest-patch-close:focus-visible { outline:3px solid #fff3ac; outline-offset:2px; }
+.latest-patch-overlay { position:fixed; inset:0; z-index:610; display:grid; place-items:center; padding:16px; background:rgba(3,8,15,.85); backdrop-filter:blur(5px); }
+.latest-patch-overlay.hidden { display:none; }
+.latest-patch-card { width:min(750px,96vw); max-height:90vh; max-height:90dvh; padding:18px; display:flex; flex-direction:column; overflow:hidden; background:#121d2a; border:1px solid #547995; border-radius:18px; box-shadow:0 22px 65px #000a; }
+.latest-patch-header { display:flex; flex:0 0 auto; align-items:flex-start; justify-content:space-between; gap:14px; padding-bottom:12px; border-bottom:1px solid #344962; }
+.latest-patch-kicker { font-size:11px; font-weight:900; letter-spacing:.035em; color:#8ed3e3; }
+.latest-patch-header h2 { margin:6px 0 0; font-size:clamp(19px,4vw,27px); line-height:1.35; }
+.latest-patch-x { width:44px; height:44px; flex:0 0 auto; padding:0; font-size:19px; border-radius:12px; }
+.latest-patch-body { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:4px 5px 5px 0; line-height:1.6; }
+.latest-patch-section { margin:15px 0 0; }
+.latest-patch-section h3 { margin:0 0 8px; font-size:16px; color:#f4f8ff; }
+.latest-patch-group { margin:10px 0 0; }
+.latest-patch-group h4 { margin:0 0 5px; font-size:13px; font-weight:900; color:#c2d5e8; }
+.latest-patch-group h4.buff { color:#99e9be; }
+.latest-patch-group h4.nerf { color:#ffb5b5; }
+.latest-patch-group ul { list-style:disc; padding-left:23px; margin:5px 0 9px; }
+.latest-patch-group li { margin:7px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; }
+.latest-patch-group li strong { color:#fff; }
+.latest-patch-close { flex:0 0 auto; margin-top:12px; width:100%; min-height:44px; font-weight:900; }
+body.latest-patch-open { overflow:hidden; }
+@media(max-width:640px) {
+  .latest-patch-overlay { padding:9px; }
+  .latest-patch-card { width:100%; max-height:95vh; max-height:95dvh; padding:13px; }
+  .latest-patch-group li { font-size:13px; }
+  .latest-patch-launch-button { gap:6px; }
+}

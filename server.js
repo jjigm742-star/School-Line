@@ -25,6 +25,10 @@ const SNAPSHOT_SCHEDULER_HZ = 20;
 // live snapshots are skipped when a room would exceed this byte budget.
 const LIVE_ROOM_BUDGET_BPS = Math.max(32768, Number(process.env.SCHOOL_LINE_LIVE_ROOM_BUDGET_BPS || 131072));
 const MAX_WS_PENDING_BYTES = Math.max(65536, Number(process.env.SCHOOL_LINE_MAX_WS_PENDING_BYTES || 262144));
+// Prevent hostile/malformed clients from allocating unbounded receive buffers.
+// Separate per-frame and aggregated TCP-chunk budgets because one chunk may contain several frames.
+const MAX_WS_INBOUND_FRAME_BYTES = Math.max(4096, Math.min(1048576, Number(process.env.SCHOOL_LINE_MAX_WS_INBOUND_FRAME_BYTES) || 65536));
+const MAX_WS_INBOUND_BUFFER_BYTES = Math.max(MAX_WS_INBOUND_FRAME_BYTES + 14, Math.min(2097152, Number(process.env.SCHOOL_LINE_MAX_WS_INBOUND_BUFFER_BYTES) || 262144));
 const WS_PING_INTERVAL_MS = Math.max(5000, Number(process.env.SCHOOL_LINE_WS_PING_INTERVAL_MS || 10000));
 const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS + 5000, Number(process.env.SCHOOL_LINE_WS_STALE_TIMEOUT_MS || 15000));
 const DT = 1 / TICK_RATE;
@@ -39,7 +43,7 @@ const COMPETITIVE_READY_MS = Math.max(100, Number(process.env.SCHOOL_LINE_COMP_R
 const COMPETITIVE_DATA_DIR = path.join(__dirname, 'data'); // seed/static data only; runtime persistence lives in PostgreSQL.
 const PLAYER_ACCOUNTS_SEED_FILE = path.join(COMPETITIVE_DATA_DIR, 'player_accounts_seed.json');
 const RESPAWN_MS = 10000;
-const RESPAWN_INVULN_MS = 2000;
+const RESPAWN_INVULN_MS = 1500;
 const RESPAWN_POST_SHIELD = 100;
 const RESPAWN_POST_SHIELD_MS = 3000;
 const NONCOMBAT_REGEN_DELAY_MS = 4000;
@@ -55,8 +59,8 @@ const ADMIN_STATS_LOCK_MS = 30000;
 const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN hash; plaintext never leaves the browser request.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.9';
-const GAME_VERSION = '1.9.1';
+const BALANCE_VERSION = '1.10';
+const GAME_VERSION = '1.10';
 const COMPETITIVE_STATS_SCHEMA_VERSION = 7;
 // Stats series reset: historical 1.6 data is intentionally NOT imported. This build starts at 1.7.
 // From gameplay 1.7 onward the series follows major.minor automatically, so 1.7.x / 1.8.x split without hard-coded lists.
@@ -67,9 +71,10 @@ function statsSeriesForBalanceVersion(balanceVersion) {
   if (major < 1 || (major === 1 && minor < 7)) return '1.7';
   return `${major}.${minor}`;
 }
-const COMPETITIVE_STATS_VERSION = statsSeriesForBalanceVersion(BALANCE_VERSION);
-const COMPETITIVE_BUILD_ID = '1.9.1-random-queue-fps-1';
-const COMPETITIVE_ROSTER_VERSION = '1.9-release-roster-26';
+// Official builds use their major.minor stats series; prerelease tags remain isolated.
+const COMPETITIVE_STATS_VERSION = BALANCE_VERSION.includes('-pre') ? BALANCE_VERSION : statsSeriesForBalanceVersion(BALANCE_VERSION);
+const COMPETITIVE_BUILD_ID = '1.10-release-roster28';
+const COMPETITIVE_ROSTER_VERSION = '1.10-release-roster-28';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
 const pendingCompetitiveRecords = new Map();
@@ -201,7 +206,8 @@ const STATUS_DEFS = Object.freeze({
   stun:     { kind: 'harmful', clearOnDeath: true },
   // Curse: ability-specific duration, additive +25 percentage points to damage taken.
   curse:    { kind: 'harmful', clearOnDeath: true, damageTakenBonus: 0.25 },
-  tailwind: { kind: 'beneficial', clearOnDeath: true }
+  tailwind: { kind: 'beneficial', clearOnDeath: true },
+  flower_bloom: { kind: 'beneficial', clearOnDeath: true }
 });
 
 const WALLS = [
@@ -229,6 +235,16 @@ const CHARACTERS = {
     projectileType: 'attack', damage: 13,
     ultimateName: '자폭', ultimateCost: 1000, ultimateDescription: '4초 후 반경 16m 적에게 200 피해를 주고 자신도 200 피해를 받는다.', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 4
   },
+  magnet: {
+    name: '마그넷', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
+    fireRate: 2, range: 16, projectileSpeed: 14, projectileRadius: 0.70,
+    projectileType: 'attack', damage: 40, abilityId: 'magnet',
+    magnetRange: 20, magnetCooldown: 12, magnetProjectileSpeed: 28, magnetProjectileRadius: 0.52,
+    magnetPullDuration: 0.3, magnetPullOffset: 0.5,
+    ultimateName: '과충전', ultimateCost: 800,
+    ultimateDescription: '자석 쿨타임을 즉시 초기화한다. 8초간 자석의 쿨타임이 4초가 되고 초당 10 HP를 회복한다.',
+    ultimateDuration: 8, ultimateMagnetCooldown: 4, ultimateSelfHealHps: 10
+  },
   jet: {
     name: '제트', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
     fireRate: 5, range: 12, projectileSpeed: 20, projectileRadius: 0.32,
@@ -238,7 +254,7 @@ const CHARACTERS = {
     ultimateName: '로켓 러시', ultimateCost: 1000, ultimateDescription: '부스터를 즉시 재충전하고 8초간 재사용 대기시간이 2초가 된다.', ultimateDuration: 8, ultimateBoostCooldown: 2
   },
   solar: {
-    name: '솔라', role: '탱커', hp: 375, speed: 5.0, radius: 1.00,
+    name: '솔라', role: '탱커', hp: 400, speed: 5.0, radius: 1.00,
     attackType: 'beam', range: 16, beamDps: 55,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
     solarProjectileRadius: 0.32, solarProjectileDamage: 25, solarSelfHeal: 25,
@@ -269,20 +285,20 @@ const CHARACTERS = {
   sniper: {
     name: '스나이퍼', role: '딜러', hp: 150, speed: 5.0, radius: 0.65,
     fireRate: 2, range: 36, projectileSpeed: 42, projectileRadius: 0.20,
-    projectileType: 'attack', damage: 60,
+    projectileType: 'attack', damage: 55,
     ultimateName: '정밀사격', ultimateCost: 800, ultimateDescription: '8초간 거리에 관계없이 160 DPS(발당 80 피해)로 공격하고 투사체 크기가 증가한다.', ultimateDuration: 8, ultimateDamage: 80, ultimateProjectileRadius: 0.32
   },
   cannon: {
     name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
     fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
     projectileType: 'attack', damage: 13,
-    ultimateName: '초대형 포격', ultimateCost: 1300, ultimateDescription: '8초간 이동할 수 없는 대신 기본 공격이 180 DPS가 된다.', ultimateDuration: 8, ultimateDamage: 18
+    ultimateName: '초대형 포격', ultimateCost: 1300, ultimateDescription: '8초간 이동할 수 없는 대신 기본 공격이 200 DPS가 된다.', ultimateDuration: 8, ultimateDamage: 20
   },
   fire: {
     name: '파이어', role: '딜러', hp: 200, speed: 7.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 16, burnDps: 10, burnDuration: 2, burnHealReduction: 0.30,
-    ultimateName: '대화재', ultimateCost: 800, ultimateDescription: '0·1·2·3초마다 전방 30° 부채꼴로 화염탄 5발을 발사한다. 각 회차 대상당 최대 40 피해, 화상 2초.', ultimateDuration: 4, ultimateDamage: 40, ultimateProjectileCount: 5, ultimateVolleyCount: 4, ultimateVolleyInterval: 1, ultimateFanAngleDeg: 30
+    ultimateName: '대화재', ultimateCost: 1000, ultimateDescription: '0·1·2·3초마다 전방 30° 부채꼴로 화염탄 5발을 발사한다. 각 회차 대상당 최대 40 피해, 화상 2초.', ultimateDuration: 4, ultimateDamage: 40, ultimateProjectileCount: 5, ultimateVolleyCount: 4, ultimateVolleyInterval: 1, ultimateFanAngleDeg: 30
   },
   poison: {
     name: '포이즌', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
@@ -326,7 +342,7 @@ const CHARACTERS = {
     name: '윈드', role: '힐러', hp: 175, speed: 7.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
     projectileType: 'heal', heal: 12, damage: 10,
-    tailwindDuration: 4, tailwindCooldown: 15, abilityId: 'tailwind',
+    tailwindDuration: 4, tailwindCooldown: 15, tailwindTierDelta: 1, abilityId: 'tailwind',
     ultimateName: '계절풍', ultimateCost: 1400, ultimateDescription: '8초간 반경 12m 자신과 아군을 초당 30 회복한다.', ultimateDuration: 8, ultimateRadius: 12, ultimateHealHps: 30
   },
   star: {
@@ -334,6 +350,17 @@ const CHARACTERS = {
     fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'heal', heal: 45, damage: 25,
     ultimateName: '슈퍼노바', ultimateCost: 1400, ultimateDescription: '반경 30m 자신과 아군을 150 회복하고 적에게 100 피해를 준다.', ultimateRadius: 30, ultimateHeal: 150, ultimateDamage: 100, ultimateDelay: 2
+  },
+  flower: {
+    name: '플라워', role: '힐러', hp: 250, speed: 5.0, radius: 0.80,
+    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
+    projectileType: 'heal', heal: 14, damage: 10,
+    abilityId: 'flower_thorns', flowerThornsCooldown: 10, flowerThornsDuration: 5, flowerThornsDamage: 18,
+    ultimateName: '만개', ultimateCost: 1400,
+    ultimateDescription: '맵 전체에서 자신 또는 선택한 아군 1명에게 즉시 150 치유 + 3초 보호막 150, 4초간 이동속도 +2단계. 시야 제한 없음.',
+    ultimateHeal: 150, ultimateShield: 150, ultimateShieldDuration: 3,
+    ultimateSpeedTierDelta: 2, ultimateDuration: 4,
+    ultimateTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
   },
   angel: {
     name: '엔젤', role: '힐러', hp: 175, speed: 6.0, radius: 0.65,
@@ -351,14 +378,14 @@ const CHARACTERS = {
     ultimateName: '업그레이드', ultimateCost: 1000, ultimateDescription: '8초간 링크 치유량이 초당 65로 증가하고 대상 이동속도가 1단계 증가한다.', ultimateDuration: 8, ultimateLinkHealHps: 65, ultimateLinkedSpeedTierDelta: 1
   },
   light: {
-    name: '라이트', role: '힐러', hp: 225, speed: 6.0, radius: 0.65,
+    name: '라이트', role: '힐러', hp: 275, speed: 6.0, radius: 0.65,
     attackType: 'lightBeam', range: 16, healHps: 50, beamDps: 50,
     beamAllyHitPadding: 0.5, beamEnemyHitPadding: 0.2,
     ultimateName: '스포트라이트', ultimateCost: 800, ultimateDescription: '전방 24×6m 직사각형 내 적에게 50 피해, 아군에게 100 치유, 자신도 별도 100 회복. 벽 관통.', ultimateRange: 24, ultimateWidth: 6, ultimateDamage: 50, ultimateHeal: 100, ultimateSelfHeal: 100
   },
   laser: {
     name: '레이저', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
-    attackType: 'beam', range: 16, beamDps: 65, maxHpDpsRatio: 0.10,
+    attackType: 'beam', range: 16, beamDps: 55, maxHpDpsRatio: 0.15,
     ultimateName: '파괴광선', ultimateCost: 1400, ultimateDescription: '전방 24×6m 직사각형 내 적에게 10+최대 HP의 30% 즉시 피해. 실효 피해량만큼 3초 보호막. 벽 관통.', ultimateRange: 24, ultimateWidth: 6, ultimateDamage: 10, ultimateMaxHpDamageRatio: 0.30, ultimateShieldDuration: 3
   },
   ice: {
@@ -369,9 +396,9 @@ const CHARACTERS = {
   },
   dia: {
     name: '다이아', role: '탱커', hp: 350, speed: 5.0, radius: 1.00,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.20,
+    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
     projectileType: 'attack', damage: 13,
-    formDuration: 6, formCooldown: 16, formHp: 450, formSpeed: 7.0,
+    formDuration: 6, formCooldown: 14, formHp: 450, formSpeed: 7.0,
     formRange: 16, formBeamDps: 95, formKillCooldownReduction: 6, abilityId: 'form',
     ultimateName: '수정 폭발', ultimateCost: 800, ultimateDescription: '3번에 걸쳐 총 48개의 수정 투사체를 사방으로 발사해 24m 이내의 적에게 투사체당 40 피해를 준다.', ultimateDamage: 40, ultimateProjectileCount: 16, ultimateVolleyCount: 3, ultimateVolleyInterval: 1
   },
@@ -403,7 +430,7 @@ const CHARACTERS = {
   drain: {
     name: '드레인', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 16, lifestealOnHit: 4,
+    projectileType: 'attack', damage: 16, lifestealOnHit: 6,
     ultimateName: '뱀파이어', ultimateCost: 1000, ultimateDescription: 'HP 100을 즉시 회복하고 8초간 공격속도 25% 증가.',
     ultimateHeal: 100, ultimateDuration: 8, ultimateAttackSpeedBoost: 0.25
   }
@@ -659,7 +686,11 @@ function fullBalanceVersion(value) {
 }
 
 function normalizeStatsVersion(value) {
-  const full = fullBalanceVersion(value);
+  const raw = String(value || '').trim();
+  // Preserve prerelease stat series *as distinct series* when promoting a build
+  // to final 1.10. Otherwise '1.10-pre5c' would silently become '1.10'.
+  if (/^\d+\.\d+-pre[\w.-]*$/i.test(raw)) return raw;
+  const full = fullBalanceVersion(raw);
   if (!full) return '';
   const parts = full.split('.');
   return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : full;
@@ -861,7 +892,7 @@ let competitiveStats = emptyCompetitiveStats();
 competitiveStats.versions[COMPETITIVE_STATS_VERSION] = emptyCompetitiveVersionStats();
 
 function isAcceptedStatsSeries(version) {
-  const match = String(version || '').match(/^(\d+)\.(\d+)$/);
+  const match = String(version || '').match(/^(\d+)\.(\d+)(?:-pre[\w.-]*)?$/i);
   if (!match) return false;
   const major = Number(match[1]), minor = Number(match[2]);
   return major > 1 || (major === 1 && minor >= 7);
@@ -1106,7 +1137,7 @@ function publicCompetitiveStats(requestedVersion = null) {
     availableStatsVersions.sort(versionSort);
   }
   const requested = String(requestedVersion || '').trim();
-  const statsVersion = requested && availableStatsVersions.includes(requested) ? requested : '1.9-combined';
+  const statsVersion = requested && availableStatsVersions.includes(requested) ? requested : COMPETITIVE_STATS_VERSION;
   const rawMatches = Array.isArray(competitiveStats.matches) ? competitiveStats.matches : [];
   const is19Filter = ['1.9','1.9.1','1.9-combined'].includes(statsVersion);
   const versionMatches = rawMatches.filter(m => {
@@ -1280,6 +1311,9 @@ function isUltimateActive(player, now = Date.now()) {
 
 function currentAttackDef(player, now) {
   const def = CHARACTERS[player.character];
+  if (player.character === 'flower' && (player.flowerThornsUntil || 0) > now) {
+    return { ...def, projectileType: 'attack', heal: 0, damage: def.flowerThornsDamage };
+  }
   if (isDiaForm(player, now)) {
     return { attackType: 'beam', range: def.formRange, beamDps: def.formBeamDps, maxHpDpsRatio: 0 };
   }
@@ -1315,6 +1349,8 @@ function effectiveSpeed(player, now, room = null) {
   if (player.character === 'shooter' && isUltimateActive(player, now)) delta += Number(CHARACTERS.shooter.ultimateSpeedTierDelta) || 0;
   if (player.character === 'reactor' && isUltimateActive(player, now)) delta += Number(CHARACTERS.reactor.ultimateSpeedTierDelta) || 0;
   delta += linkedBufferUltimateSpeedDelta(room, player, now);
+  const bloom = getStatus(player, 'flower_bloom', now);
+  if (bloom) delta += Number(bloom.data?.tierDelta) || 2;
   const tailwind = getStatus(player, 'tailwind', now);
   const slow = getStatus(player, 'slow', now);
   if (tailwind) delta += Number(tailwind.data && tailwind.data.tierDelta) || 1;
@@ -1779,7 +1815,14 @@ function mimeType(file) {
 }
 
 const server = http.createServer((req, res) => {
-  const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  } catch (error) {
+    if (!(error instanceof URIError)) throw error;
+    sendJson(res, 400, { ok:false, error:'invalid_url_encoding', message:'올바르지 않은 URL 인코딩입니다.' });
+    return;
+  }
   if (urlPath === '/access-status.json' && req.method === 'GET') {
     sendJson(res, 200, schoolLineAccessPayload());
     return;
@@ -1912,10 +1955,11 @@ function makeWsConnection(socket, remoteAddress = '') {
         return true;
       } catch (_) { return false; }
     },
-    close() {
+    close(code = null) {
       if (this.closed) return;
       this.closed = true;
-      try { const bytes = sendFrame(socket, 0x8, Buffer.alloc(0)); recordWsOutbound(this, bytes, 'close'); } catch (_) {}
+      const body = Number.isInteger(code) ? Buffer.from([code >> 8, code & 0xff]) : Buffer.alloc(0);
+      try { const bytes = sendFrame(socket, 0x8, body); recordWsOutbound(this, bytes, 'close'); } catch (_) {}
       try { socket.end(); } catch (_) {}
     }
   };
@@ -1943,8 +1987,15 @@ server.on('upgrade', (req, socket) => {
 });
 
 function parseWsData(conn, chunk) {
+  if (conn.closed || conn.socket.destroyed) return;
+  // Bound allocations *before* concatenation, including partial/incomplete frames.
+  if (chunk.length > MAX_WS_INBOUND_BUFFER_BYTES || conn.buffer.length > MAX_WS_INBOUND_BUFFER_BYTES - chunk.length) {
+    conn.buffer = Buffer.alloc(0);
+    conn.close(1009); // Message too big (RFC 6455).
+    return;
+  }
   conn.buffer = Buffer.concat([conn.buffer, chunk]);
-  while (conn.buffer.length >= 2) {
+  while (!conn.closed && conn.buffer.length >= 2) {
     const b0 = conn.buffer[0], b1 = conn.buffer[1];
     const opcode = b0 & 0x0f;
     const masked = (b1 & 0x80) !== 0;
@@ -1958,6 +2009,12 @@ function parseWsData(conn, chunk) {
       const n = conn.buffer.readBigUInt64BE(2);
       if (n > BigInt(Number.MAX_SAFE_INTEGER)) { conn.close(); return; }
       len = Number(n); offset = 10;
+    }
+    // Reject the advertised frame size without waiting for its payload.
+    if (len > MAX_WS_INBOUND_FRAME_BYTES) {
+      conn.buffer = Buffer.alloc(0);
+      conn.close(1009);
+      return;
     }
     const maskLen = masked ? 4 : 0;
     if (conn.buffer.length < offset + maskLen + len) return;
@@ -2783,7 +2840,7 @@ function onMessage(conn, msg) {
     player.respawnShieldAt = 0;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.pendingUltimateId = null; player.pendingUltimateAt = 0; player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0; player.patternUltimateRemaining = 0; player.patternUltimateNextAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.newAbilityCooldownUntil = 0; player.stealthUntil = 0; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
+    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.pendingUltimateId = null; player.pendingUltimateAt = 0; player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0; player.patternUltimateRemaining = 0; player.patternUltimateNextAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.newAbilityCooldownUntil = 0; player.magnetPull = null; player.flowerThornsUntil = 0; player.stealthUntil = 0; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0;
     resetPerkState(player);
     broadcast(room);
     return;
@@ -2855,6 +2912,8 @@ function onMessage(conn, msg) {
     if (msg.ability === 'blessing') activated = activateAngelBlessing(room, player, abilityTarget, now);
     if (msg.ability === 'shield') activated = activateShieldAbility(room, player, abilityTarget, now);
     if (msg.ability === 'boost') activated = activateJetBoost(room, player, now);
+    if (msg.ability === 'magnet') activated = activateMagnetHook(room, player, now);
+    if (msg.ability === 'flower_thorns') activated = activateFlowerThorns(player, now);
     if (['curse', 'stealth', 'rescue'].includes(msg.ability)) activated = activateNewHeroAbility(room, player, abilityTarget, now);
     if (activated) {
       player.abilityUseSeq = (player.abilityUseSeq || 0) + 1;
@@ -3027,7 +3086,7 @@ function joinRoom(conn, msg, options = {}) {
     diaFormUntil: 0, diaCooldownUntil: 0,
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
-    jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
+    jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0, magnetPull: null, flowerThornsUntil: 0,
     reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), patternUltimateRemaining: 0, patternUltimateNextAt: 0,
     perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
     shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
@@ -3201,16 +3260,18 @@ function publicCharacterDefs() {
     'range', 'fireRate', 'projectileType', 'attackType', 'damage', 'heal',
     'projectileSpeed', 'projectileRadius', 'beamDps', 'healHps', 'beamAllyHitPadding', 'beamEnemyHitPadding', 'maxHpDpsRatio',
     'burnDps', 'burnDuration', 'burnHealReduction', 'poisonHealReduction', 'poisonDuration', 'radiationHealReduction', 'radiationDuration',
-    'slowTierDelta', 'slowDuration', 'tailwindDuration', 'tailwindCooldown',
+    'slowTierDelta', 'slowDuration', 'tailwindDuration', 'tailwindCooldown', 'tailwindTierDelta',
     'solarFireRate', 'solarProjectileRange', 'solarProjectileSpeed',
     'solarProjectileRadius', 'solarProjectileDamage', 'solarSelfHeal',
     'sprintDuration', 'sprintCooldown', 'abilityCooldown', 'abilityHeal',
     'boostDistance', 'boostDuration', 'boostCooldown', 'boostShield', 'boostShieldDuration',
+    'magnetRange', 'magnetCooldown', 'magnetProjectileSpeed', 'magnetProjectileRadius', 'magnetPullDuration', 'magnetPullOffset', 'ultimateMagnetCooldown',
+    'flowerThornsCooldown', 'flowerThornsDuration', 'flowerThornsDamage', 'ultimateSpeedTierDelta',
     'shieldAmount', 'shieldDuration', 'shieldCap', 'shieldMaxCharges', 'shieldRecharge',
     'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
     'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction',
-    'curseDuration', 'stealthDuration', 'lifestealOnHit', 'ultimateAttackSpeedBoost', 'ultimateEffectDuration',
+    'curseDuration', 'curseDamageTakenBonus', 'stealthDuration', 'lifestealOnHit', 'ultimateAttackSpeedBoost', 'ultimateEffectDuration',
     'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedTierDelta', 'ultimateProjectileCount', 'ultimateVolleyCount', 'ultimateVolleyInterval', 'ultimateFanAngleDeg', 'ultimateRotationDeg', 'ultimateWidth', 'ultimateMaxHpDamageRatio', 'ultimateSelfHeal'
   ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
@@ -3227,6 +3288,7 @@ function publicCharacterDefs() {
     if (Array.isArray(c.reactorOutputBands)) {
       def.reactorOutputBands = c.reactorOutputBands.map(b => ({ max: b.max, damage: b.damage }));
     }
+    if (id === 'witch') def.curseDamageTakenBonus = STATUS_DEFS.curse.damageTakenBonus;
     out[id] = def;
   }
   return out;
@@ -3308,7 +3370,7 @@ function startMatch(room, now = Date.now()) {
       nextFireAt: 0, lastPeriodicActionAt: 0, bufferTargetId: null, statuses: Object.create(null), shield: 0, maxShield: 0, shieldUntil: 0, shieldCreditBySource: Object.create(null), shieldUncredited: 0,
       shieldAbilityCharges: p.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0, shieldRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
-      jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0,
+      jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0, magnetPull: null, flowerThornsUntil: 0, newAbilityCooldownUntil: 0,
       reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), patternUltimateRemaining: 0, patternUltimateNextAt: 0, lastCombatAt: now, damageContributors: Object.create(null), supportContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
@@ -3364,7 +3426,7 @@ function activateWindTailwind(room, player, now) {
   let applications = 0;
   for (const target of room.players.values()) {
     if (!target.alive || target.team !== player.team) continue;
-    if (applyStatus(room, player, target, 'tailwind', def.tailwindDuration * 1000, now, { tierDelta: 1 })) applications += 1;
+    if (applyStatus(room, player, target, 'tailwind', def.tailwindDuration * 1000, now, { tierDelta: def.tailwindTierDelta })) applications += 1;
   }
   ensureMatchStats(player).tailwindApplications += applications;
   return true;
@@ -3428,6 +3490,9 @@ function finishJetBoost(room, player, now) {
 
 function activateJetBoost(room, player, now) {
   if (!player.alive || player.character !== 'jet') return false;
+  // Magnet's forced pull wins over Jet's booster. Reject the attempt without
+  // consuming booster cooldown while a pull is actively controlling movement.
+  if (player.magnetPull && player.magnetPull.until > now) return false;
   if (player.jetBoostUntil > now || player.jetBoostCooldownUntil > now) return false;
   const def = CHARACTERS.jet;
   const endpoint = jetBoostEndpoint(player, def);
@@ -3461,6 +3526,101 @@ function updateJetBoostPosition(player, now) {
   return true;
 }
 
+// Magnet: the hook is a normal server-authoritative projectile; no target click is required.
+function activateFlowerThorns(player, now = Date.now()) {
+  if (!player || !player.alive || player.character !== 'flower' || (player.newAbilityCooldownUntil || 0) > now) return false;
+  const def = CHARACTERS.flower;
+  player.flowerThornsUntil = now + def.flowerThornsDuration * 1000;
+  player.newAbilityCooldownUntil = now + def.flowerThornsCooldown * 1000;
+  return true;
+}
+
+function magnetHookCooldownSeconds(player, now) {
+  const def = CHARACTERS.magnet;
+  return isUltimateActive(player, now) ? def.ultimateMagnetCooldown : def.magnetCooldown;
+}
+
+function activateMagnetHook(room, player, now) {
+  if (!room || !player?.alive || player.character !== 'magnet' || (player.newAbilityCooldownUntil || 0) > now) return false;
+  const def = CHARACTERS.magnet;
+  let dx = player.aimX - player.x, dy = player.aimY - player.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.001) return false;
+  dx /= len; dy /= len;
+  const hookDef = {
+    ...def, range: def.magnetRange, projectileSpeed: def.magnetProjectileSpeed,
+    projectileRadius: def.magnetProjectileRadius, projectileType: 'attack', damage: 0
+  };
+  const id = spawnProjectileFromDirection(room, player, hookDef, now, dx, dy, {
+    magnetHook: true, damage: 0, countsForUltimate: false
+  });
+  if (!id) return false;
+  player.newAbilityCooldownUntil = now + magnetHookCooldownSeconds(player, now) * 1000;
+  return true;
+}
+
+// Sweep along the straight pull path, ignoring all characters but not fixed obstacles.
+// The tiny samples + binary search prevent 0.3s high-speed pulls tunneling through walls.
+function magnetPullEndpoint(target, destX, destY) {
+  const x0 = target.x, y0 = target.y, radius = CHARACTERS[target.character]?.radius || 0.6;
+  const deltaX = destX - x0, deltaY = destY - y0, dist = Math.hypot(deltaX, deltaY);
+  if (dist < 1e-6) return {x:x0,y:y0,ratio:0};
+  const legal = ratio => {
+    const x=x0+deltaX*ratio, y=y0+deltaY*ratio;
+    return x >= radius && x <= WORLD.width-radius && y >= radius && y <= WORLD.height-radius && !collidesWall(x,y,radius);
+  };
+  let last=0, next=null, samples=Math.ceil(dist / 0.05);
+  for (let i=1;i<=samples;i++) {
+    const t=i/samples;
+    if (!legal(t)) {next=t;break;}
+    last=t;
+  }
+  if (next!==null) {
+    let lo=last,hi=next;
+    for(let i=0;i<16;i++) {const mid=(lo+hi)/2; if(legal(mid))lo=mid;else hi=mid;}
+    last=lo;
+  }
+  return {x:x0+deltaX*last,y:y0+deltaY*last,ratio:last};
+}
+
+function beginMagnetPull(target, magnet, now) {
+  const def = CHARACTERS.magnet;
+  // Resolve the forward vector at IMPACT, not the hook's launch or later caster position.
+  const dx = magnet.aimX - magnet.x, dy = magnet.aimY - magnet.y;
+  const len = Math.hypot(dx,dy);
+  const dirX = len >= 0.001 ? dx/len : 1, dirY = len >= 0.001 ? dy/len : 0;
+  const destX = magnet.x + dirX * def.magnetPullOffset;
+  const destY = magnet.y + dirY * def.magnetPullOffset;
+  // Cancel Jet's active dash before the pull is set. Do NOT call finishJetBoost:
+  // that would snap Jet to the old dash endpoint and award a completion shield.
+  // Keep the already-spent cooldown, but clear all pending dash interpolation.
+  if (target.character === 'jet' && (target.jetBoostUntil || 0) > now) {
+    target.jetBoostUntil = 0;
+    target.jetBoostStartAt = 0;
+    target.jetBoostStartX = target.x;
+    target.jetBoostStartY = target.y;
+    target.jetBoostEndX = target.x;
+    target.jetBoostEndY = target.y;
+    target.jetBoostDistance = 0;
+  }
+  const end = magnetPullEndpoint(target,destX,destY);
+  if (end.ratio <= 1e-6) {target.magnetPull = null; return;}
+  const durationMs=def.magnetPullDuration*1000*end.ratio;
+  target.magnetPull = {startX:target.x,startY:target.y,endX:end.x,endY:end.y,
+    startAt:now, until:now+durationMs};
+}
+
+function updateMagnetPull(target,now) {
+  const pull=target?.magnetPull;
+  if (!pull || !target.alive) return false;
+  const duration=Math.max(1,pull.until-pull.startAt);
+  const t=clamp((now-pull.startAt)/duration,0,1);
+  target.x=pull.startX+(pull.endX-pull.startX)*t;
+  target.y=pull.startY+(pull.endY-pull.startY)*t;
+  if (t>=1) target.magnetPull=null;
+  return t<1;
+}
+
 function activateAngelBlessing(room, player, target, now) {
   if (!player.alive || player.character !== 'angel' || !target || !target.alive) return false;
   if (player.angelBlessCooldownUntil > now) return false;
@@ -3487,6 +3647,9 @@ function activateNewHeroAbility(room, player, target, now) {
     applyHealing(room, player, target, def.abilityHeal, now);
   } else return false;
   player.newAbilityCooldownUntil = now + def.abilityCooldown * 1000;
+  // Successful activations only: failed/no-target/cooldown attempts never count.
+  if (player.character === 'hacker') ensureMatchStats(player).hackerStealthUses += 1;
+  if (player.character === 'rescue') ensureMatchStats(player).rescueDispatchUses += 1;
   return true;
 }
 
@@ -3577,6 +3740,8 @@ function die(room, player, now) {
   }, now);
   player.damageContributors = Object.create(null); player.supportContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
   player.hp = 0;
+  player.magnetPull = null;
+  player.flowerThornsUntil = 0;
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
   player.invulnerableUntil = 0;
@@ -3608,6 +3773,9 @@ function respawn(room, player, now) {
   player.damageContributors = Object.create(null); player.supportContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
   clearAllStatuses(player); clearShield(player);
   player.stealthUntil = 0;
+  player.magnetPull = null;
+  player.flowerThornsUntil = 0;
+  player.newAbilityCooldownUntil = 0;
   player.lastCombatAt = now;
   if (player.character === 'dia') player.diaFormUntil = 0;
   if (player.character === 'runner') player.sprintUntil = 0;
@@ -3715,7 +3883,13 @@ function makeMatchStats(character = null) {
     burnDamage: 0,
     sniperLongRangeDamage: 0,
     solarProjectileHealing: 0,
-    angelBlessingHealing: 0
+    angelBlessingHealing: 0,
+    magnetHookHits: 0,
+    flowerThornsDamage: 0,
+    witchCurseBonusDamage: 0,
+    hackerStealthUses: 0,
+    drainLifestealHealing: 0,
+    rescueDispatchUses: 0
   };
 }
 
@@ -4020,6 +4194,26 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
     player.mechaSelfDestructAt = now + (Number(def.ultimateDelay) || 4) * 1000;
     player.ultimateUntil = player.mechaSelfDestructAt;
     activated = true;
+  } else if (player.character === 'flower') {
+    // Explicit selection is mandatory, including self-casts. Never fall back
+    // to the caster when the ID is missing, dead, or an invalid relation.
+    const target = resolveTargetedAbilityTarget(room, player, targetId, def.ultimateTargeting, now);
+    if (!target) return false; // Invalid target does not spend charge.
+    applyHealing(room, player, target, def.ultimateHeal, now, { countsForUltimate: false });
+    const durationMs = def.ultimateShieldDuration * 1000;
+    const added = applyShield(room, player, target, def.ultimateShield,
+      { now, rescueShieldUntil: now + durationMs });
+    if (added > 0) {
+      target.shieldUntil = Math.max(Number(target.shieldUntil) || 0, now + durationMs);
+      if (target.character === 'jet') target.jetShieldUntil = target.shieldUntil;
+    }
+    applyStatus(room, player, target, 'flower_bloom', def.ultimateDuration * 1000, now,
+      { tierDelta: def.ultimateSpeedTierDelta });
+    activated = true;
+  } else if (player.character === 'magnet') {
+    player.newAbilityCooldownUntil = now;
+    player.ultimateUntil = now + def.ultimateDuration * 1000;
+    activated = true;
   } else if (player.character === 'jet') {
     player.jetBoostCooldownUntil = now;
     player.ultimateUntil = now + (Number(def.ultimateDuration) || 8) * 1000;
@@ -4092,7 +4286,8 @@ function dealDamageDetailed(room, attackerId, target, amount, now, options = nul
   // NOT successive multipliers: e.g. 10% mitigation + 25% Curse => 115% damage.
   // Curse applies to both HP and personal shields without stacking, and the status
   // source is not changed by a teammate's subsequent attack.
-  const curseDamageBonus = hasStatus(target, 'curse', now) ? STATUS_DEFS.curse.damageTakenBonus : 0;
+  const curseStatus = getStatus(target, 'curse', now);
+  const curseDamageBonus = curseStatus ? STATUS_DEFS.curse.damageTakenBonus : 0;
   const effectiveDamageMultiplier = Math.max(0, damageTakenMultiplier + curseDamageBonus);
   const raw = incoming * effectiveDamageMultiplier;
   let remaining = raw;
@@ -4109,6 +4304,16 @@ function dealDamageDetailed(room, attackerId, target, amount, now, options = nul
   if (hpDamage > 0) target.hp = hpBefore - hpDamage;
   const total = shieldDamage + hpDamage;
   if (total <= 0) return { total: 0, hp: 0, shield: 0 };
+  // Credit Witch, not the teammate who dealt the hit. Only the *realized* extra
+  // shield/HP damage counts; overkill and invulnerability must not inflate it.
+  if (curseStatus?.sourceId && curseDamageBonus > 0) {
+    const caster = room.players.get(curseStatus.sourceId);
+    if (caster?.character === 'witch' && caster.team !== target.team) {
+      const uncursedTotal = Math.min(shieldBefore + hpBefore, incoming * Math.max(0, damageTakenMultiplier));
+      const extra = Math.max(0, total - uncursedTotal);
+      if (extra > 0) ensureMatchStats(caster).witchCurseBonusDamage += extra;
+    }
+  }
   const attacker = room.players.get(attackerId);
   if (attacker && attacker.team !== target.team) {
     if (!target.damageContributors || typeof target.damageContributors !== 'object') target.damageContributors = Object.create(null);
@@ -4418,10 +4623,11 @@ function projectileWireRow(p) {
     roundWireNumber(p.radius, 3),
     p.type === 'heal' ? 1 : 0,
     p.team === 'B' ? 1 : 0,
-    p.character || null,
+    p.magnetHook ? 'magnet_hook' : (p.character || null),
     p.reactorFxBand == null ? null : p.reactorFxBand,
     p.ultimateProjectile ? 1 : 0,
-    p.diaUltimateVolleyId || null
+    p.diaUltimateVolleyId || null,
+    ...(p.magnetHook ? [p.ownerId] : [])
   ];
 }
 
@@ -4450,7 +4656,12 @@ function spawnProjectileFromDirection(room, player, def, now, dx, dy, options = 
     diaUltimateVolleyId: options.diaUltimateVolleyId || null,
     ultimateVolleyId: options.ultimateVolleyId || options.diaUltimateVolleyId || null,
     reactorFxBand: player.character === 'reactor' ? reactorStageForOutput(CHARACTERS.reactor, player.reactorOutput) - 1 : null,
-    bornAt: now
+    bornAt: now,
+    magnetHook: !!options.magnetHook,
+    // Snapshot the shot's mode on creation: in-flight thorns still count after
+    // the five-second buff expires, but ordinary hybrid shots never count.
+    flowerThorns: player.character === 'flower' && def.projectileType === 'attack'
+      && (player.flowerThornsUntil || 0) > now
   });
   if (options.sprayLane) room.projectiles.get(id).sprayLane = options.sprayLane;
   if (options.sprayVolleyId) room.projectiles.get(id).sprayVolleyId = options.sprayVolleyId;
@@ -4600,13 +4811,27 @@ function updateProjectiles(room, dt, now) {
           }
           t.diaUltimateVolleyHits.set(volleyId, now + 3000);
         }
-        if (p.type === 'attack') {
+        if (p.magnetHook) {
+          // Position displacement only: no damage, stun, or ultimate charge.
+          // Destination is locked to Magnet's cast position/direction on HIT, not to later motion.
+          const owner = room.players.get(p.ownerId);
+          if (owner && owner.alive && owner.character === 'magnet' && t.invulnerableUntil <= now) {
+            beginMagnetPull(t, owner, now);
+            ensureMatchStats(owner).magnetHookHits += 1;
+            owner.projectileHitSeq = (owner.projectileHitSeq || 0) + 1;
+          }
+        } else if (p.type === 'attack') {
           if (t.invulnerableUntil <= now) {
             // All projectile damage is independent of traveled distance in 1.8.2.
             const damageResult = dealDamageDetailed(room, p.ownerId, t, p.damage, now, { countsForUltimate: p.countsForUltimate !== false });
             if (damageResult.total > 0) {
               const owner = room.players.get(p.ownerId);
-              if (owner) owner.projectileHitSeq = (owner.projectileHitSeq || 0) + 1;
+              if (owner) {
+                owner.projectileHitSeq = (owner.projectileHitSeq || 0) + 1;
+                if (p.flowerThorns && owner.character === 'flower') {
+                  ensureMatchStats(owner).flowerThornsDamage += damageResult.total;
+                }
+              }
             }
             const reactorOwner = room.players.get(p.ownerId);
             if (damageResult.hp > 0 && reactorOwner && reactorOwner.alive && reactorOwner.character === 'reactor') {
@@ -4620,10 +4845,12 @@ function updateProjectiles(room, dt, now) {
                 applyStatus(room, reactorOwner, t, 'radiation', reactorDef.radiationDuration * 1000, now, { healReduction: reactorDef.radiationHealReduction });
               }
             }
-            if (p.character === 'drain' && !p.ultimateProjectile && p.countsForUltimate !== false && damageResult.total > 0) {
+            if (p.character === 'drain' && !p.ultimateProjectile && damageResult.total > 0) {
               const drainer = room.players.get(p.ownerId);
               if (drainer && drainer.alive && drainer.character === 'drain') {
-                applyHealing(room, drainer, drainer, CHARACTERS.drain.lifestealOnHit, now);
+                const healed = applyHealing(room, drainer, drainer, CHARACTERS.drain.lifestealOnHit, now,
+                  { countsForUltimate: p.countsForUltimate !== false });
+                if (healed > 0) ensureMatchStats(drainer).drainLifestealHealing += healed;
               }
             }
             // Solar self-heal requires actual HP damage; shield-only hits do not count.
@@ -4870,6 +5097,9 @@ function updateRoom(room, dt, now) {
           }
         }
         applyHealing(room, player, player, (Number(udef.ultimateSelfHealHps) || 30) * dt, now, { countsForUltimate: false, suppressHealerSelfHeal: true });
+      } else if (player.character === 'magnet') {
+        applyHealing(room, player, player, CHARACTERS.magnet.ultimateSelfHealHps * dt, now,
+          { countsForUltimate: false, suppressHealerSelfHeal: true });
       } else if (player.character === 'wind') {
         const udef = CHARACTERS.wind;
         for (const target of room.players.values()) {
@@ -4893,6 +5123,7 @@ function updateRoom(room, dt, now) {
       finishJetBoost(room, player, now);
     }
 
+    const pulled = updateMagnetPull(player, now);
     const stunned = isStunned(player, now);
     let mx = stunned ? 0 : (player.input.right ? 1 : 0) - (player.input.left ? 1 : 0);
     let my = stunned ? 0 : (player.input.down ? 1 : 0) - (player.input.up ? 1 : 0);
@@ -4900,7 +5131,7 @@ function updateRoom(room, dt, now) {
     if (ml > 0) { mx /= ml; my /= ml; }
     const speed = effectiveSpeed(player, now, room);
     const lockedByUltimate = player.character === 'cannon' && isUltimateActive(player, now);
-    movePlayer(player, (lockedByUltimate ? 0 : mx * speed * dt), (lockedByUltimate ? 0 : my * speed * dt), def.radius);
+    movePlayer(player, (lockedByUltimate || pulled ? 0 : mx * speed * dt), (lockedByUltimate || pulled ? 0 : my * speed * dt), def.radius);
 
     if (player.character === 'buffer') {
       const link = bufferLinkState(room, player, now);
@@ -5022,7 +5253,7 @@ function snapshot(room, viewerId = null, spectator = false) {
       if (hasStatus(p, 'curse', now)) row.cursed = true;
       if (p.character === 'hacker' && p.alive && p.stealthUntil > now) row.stealthed = true;
 
-      if (!hideCharacter && ['witch','hacker','rescue'].includes(p.character)) {
+      if (!hideCharacter && ['witch','hacker','rescue','magnet'].includes(p.character)) {
         const cd = Math.max(0, (p.newAbilityCooldownUntil || 0) - now);
         if (cd > 0) row.newAbilityCooldownMs = cd;
         if (p.character === 'hacker' && p.stealthUntil > now) row.stealthMs = p.stealthUntil - now;
@@ -5479,7 +5710,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  server, CHARACTERS, TARGET_RELATION, STATUS_DEFS, GLOBAL_SHIELD_CAP, RESPAWN_INVULN_MS, RESPAWN_POST_SHIELD, RESPAWN_POST_SHIELD_MS, PERK_SYSTEM, CHARACTER_PERKS,
+  server, CHARACTERS, publicCharacterDefs, TARGET_RELATION, STATUS_DEFS, GLOBAL_SHIELD_CAP, RESPAWN_INVULN_MS, RESPAWN_POST_SHIELD, RESPAWN_POST_SHIELD_MS, PERK_SYSTEM, CHARACTER_PERKS,
   resetPerkState, perkOptionsForCharacter, publicPerkOption, perkSelectionUnlocked, maybeSendPerkOffer, choosePerk, updatePerkSystem,
   getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget, recordSupportContribution,
   applyStatus, getStatus, hasStatus, clearStatus, clearAllStatuses, isStunned,
@@ -5489,7 +5720,7 @@ module.exports = {
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
   POST_GAME_ROOM_CLOSE_MS, MAX_ROOMS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
   makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
-  traceBeam, traceLightBeam, activateNewHeroAbility, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
+  traceBeam, traceLightBeam, activateFlowerThorns, activateMagnetHook, beginMagnetPull, updateMagnetPull, magnetPullEndpoint, magnetHookCooldownSeconds, activateNewHeroAbility, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload, rebuildCompetitiveStatsFromMatches, statsSeriesForBalanceVersion, buildCompetitiveResult, buildAdvancedCompetitiveStats, combinations,
@@ -5499,6 +5730,7 @@ module.exports = {
 };
 
 if (process.env.NODE_ENV === 'test') module.exports.__test191 = {
+  parseWsData, // test-only access to validate the incomplete-frame buffer safety limit
   setAccounts(accounts) { playerAccounts = accounts.map(a => ({...a})); },
   setDurableReady(ready) { durableStore.ready=!!ready; },
   getQueueSnapshot() { return queueSorted().map(e => ({id:e.accountId,seq:e.seq,groupId:e.groupId,confirmed:e.confirmed,disconnectedAt:e.disconnectedAt})); },

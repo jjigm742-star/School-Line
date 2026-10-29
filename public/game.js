@@ -8,6 +8,7 @@ const SCALE = 15; // world y -> screen x, world x -> screen y (mobile landscape 
 const CHARACTER_META = {
   iron:    { role:'탱커', name:'아이언', icon:'⚙️', summary:'가장 단단한 정통 탱커' },
   mecha:   { role:'탱커', name:'메카', icon:'🤖', summary:'높은 체력과 빠른 속도로 전선을 밀어내는 탱커' },
+  magnet:  { role:'탱커', name:'마그넷', icon:'🧲', summary:'자석으로 적의 위치를 강제로 바꾸는 그랩형 탱커' },
   jet:     { role:'탱커', name:'제트', icon:'🚀', summary:'부스터로 전선을 가로지르고 보호막으로 착지하는 돌진 탱커' },
   dia:     { role:'탱커', name:'다이아', icon:'💎', summary:'타이밍을 잡아 강해지는 변신 탱커' },
   solar:   { role:'탱커', name:'솔라', icon:'☀️', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커' },
@@ -25,6 +26,7 @@ const CHARACTER_META = {
   water:   { role:'힐러', name:'워터', icon:'💧', summary:'가장 단순하고 안정적인 기본 힐러' },
   wind:    { role:'힐러', name:'윈드', icon:'🌪️', summary:'치유와 기동력 지원을 함께 주는 힐러' },
   star:    { role:'힐러', name:'스타', icon:'⭐', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러' },
+  flower:  { role:'힐러', name:'플라워', icon:'🌹', summary:'공격과 치유를 전환하고 원거리에서 아군을 구출하는 힐러' },
   angel:   { role:'힐러', name:'엔젤', icon:'😇', summary:'축복으로 어디서든 아군을 즉시 구조하는 힐러' },
   buffer:  { role:'힐러', name:'버퍼', icon:'🎛️', summary:'한 명을 계속 연결해 치유와 행동속도를 함께 증폭하는 힐러' },
   light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' },
@@ -34,12 +36,13 @@ const CHARACTER_META = {
   drain:   { role:'딜러', name:'드레인', icon:'🩸', summary:'공격을 적중시키며 자신을 치유하는 흡혈 딜러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.9-portrait-cropfix';
+const VISUAL_ASSET_VERSION = '1.10-release-roster28';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
 const CHARACTER_ART = Object.freeze({
   iron:    { portrait:artPath('/assets/characters/iron/portrait.webp'),    token:artPath('/assets/characters/iron/token.webp'),    renderScale:1.00 },
   mecha:   { portrait:artPath('/assets/characters/mecha/portrait.webp'),   token:artPath('/assets/characters/mecha/token.webp'),   renderScale:1.00 },
+  magnet:  { portrait:artPath('/assets/characters/magnet/portrait.webp'), token:artPath('/assets/characters/magnet/token.webp'), renderScale:1.00 },
   jet:     { portrait:artPath('/assets/characters/jet/portrait.webp'),     token:artPath('/assets/characters/jet/token.webp'),     renderScale:1.00 },
   dia:     { portrait:artPath('/assets/characters/dia/portrait.webp'),     token:artPath('/assets/characters/dia/token.webp'),     renderScale:1.00 },
   solar:   { portrait:artPath('/assets/characters/solar/portrait.webp'),   token:artPath('/assets/characters/solar/token.webp'),   renderScale:1.00 },
@@ -57,6 +60,7 @@ const CHARACTER_ART = Object.freeze({
   water:   { portrait:artPath('/assets/characters/water/portrait.webp'),   token:artPath('/assets/characters/water/token.webp'),   renderScale:1.00 },
   wind:    { portrait:artPath('/assets/characters/wind/portrait.webp'),    token:artPath('/assets/characters/wind/token.webp'),    renderScale:1.00 },
   star:    { portrait:artPath('/assets/characters/star/portrait.webp'),    token:artPath('/assets/characters/star/token.webp'),    renderScale:1.00 },
+  flower:  { portrait:artPath('/assets/characters/flower/portrait.webp'), token:artPath('/assets/characters/flower/token.webp'), renderScale:1.00 },
   angel:   { portrait:artPath('/assets/characters/angel/portrait.webp'),   token:artPath('/assets/characters/angel/token.webp'),   renderScale:1.00 },
   buffer:  { portrait:artPath('/assets/characters/buffer/portrait.webp'),  token:artPath('/assets/characters/buffer/token.webp'),  renderScale:1.00 },
   light:   { portrait:artPath('/assets/characters/light/portrait.webp'),   token:artPath('/assets/characters/light/token.webp'),   renderScale:1.00 },
@@ -66,7 +70,7 @@ const CHARACTER_ART = Object.freeze({
   drain:   { portrait:artPath('/assets/characters/drain/portrait.webp'),   token:artPath('/assets/characters/drain/token.webp'),   renderScale:1.00 }
 });
 
-// Character art is visual-only; all 26 characters have stable asset slots.
+// Character art is visual-only; 28 characters have stable asset slots in PRE4.
 // Missing files show a placeholder in the picker and use the legacy circle + emoji in-game.
 // 1.7.1 visual update: all 22 characters now have wired portrait/token asset slots.
 const CHARACTER_TOKEN_IMAGES = new Map();
@@ -106,6 +110,8 @@ const CHARACTER_STORIES = {
     title:'메카', icon:'🤖',
     text:'오랫동안 창고에 방치되어 있던 기계에 어느 날 갑자기 영혼이 깃들었다. 깨어나자마자 세상을 구경하고 싶어졌고, 튼튼한 몸과 빠른 다리를 이용해 여기저기 돌아다니며 싸움에도 끼어들고 있다. 자신이 왜 깨어났는지는 메카 자신도 모른다.'
   },
+  magnet: { title:'마그넷', icon:'🧲', text:'가방 속에서 꺼낸 자석으로 적을 끌어오는 발명가. 필요한 것은 언제나 손 안에 있다.' },
+  flower: { title:'플라워', icon:'🌹', text:'피어날 시간이에요. 아름답고 위험적인 꽃. 가장 아름다운 방식으로 핀다.' },
   jet: {
     title:'제트', icon:'🚀',
     text:'어릴 때부터 우주를 동경해 우주비행사가 되었다. 하지만 지금은 로켓 기술을 이용해 싸움터를 누비는 것이 더 즐겁다고 한다.'
@@ -339,47 +345,128 @@ function buildCharacterMini(id, meta) {
   return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
 }
 
-function buildCharacterMechanic(id, fallback='') {
+// PRE5 single-source guide: numbers come from the server-supplied public character
+// definitions. Both the lobby picker and the in-match 1-key panel use this renderer.
+// When a server stat changes, both views recalculate the same effect text.
+function characterAbilityGuide(id) {
   const c = characterPublicDef(id);
-  if (!c) return fallback;
+  if (!c) return null;
+  const n = fmtNumber;
+  const percent = v => n(100 * Number(v || 0));
+  const shotDps = v => n(Number(v || 0) * Number(c.fireRate || 0));
+  const direct = 'Space 키 (모바일: 능력 버튼)를 눌러 사용';
+  const ally = '아군을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)';
+  const enemy = '적을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)';
   switch (id) {
-    case 'iron': return '높은 체력으로 전선을 버티며 느린 투사체로 압박합니다.';
-    case 'mecha': return '짧은 사거리 대신 높은 체력과 빠른 이동속도로 공간을 장악합니다.';
-    case 'jet': return '부스터로 최대 12m 돌진하고 종료 후 보호막 50을 얻습니다.';
-    case 'dia': return '6초간 다이아폼으로 변신해 이동속도 7.0과 95 DPS 광선을 얻습니다. 폼 상태와 관계없이 적 처치 시 폼체인지 쿨타임이 6초 감소합니다.';
-    case 'solar': return '광선과 태양탄을 함께 사용하며, 태양탄이 실제 HP에 피해를 주면 자신을 회복합니다.';
-    case 'shield': return '거리 제한 없이 자신 또는 아군에게 보호막을 부여하며 최대 2회 충전됩니다.';
-    case 'runner': return '질주를 사용하면 4초간 이동속도가 1단계 상승합니다.';
-    case 'shooter': return '매우 빠른 투사체로 안정적인 기본 공격에 집중합니다.';
-    case 'sniper': return '거리에 관계없이 일정한 피해를 주며, 본인에게만 36m 조준 점선이 표시됩니다.';
-    case 'cannon': return '높은 연사 화력 대신 이동속도가 매우 느립니다.';
-    case 'fire': return '공격 적중 시 2초간 10 DPS의 화상을 남기며, 화상 중에는 대상이 받는 외부 치유량이 30% 감소합니다.';
-    case 'poison': return '광선 적중 시 대상이 받는 외부 치유량을 50% 감소시킵니다.';
-    case 'reactor': return '실제 HP 피해와 적 처치로 출력 에너지가 상승하며 3단계에서 더 강하고 빨라집니다.';
-    case 'spray': return '한 번에 중앙탄과 좌우 보조탄을 함께 발사합니다.';
-    case 'laser': return '대상 최대 체력이 높을수록 추가 피해가 커집니다.';
-    case 'ice': return '광선 적중 시 1.5초간 이동속도를 1단계 낮춥니다.';
-    case 'water': return '같은 투사체로 아군을 치유하고 적에게 50 DPS를 줄 수 있습니다.';
-    case 'wind': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 순풍으로 팀의 이동속도도 높입니다.';
-    case 'star': return '매우 빠른 장거리 투사체로 아군을 치유하고 적에게 50 DPS를 줄 수 있습니다.';
-    case 'angel': return '치유탄으로 적에게 50 DPS를 줄 수 있으며, 축복으로 어디서든 아군을 도울 수 있습니다.';
-    case 'buffer': return '아군 한 명을 연결해 40 HPS와 공격속도 25% 증가를 제공합니다.';
-    case 'light': return '광선이 아군·적을 모두 관통해 각각 가장 가까운 한 명을 치유·공격합니다. (풀피 아군도 대상)';
-    case 'witch': return '저주(쿨 10초)는 거리·시야 제한 없이 적 한 명에게 5초간 받는 피해 +25%를 부여합니다.';
-    case 'hacker': return '은신(쿨 12초)은 4초간 적에게 몸을 숨기며, 이동·공격·거점 판정이 유지됩니다. 투사체는 보입니다.';
-    case 'rescue': return '긴급출동(쿨 12초)은 거리·시야 제한 없이 살아 있는 다른 아군에게 순간이동하고 30 HP 치유합니다.';
-    case 'drain': return '기본 공격이 적 HP 또는 보호막에 적중할 때마다 자신을 4 HP 회복합니다. 실제 회복분도 궁극기 충전에 반영됩니다.';
-    default: return fallback;
+    case 'magnet': return {name:'자석', effect:`사거리 ${n(c.magnetRange)}m, 쿨타임 ${n(c.magnetCooldown)}초. 빠른 자석탄에 맞은 적을 ${n(c.magnetPullDuration)}초 동안 적중 시점 마그넷 전방 ${n(c.magnetPullOffset)}m로 끌어옵니다. 피해와 기절 없음. 제트 부스터 이동보다 자석의 끌어오기가 우선합니다.`, control:direct};
+    case 'jet': return {name:'부스터', effect:`쿨타임 ${n(c.boostCooldown)}초. ${n(c.boostDuration)}초에 걸쳐 최대 ${n(c.boostDistance)}m 돌진하고 ${n(c.boostShieldDuration)}초 보호막 ${n(c.boostShield)} 획득. 벽은 통과할 수 없습니다.`, control:'이동할 방향을 조준한 뒤 Space 키 (모바일: 능력 버튼)'};
+    case 'dia': return {name:'폼체인지', effect:`쿨타임 ${n(c.formCooldown)}초. ${n(c.formDuration)}초 동안 다이아폼(최대 HP ${n(c.formHp)}, 속도 ${n(c.formSpeed)}m/s, ${n(c.formRange)}m 광선 ${n(c.formBeamDps)} DPS)으로 변신. 적 처치 시 남은 쿨타임 ${n(c.formKillCooldownReduction)}초 감소.`,control:direct};
+    case 'shield': return {name:'보호막', effect:`보호막 ${n(c.shieldAmount)}, ${n(c.shieldDuration)}초 지속. 최대 ${n(c.shieldMaxCharges)}회 충전, ${n(c.shieldRecharge)}초마다 1회 재충전. 거리·시야 제한 없음.`,control:'자신 또는 아군을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)'};
+    case 'runner': return {name:'질주',effect:`쿨타임 ${n(c.sprintCooldown)}초. ${n(c.sprintDuration)}초 동안 이동속도 +1단계.`,control:direct};
+    case 'wind': return {name:'순풍',effect:`쿨타임 ${n(c.tailwindCooldown)}초. ${n(c.tailwindDuration)}초 동안 아군 전체 이동속도 +${n(c.tailwindTierDelta)}단계.`,control:direct};
+    case 'flower': return {name:'가시꽃',effect:`쿨타임 ${n(c.flowerThornsCooldown)}초. ${n(c.flowerThornsDuration)}초간 치유탄이 공격 전용 가시탄으로 바뀝니다. 치유는 중단되고 공격은 ${shotDps(c.flowerThornsDamage)} DPS(발당 ${n(c.flowerThornsDamage)})가 됩니다. 사거리·속도·크기는 유지.`,control:direct};
+    case 'angel': return {name:'축복',effect:`쿨타임 ${n(c.abilityCooldown)}초. 거리·시야 제한 없이 선택한 자신 또는 아군 ${n(c.abilityHeal)} HP 치유.`,control:ally};
+    case 'buffer': return {name:'링크',effect:`최대 ${n(c.range)}m 거리 내 선택 아군을 지속 치유 ${n(c.linkHealHps)} HPS하고 행동속도를 ${percent(c.actionSpeedBoost)}% 증가시킵니다.`,control:'아군을 클릭(터치)하여 연결. Space 키 사용 불필요.'};
+    case 'witch': return {name:'저주',effect:`쿨타임 ${n(c.abilityCooldown)}초. 선택한 적에게 ${n(c.curseDuration)}초 동안 받는 피해 +${percent(c.curseDamageTakenBonus)}% 저주를 부여합니다. 거리·시야 제한 없음.`,control:enemy};
+    case 'hacker': return {name:'은신',effect:`쿨타임 ${n(c.abilityCooldown)}초. ${n(c.stealthDuration)}초 동안 자신을 은신시킵니다. 이동·공격·점유 판정은 유지.`,control:direct};
+    case 'rescue': return {name:'긴급출동',effect:`쿨타임 ${n(c.abilityCooldown)}초. 거리·시야 제한 없이 살아 있는 다른 아군에게 순간이동하고 ${n(c.abilityHeal)} HP를 회복시킵니다.`,control:ally};
+    default: return null;
   }
 }
 
-function buildCharacterUltimateSection(id) {
+function characterUltimateGuide(id) {
   const c = characterPublicDef(id);
-  if (!c || Number(c.ultimateCost || 0) <= 0) return '';
-  const name = escapeHtml(c.ultimateName || '궁극기');
-  const description = escapeHtml(c.ultimateDescription || '');
-  const cost = fmtNumber(c.ultimateCost);
-  return `<div class="character-ultimate-section"><div class="character-ultimate-title">궁극기 설명</div><div class="character-ultimate-name">⚡ ${name} <span>충전 ${cost}</span></div><div class="character-ultimate-description">${description}</div></div>`;
+  if (!c || !(Number(c.ultimateCost) > 0)) return null;
+  const n = fmtNumber;
+  const pct = v => n(Number(v || 0) * 100);
+  const direction = '현재 조준 방향으로 R 키 (모바일: 궁극기 버튼)';
+  let control = '충전 완료 후 R 키 (모바일: 궁극기 버튼). 별도 대상 선택 불필요';
+  if (id === 'runner') control = `사거리 ${n(c.ultimateRange)}m 내 적을 클릭(터치)해 선택한 뒤 R 키 (모바일: 궁극기 버튼)`;
+  else if (id === 'flower') control = '자신 또는 살아 있는 아군을 직접 클릭(터치)해 선택한 뒤 R 키 (모바일: 궁극기 버튼). 미선택 시 사용 불가';
+  else if (id === 'angel') control = '아군을 클릭(터치)해 선택하고 R 키. 미선택 시 자신에게 사용 (모바일: 궁극기 버튼)';
+  else if (id === 'light' || id === 'laser') control = direction;
+  let effect;
+  switch (id) {
+    case 'iron': effect=`${n(c.ultimateDelay)}초 예고 후 반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateDamage)} 피해와 ${n(c.ultimateStunDuration)}초 기절.`; break;
+    case 'mecha': effect=`${n(c.ultimateDelay)}초 후 반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateDamage)} 피해. 자신도 ${n(c.ultimateSelfDamage)} 피해.`; break;
+    case 'magnet': effect=`자석 쿨타임 즉시 초기화. ${n(c.ultimateDuration)}초간 자석 쿨타임 ${n(c.ultimateMagnetCooldown)}초, 자신의 체력 초당 ${n(c.ultimateSelfHealHps)} 회복.`; break;
+    case 'jet': effect=`부스터 즉시 재충전. ${n(c.ultimateDuration)}초 동안 재사용 대기시간 ${n(c.ultimateBoostCooldown)}초.`; break;
+    case 'dia': effect=`${n(c.ultimateVolleyCount)}회에 걸쳐 매회 ${n(c.ultimateProjectileCount)}개 수정탄을 방사형으로 발사, 탄환당 ${n(c.ultimateDamage)} 피해.`; break;
+    case 'solar': effect=`${n(c.ultimateDuration)}초간 반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateAuraDps)} DPS, 자신은 ${n(c.ultimateSelfHealHps)} HPS 회복.`; break;
+    case 'shield': effect=`자신 및 모든 아군에게 ${n(c.ultimateShieldDuration)}초간 보호막 ${n(c.ultimateShield)} 부여.`; break;
+    case 'runner': effect=`선택한 적에게 폭탄 부착. ${n(c.ultimateDelay)}초 후 ${n(c.ultimateDamage)} 피해.`; break;
+    case 'shooter': effect=`${n(c.ultimateDuration)}초간 공격 ${n(c.ultimateDamage * c.fireRate)} DPS, 사거리 ${n(c.ultimateRange)}m, 이동속도 +${n(c.ultimateSpeedTierDelta)}단계.`; break;
+    case 'sniper': effect=`${n(c.ultimateDuration)}초간 ${n(c.ultimateDamage * c.fireRate)} DPS(발당 ${n(c.ultimateDamage)}), 투사체 크기 증가.`; break;
+    case 'cannon': effect=`${n(c.ultimateDuration)}초 동안 이동 불가, 기본 공격 ${n(c.ultimateDamage * c.fireRate)} DPS.`; break;
+    case 'fire': effect=`${n(c.ultimateVolleyInterval)}초 간격으로 총 ${n(c.ultimateVolleyCount)}회, 전방 ${n(c.ultimateFanAngleDeg)}° 범위에 ${n(c.ultimateProjectileCount)}발 발사. 회차당 대상 최대 ${n(c.ultimateDamage)} 피해.`; break;
+    case 'poison': effect=`반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateDamage)} 피해와 ${n(c.ultimatePoisonDuration)}초 동안 치유 완전 차단.`; break;
+    case 'reactor': effect=`${n(c.ultimateDuration)}초 동안 이동속도 +${n(c.ultimateSpeedTierDelta)}단계, 출력 에너지 감소 중단.`; break;
+    case 'spray': effect=`${n(c.ultimateVolleyInterval)}초 간격 총 ${n(c.ultimateVolleyCount)}회, ${n(c.ultimateProjectileCount)}방향 방사탄. 회차당 대상 최대 ${n(c.ultimateDamage)} 피해.`; break;
+    case 'laser': effect=`전방 ${n(c.ultimateRange)}×${n(c.ultimateWidth)}m 범위 적에게 ${n(c.ultimateDamage)} + 대상 최대 HP의 ${pct(c.ultimateMaxHpDamageRatio)}% 피해. 실효 피해만큼 ${n(c.ultimateShieldDuration)}초 보호막.`; break;
+    case 'ice': effect=`${n(c.ultimateDelay)}초 예고 후 반경 ${n(c.ultimateRadius)}m 적을 ${n(c.ultimateStunDuration)}초 기절, 자신은 ${n(c.ultimateHeal)} HP 회복.`; break;
+    case 'water': effect=`반경 ${n(c.ultimateRadius)}m 아군 ${n(c.ultimateHeal)} 회복, 적 ${n(c.ultimateDamage)} 피해와 ${n(c.ultimateStunDuration)}초 기절.`; break;
+    case 'wind': effect=`${n(c.ultimateDuration)}초 동안 반경 ${n(c.ultimateRadius)}m 내 자신 및 아군을 ${n(c.ultimateHealHps)} HPS 회복.`; break;
+    case 'star': effect=`${n(c.ultimateDelay)}초 후 반경 ${n(c.ultimateRadius)}m 아군 ${n(c.ultimateHeal)} 회복, 적 ${n(c.ultimateDamage)} 피해.`; break;
+    case 'flower': effect=`맵 전체에서 자신 또는 아군 1명에게 즉시 ${n(c.ultimateHeal)} HP 회복 + 보호막 ${n(c.ultimateShield)}(${n(c.ultimateShieldDuration)}초), 이동속도 +${n(c.ultimateSpeedTierDelta)}단계(${n(c.ultimateDuration)}초). 시야 제한 없음.`; break;
+    case 'angel': effect=`선택한 자신 또는 아군을 ${n(c.ultimateDuration)}초간 무적으로 만듭니다.`; break;
+    case 'buffer': effect=`${n(c.ultimateDuration)}초 동안 링크 대상 치유량이 ${n(c.ultimateLinkHealHps)} HPS로 증가하고 이동속도 +${n(c.ultimateLinkedSpeedTierDelta)}단계.`; break;
+    case 'light': effect=`전방 ${n(c.ultimateRange)}×${n(c.ultimateWidth)}m 범위 적 ${n(c.ultimateDamage)} 피해, 아군 ${n(c.ultimateHeal)} 회복, 자신도 ${n(c.ultimateSelfHeal)} 회복.`; break;
+    case 'witch': effect=`${n(c.ultimateDelay)}초 예고 후 반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateEffectDuration)}초 저주와 이동속도 ${n(c.ultimateSpeedTierDelta)}단계 효과.`; break;
+    case 'hacker': effect=`반경 ${n(c.ultimateRadius)}m 적의 개인 보호막을 제거하고 ${n(c.ultimateStunDuration)}초 기절시킵니다. HP 피해 없음.`; break;
+    case 'rescue': effect=`반경 ${n(c.ultimateRadius)}m 아군 및 자신 ${n(c.ultimateHeal)} 회복, 초과 치유량은 ${n(c.ultimateShieldDuration)}초 보호막으로 전환.`; break;
+    case 'drain': effect=`자신을 즉시 ${n(c.ultimateHeal)} 회복하고 ${n(c.ultimateDuration)}초 동안 공격속도 +${pct(c.ultimateAttackSpeedBoost)}%. 공격 적중당 흡혈 ${n(c.lifestealOnHit)} HP도 유지.`; break;
+    default: effect = c.ultimateDescription || '';
+  }
+  return {name:c.ultimateName || '궁극기', cost:fmtNumber(c.ultimateCost), effect, control};
+}
+
+function buildCharacterMechanic(id, fallback='') {
+  const c = characterPublicDef(id);
+  if (!c) return fallback;
+  const n = fmtNumber;
+  const dps = v => n(Number(v || 0) * Number(c.fireRate || 0));
+  const generic = {
+    iron:'높은 기본 HP로 전선을 유지하는 탱커입니다.',
+    mecha:'짧은 사거리 대신 높은 체력과 이동속도로 공간을 장악합니다.',
+    shooter:'빠른 기본 투사체를 중심으로 싸웁니다.',
+    sniper:`${n(c.range)}m 사거리에서 일정한 기본 피해를 주며 본인에게만 조준 점선이 표시됩니다.`,
+    cannon:'높은 연사 화력을 지닌 대신 이동속도가 느립니다.',
+    fire:`기본 공격 적중 시 ${n(c.burnDuration)}초 동안 ${n(c.burnDps)} DPS 화상, 화상 중 외부 치유량 ${n(c.burnHealReduction*100)}% 감소.`,
+    poison:`광선 적중 시 ${n(c.poisonDuration)}초간 외부 치유량 ${n(c.poisonHealReduction*100)}% 감소.`,
+    reactor:`실제 HP 피해·처치로 출력이 상승하며, 고출력 시 이동속도 ${n(c.reactorHighSpeed)}m/s가 됩니다.`,
+    spray:`중앙 ${dps(c.damage)} DPS, 양옆 각각 ${dps(c.spraySideDamage)} DPS의 3갈래 탄환을 발사합니다.`,
+    laser:`기본 광선 ${n(c.beamDps)} DPS + 적 최대 HP의 ${n(c.maxHpDpsRatio*100)}%/초 피해.`,
+    ice:`광선 적중 시 ${n(c.slowDuration)}초간 이동속도 ${n(c.slowTierDelta)}단계.`,
+    solar:`${n(c.beamDps)} DPS 광선과 ${dps(c.solarProjectileDamage)} DPS 태양탄을 병행. 태양탄이 실제 HP에 명중하면 ${n(c.solarSelfHeal)} 회복.`,
+    water:'한 종류의 투사체로 아군을 치유하고 적을 공격합니다.',
+    star:'빠른 장거리 투사체로 아군을 치유하면서 적도 공격합니다.',
+    light:'광선이 아군·적을 모두 관통해 각각 가장 가까운 한 명을 치유·공격합니다. (풀HP 아군도 판정)',
+    drain:`적 HP나 보호막에 기본 공격이 적중할 때마다 자신을 ${n(c.lifestealOnHit)} HP 회복. 궁극기 중에도 작동합니다.`
+  };
+  return generic[id] || fallback || '기본 공격과 고유 능력을 활용합니다.';
+}
+
+function buildCharacterAbilitySection(id) {
+  const ability = characterAbilityGuide(id);
+  if (!ability) return '<div class="character-ability-section"><div class="character-ultimate-title">일반 능력</div><div class="character-ultimate-description">별도의 일반 능력이 없습니다.</div></div>';
+  return `<div class="character-ability-section"><div class="character-ultimate-title">일반 능력</div><div class="character-ultimate-name">✦ ${escapeHtml(ability.name)}</div><div class="character-ultimate-description">${escapeHtml(ability.effect)}</div><div class="character-guide-control"><b>사용법</b> ${escapeHtml(ability.control)}</div></div>`;
+}
+
+function buildCharacterUltimateSection(id) {
+  const ult = characterUltimateGuide(id);
+  if (!ult) return '';
+  return `<div class="character-ultimate-section"><div class="character-ultimate-title">궁극기 설명</div><div class="character-ultimate-name">⚡ ${escapeHtml(ult.name)} <span>충전 ${escapeHtml(ult.cost)}</span></div><div class="character-ultimate-description">${escapeHtml(ult.effect)}</div><div class="character-guide-control"><b>사용법</b> ${escapeHtml(ult.control)}</div></div>`;
+}
+
+function buildCharacterDetailHtml(id, {taken=false}={}) {
+  const m = CHARACTER_META[id];
+  if (!m) return '<p>캐릭터 정보가 없습니다.</p>';
+  const c = characterPublicDef(id);
+  const name = escapeHtml(c?.name || m.name);
+  const role = escapeHtml(c?.role || m.role);
+  const statHtml = buildCharacterStats(id).map(([label,value]) => `<div class="character-stat-item"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`).join('');
+  const healerNote = (c?.role || m.role) === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 25%를 자신도 회복합니다.</div>' : '';
+  return `<div class="character-detail-hero">${characterPortraitHtml(id, c?.name || m.name)}<div class="character-detail-headcopy"><div class="character-detail-name">${m.icon} ${name}</div><span class="role-badge">${role}</span></div></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${escapeHtml(m.summary)}</div><div class="character-mechanic">${escapeHtml(buildCharacterMechanic(id,m.mechanic))}</div>${healerNote}</div>${buildCharacterAbilitySection(id)}${buildCharacterUltimateSection(id)}${taken?'<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>':''}`;
 }
 
 function closePortraitHoverPreview() {
@@ -490,18 +577,9 @@ function renderPicker(kind) {
   const visibleIds = roleEntries.map(([id]) => id);
   let detailId = visibleIds.includes(ps.selected) ? ps.selected : null;
   if (!detailId) detailId = visibleIds.find(id => kind !== 'lobby' || !isTeamCharacterTaken(id)) || visibleIds[0];
-  const m = CHARACTER_META[detailId];
-  const publicDef = characterPublicDef(detailId);
-  const displayName = publicDef?.name || m.name;
-  const displayRole = publicDef?.role || m.role;
   const taken = kind === 'lobby' && isTeamCharacterTaken(detailId);
-  const statHtml = buildCharacterStats(detailId).map(([label, value]) => `<div class="character-stat-item"><span>${label}</span><b>${value}</b></div>`).join('');
-  const sniperRangeGuideNote = detailId === 'sniper' ? '<div class="character-mechanic">사거리 36m 조준 점선은 스나이퍼 본인에게만 표시됩니다.</div>' : '';
-  const healerSelfHealNote = displayRole === '힐러' ? '<div class="character-mechanic">자신이 아군을 치유했을 때 치유량의 25%를 자신이 회복합니다.</div>' : '';
-  const portraitHtml = characterPortraitHtml(detailId, displayName);
   detail.classList.add('has-character-art');
-  const ultimateSection = buildCharacterUltimateSection(detailId);
-  detail.innerHTML = `<div class="character-detail-hero">${portraitHtml}<div class="character-detail-headcopy"><div class="character-detail-name">${m.icon} ${displayName}</div><span class="role-badge">${displayRole}</span></div></div><div class="character-stat-grid">${statHtml}</div><div class="character-traits"><div class="character-traits-title">특성</div><div class="character-summary">${m.summary}</div><div class="character-mechanic">${buildCharacterMechanic(detailId, m.mechanic)}</div>${sniperRangeGuideNote}${healerSelfHealNote}</div>${ultimateSection}${taken ? '<div class="character-taken-note">🔒 같은 팀원이 사용 중</div>' : ''}`;
+  detail.innerHTML = buildCharacterDetailHtml(detailId, {taken});
   wireCharacterPortraitPreview(detail);
 }
 
@@ -539,6 +617,7 @@ function applyProjectileWireRow(row, nowPerf = performance.now()) {
     reactorFxBand: row[9] == null ? null : Number(row[9]),
     ultimateProjectile: !!row[10],
     diaUltimateVolleyId: row[11] || null,
+    ownerId: row[12] || null,
     basePerf: nowPerf
   });
 }
@@ -583,6 +662,7 @@ function liveNetworkProjectiles(nowPerf = performance.now()) {
       reactorFxBand: p.reactorFxBand,
       ultimateProjectile: !!p.ultimateProjectile,
       diaUltimateVolleyId: p.diaUltimateVolleyId || null,
+      ownerId: p.ownerId || null,
       vx: p.vx, vy: p.vy
     });
   }
@@ -670,6 +750,8 @@ const healerLowHpAttention = new Set();
 const CHARACTER_INTRO_TIPS = Object.freeze({
   iron: { role:'tank', text:'혼자 깊게 들어가기보다 팀과 함께 뭉쳐서 움직이세요. 속도가 느리니 방어에 집중하세요.' },
   mecha: { role:'tank', text:'빠른 속도로 적의 시선을 끌고 싸움을 흔드세요. 위험하면 도망쳐서 우리 팀 힐러에게 치유받거나, 4초 동안 구석에서 공격받지 않으면 체력이 차오릅니다.' },
+  flower: { role:'healer', text:'가시꽃 도중에는 아군을 치료할 수 없습니다. 만개는 자신 또는 살아 있는 아군을 클릭해 선택한 뒤 R을 눌러야 발동합니다.' },
+  magnet: { role:'tank', text:'적의 위치를 바꾸는 자석은 공격이 아니라 제어 기술입니다. 홈가드를 거점에서 끌어내거나 팀원의 공격 범위로 적을 당겨보세요.' },
   jet: { role:'tank', text:'부스터로 빠르게 진입해 연약한 적을 공격하세요. 아군이 따라올 수 없는 곳까지 혼자 들어가면 위험해요.' },
   solar: { role:'tank', text:'무리하게 돌진하기보다 태양탄을 명중시키며 계속 회복하세요. 속도가 느리니 방어에 집중하세요.' },
   shield: { role:'tank', text:'보호막이 필요한 아군에게 빨리 스킬을 써주세요. 속도가 느리니 방어에 집중하세요.' },
@@ -863,6 +945,7 @@ const HAS_TOUCH_INPUT = (Number(navigator.maxTouchPoints) || 0) > 0
   || (window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
 const HAS_FINE_PRIMARY_POINTER = !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
 if (HAS_FINE_PRIMARY_POINTER && !HAS_TOUCH_INPUT) document.body.classList.add('desktop-controls-only');
+if (HAS_TOUCH_INPUT) document.body.classList.add('mobile-guide-available');
 
 
 // Alpha 0.6: lightweight Web Audio + haptics. No external audio assets are required.
@@ -1904,7 +1987,48 @@ $('leaveRoomButton').onclick = () => {
 refreshRoomDirectory();
 setInterval(() => { if (!myId && !spectatorMode) refreshRoomDirectory(); }, 1000);
 
+// In-match detail is intentionally the same renderer and the same server data
+// as the lobby picker; there is no independently maintained 1-key stat sheet.
+function isCharacterGuideOpen() {
+  return !$('inGameCharacterGuideOverlay').classList.contains('hidden');
+}
+function closeInGameCharacterGuide({restoreFocus=false}={}) {
+  const overlay = $('inGameCharacterGuideOverlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  overlay.classList.add('hidden');
+  closePortraitHoverPreview();
+  resetInputs();
+  if (restoreFocus) canvas.focus({preventScroll:true});
+}
+function openInGameCharacterGuide() {
+  if (gameScreen.classList.contains('hidden') || spectatorMode || !state || !myId) return;
+  const me = state.players?.find(p => p.id === myId);
+  if (!me?.character || !CHARACTER_META[me.character] || !characterPublicDef(me.character)) return;
+  const detail = $('inGameCharacterGuideDetail');
+  detail.classList.add('has-character-art');
+  detail.innerHTML = buildCharacterDetailHtml(me.character);
+  wireCharacterPortraitPreview(detail);
+  $('inGameCharacterGuideOverlay').classList.remove('hidden');
+  resetInputs();
+  $('inGameCharacterGuideClose').focus({preventScroll:true});
+}
+function toggleInGameCharacterGuide() {
+  if (isCharacterGuideOpen()) closeInGameCharacterGuide({restoreFocus:true});
+  else openInGameCharacterGuide();
+}
+$('mobileCharacterGuideButton').addEventListener('click', e => {
+  // Reuse the exact PC 1-key modal and the server-driven character guide renderer.
+  e.preventDefault();
+  e.stopPropagation();
+  toggleInGameCharacterGuide();
+});
+$('inGameCharacterGuideClose').addEventListener('click', () => closeInGameCharacterGuide({restoreFocus:!HAS_TOUCH_INPUT}));
+$('inGameCharacterGuideOverlay').addEventListener('click', e => {
+  if (e.target === $('inGameCharacterGuideOverlay')) closeInGameCharacterGuide({restoreFocus:true});
+});
+
 function show(which) {
+  if (which !== 'game') closeInGameCharacterGuide();
   joinScreen.classList.toggle('hidden', which !== 'join');
   lobbyScreen.classList.toggle('hidden', which !== 'lobby');
   draftScreen.classList.toggle('hidden', which !== 'draft');
@@ -2466,6 +2590,90 @@ function closeHelpGuide() {
 document.querySelectorAll('[data-help-tab]').forEach(tab => {
   tab.addEventListener('click', () => setHelpGuideTab(tab.dataset.helpTab));
 });
+// Current patch notes only. Future releases replace latest-patch.json (no history UI).
+let latestPatchRequestId = 0;
+function closeLatestPatchNotes() {
+  latestPatchRequestId++;
+  $('latestPatchOverlay').classList.add('hidden');
+  document.body.classList.remove('latest-patch-open');
+  $('latestPatchOpenButton').focus();
+}
+function renderLatestPatchNotes(notes) {
+  const content = $('latestPatchBody');
+  content.replaceChildren();
+  $('latestPatchTitle').textContent = String(notes.title || `스쿨라인 ${notes.version} 변경점`);
+  // textContent prevents HTML contained in future editorial patch notes from being executed.
+  for (const section of notes.sections) {
+    const sectionElement = document.createElement('section');
+    sectionElement.className = 'latest-patch-section';
+    const heading = document.createElement('h3');
+    heading.textContent = section.heading;
+    sectionElement.appendChild(heading);
+    for (const group of section.groups) {
+      const groupElement = document.createElement('div');
+      groupElement.className = 'latest-patch-group';
+      if (group.label) {
+        const label = document.createElement('h4');
+        label.textContent = `- ${group.label}`;
+        if (group.tone === 'buff' || group.tone === 'nerf') label.classList.add(group.tone);
+        groupElement.appendChild(label);
+      }
+      const list = document.createElement('ul');
+      for (const entry of group.items) {
+        const item = document.createElement('li');
+        const name = document.createElement('strong');
+        name.textContent = String(entry.name);
+        item.appendChild(name);
+        item.appendChild(document.createTextNode(`${section.heading.startsWith('1.') ? ' — ' : ': '}${String(entry.text)}`));
+        list.appendChild(item);
+      }
+      groupElement.appendChild(list);
+      sectionElement.appendChild(groupElement);
+    }
+    content.appendChild(sectionElement);
+  }
+  content.scrollTop = 0;
+}
+async function openLatestPatchNotes() {
+  const overlay = $('latestPatchOverlay');
+  const content = $('latestPatchBody');
+  const requestId = ++latestPatchRequestId;
+  $('latestPatchTitle').textContent = '최신 변경점';
+  content.textContent = '패치노트를 불러오는 중...';
+  overlay.classList.remove('hidden');
+  document.body.classList.add('latest-patch-open');
+  $('latestPatchCloseTop').focus();
+  try {
+    const response = await fetch('/latest-patch.json', { cache:'no-store' });
+    if (!response.ok) throw new Error('patch-notes unavailable');
+    const data = await response.json();
+    if (!data || !data.version || !Array.isArray(data.sections) || !data.sections.every(section =>
+      section && typeof section.heading === 'string' && Array.isArray(section.groups) && section.groups.every(group =>
+        group && Array.isArray(group.items) && group.items.every(entry =>
+          entry && typeof entry.name === 'string' && typeof entry.text === 'string'
+        )
+      )
+    )) throw new Error('invalid patch-notes');
+    if (requestId === latestPatchRequestId && !overlay.classList.contains('hidden')) renderLatestPatchNotes(data);
+  } catch (_) {
+    if (requestId === latestPatchRequestId && !overlay.classList.contains('hidden')) {
+      content.textContent = '최신 변경점을 불러오지 못했어요. 창을 닫고 다시 열어 주세요.';
+    }
+  }
+}
+$('latestPatchOpenButton').onclick = openLatestPatchNotes;
+$('latestPatchCloseTop').onclick = closeLatestPatchNotes;
+$('latestPatchCloseBottom').onclick = closeLatestPatchNotes;
+$('latestPatchOverlay').addEventListener('click', e => {
+  if (e.target === $('latestPatchOverlay')) closeLatestPatchNotes();
+});
+window.addEventListener('keydown', e => {
+  if (e.code === 'Escape' && !$('latestPatchOverlay').classList.contains('hidden')) {
+    e.preventDefault();
+    closeLatestPatchNotes();
+  }
+});
+
 $('joinHelpButton').onclick = openHelpGuide;
 $('lobbyHelpButton').onclick = openHelpGuide;
 $('helpGuideCloseTop').onclick = closeHelpGuide;
@@ -2538,6 +2746,7 @@ function bindCombatActionButton(button, action) {
 }
 
 function useAbility() {
+  if (isCharacterGuideOpen()) return;
   if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;
   const me = state.players.find(p => p.id === myId);
   if (!me || !me.alive) return;
@@ -2548,6 +2757,7 @@ function useAbility() {
   if (me.character === 'runner' && (me.sprint || me.sprintCooldownMs > 0)) return;
   if (me.character === 'wind' && me.windTailwindCooldownMs > 0) return;
   if (me.character === 'jet' && (me.jetBoost || me.jetBoostCooldownMs > 0)) return;
+  if (['magnet','flower'].includes(me.character) && me.newAbilityCooldownMs > 0) return;
   if (me.character === 'angel' && (me.angelBlessCooldownMs > 0 || !selectedTargetId)) return;
   if (me.character === 'shield' && ((Number(me.shieldAbilityCharges)||0) <= 0 || !selectedTargetId)) return;
   if (['witch','hacker','rescue'].includes(me.character) && me.newAbilityCooldownMs > 0) return;
@@ -2558,6 +2768,7 @@ function useAbility() {
 }
 
 function useUltimate() {
+  if (isCharacterGuideOpen()) return;
   if (!ws || ws.readyState !== WebSocket.OPEN || !state || state.state !== 'playing') return;
   const me = state.players.find(p => p.id === myId);
   if (!me || !me.alive || me.stunned) return;
@@ -2569,7 +2780,11 @@ function useUltimate() {
     if (!target || target.team === me.team || !targetSelectionState(me, target)?.inRange) return;
   }
   const payload = { type:'ultimate' };
-  if (selectedTargetId) payload.targetId = selectedTargetId;
+  if (me.character === 'flower') {
+    const candidate = state.players.find(p => p.id === selectedTargetId && p.alive && p.team === me.team);
+    if (!candidate) return; // A deliberate ally/self selection is required.
+    payload.targetId = candidate.id;
+  } else if (selectedTargetId) payload.targetId = selectedTargetId;
   if (me.character === 'laser' || me.character === 'light') {
     // Snapshot the muzzle at the button press; no need to hold the fire stick.
     const dir = currentUltimateMuzzleDirection(me);
@@ -2614,6 +2829,12 @@ function contributionSpecialLine(character, stats) {
   if (character === 'solar') return `태양탄으로 회복한 체력 ${formatContributionNumber(stats.solarProjectileHealing)}`;
   if (character === 'angel') return `축복으로 회복한 체력 ${formatContributionNumber(stats.angelBlessingHealing)}`;
   if (character === 'dia') return `다이아폼 킬 ${formatContributionNumber(stats.diaFormKills)}회`;
+  if (character === 'magnet') return `자석 적중 ${formatContributionNumber(stats.magnetHookHits)}회`;
+  if (character === 'flower') return `가시꽃 피해량 ${formatContributionNumber(stats.flowerThornsDamage)}`;
+  if (character === 'witch') return `저주로 증폭된 피해량 ${formatContributionNumber(stats.witchCurseBonusDamage)}`;
+  if (character === 'hacker') return `은신 사용 ${formatContributionNumber(stats.hackerStealthUses)}회`;
+  if (character === 'drain') return `흡혈로 회복한 치유량 ${formatContributionNumber(stats.drainLifestealHealing)}`;
+  if (character === 'rescue') return `긴급 출동 사용 ${formatContributionNumber(stats.rescueDispatchUses)}회`;
   return '';
 }
 
@@ -3261,6 +3482,7 @@ function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;'
 
 // Desktop fallback controls remain available.
 function setKey(code, value) {
+  if (isCharacterGuideOpen()) return;
   // The mobile arena is rotated: screen up/down changes world x, screen left/right changes world y.
   if (code === 'KeyW' || code === 'ArrowUp') keys.left = value;
   if (code === 'KeyS' || code === 'ArrowDown') keys.right = value;
@@ -3321,7 +3543,20 @@ function targetSelectionState(me, target) {
 }
 
 window.addEventListener('keydown', e => {
-  if (spectatorMode || gameScreen.classList.contains('hidden')) return;
+  if (gameScreen.classList.contains('hidden')) return;
+  if (e.code === 'Digit1' || e.code === 'Numpad1') {
+    if (!e.repeat && !spectatorMode && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) {
+      e.preventDefault();
+      toggleInGameCharacterGuide();
+    }
+    return;
+  }
+  if (isCharacterGuideOpen()) {
+    if (e.code === 'Escape') { e.preventDefault(); closeInGameCharacterGuide({restoreFocus:true}); }
+    if (['Space','KeyR','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+    return;
+  }
+  if (spectatorMode || ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) return;
   setKey(e.code, true);
   if (e.code === 'Space' && !e.repeat) useAbility();
   if (e.code === 'KeyR' && !e.repeat) useUltimate();
@@ -4094,7 +4329,7 @@ function drawCachedBattlefield(viewState) {
 // but avoid destroying/recreating HUD DOM 60-120 times per second.
 // Reuse the same palette object across players and frames (Dia form is the sole dynamic exception).
 const CHARACTER_FILL_COLORS = Object.freeze({
-  witch:'#dfbb86',hacker:'#879bff',rescue:'#ffa5a5',drain:'#e87492',iron:'#8893a3',
+  flower:'#dc6c81',magnet:'#7897c4',witch:'#dfbb86',hacker:'#879bff',rescue:'#ffa5a5',drain:'#e87492',iron:'#8893a3',
   mecha:'#7fd3a7',solar:'#e6a93d',shield:'#4f9ed6',runner:'#f0a64b',shooter:'#58a6ff',
   sniper:'#cba6ff',cannon:'#d9a441',fire:'#ff704d',poison:'#9b6bd6',reactor:'#cfd5dc',
   spray:'#5fc7e6',water:'#4cc9f0',wind:'#73d6a6',star:'#e8d66b',angel:'#f5e7b2',
@@ -4158,6 +4393,30 @@ function renderGame() {
   const renderProjectiles = [...(viewState.projectiles || []), ...liveNetworkProjectiles(beamFxNow)];
   for (const p of renderProjectiles) {
     const s=worldToScreen(p.x,p.y), r=Math.max(2,p.radius*SCALE);
+    if (p.character === 'magnet_hook') {
+      const caster=viewState.players.find(q=>q.id===p.ownerId && q.alive);
+      if (caster) {
+        const cs=worldToScreen(caster.x,caster.y);
+        ctx.save();ctx.beginPath();ctx.moveTo(cs.x,cs.y);ctx.lineTo(s.x,s.y);
+        ctx.lineWidth=3;ctx.strokeStyle='rgba(47,75,110,.9)';ctx.stroke();
+        ctx.lineWidth=1.1;ctx.strokeStyle='rgba(184,215,244,.85)';ctx.stroke();ctx.restore();
+      }
+      const angle=Math.atan2(Number(p.vy)||0,Number(p.vx)||1);
+      ctx.save();ctx.translate(s.x,s.y);ctx.rotate(angle);
+      ctx.lineWidth=Math.max(2,r*.2);ctx.strokeStyle='#355b94';
+      ctx.fillStyle='#ee725f';
+      ctx.beginPath();ctx.arc(0,0,r,Math.PI*.4,Math.PI*1.6,false);ctx.lineTo(r*.37, -r*.29);ctx.arc(0,0,r*.44,Math.PI*1.6,Math.PI*.4,true);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.restore();continue;
+    }
+    if (p.character === 'flower' && p.type !== 'heal') {
+      // Thorn-shaped projectile is visual only: server collision radius remains unchanged.
+      const angle=Math.atan2(Number(p.vy)||0,Number(p.vx)||1);
+      ctx.save();ctx.translate(s.x,s.y);ctx.rotate(angle);
+      ctx.fillStyle='#c42e55';ctx.strokeStyle='#642038';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(r*1.75,0);ctx.lineTo(-r*.68,-r*.72);
+      ctx.lineTo(-r*.34,0);ctx.lineTo(-r*.68,r*.72);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.restore();continue;
+    }
     if (p.character === 'dia' && p.ultimateProjectile) {
       const angle=Math.atan2(Number(p.vy)||0,Number(p.vx)||1);
       ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(angle+Math.PI/4);
@@ -4169,11 +4428,13 @@ function renderGame() {
       continue;
     }
     ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2);
-    if (p.type === 'heal') ctx.fillStyle = p.character === 'wind' ? '#35b97e' : (p.character === 'star' ? '#d39a13' : (p.character === 'angel' ? '#c58a18' : '#168bc4'));
+    if (p.type === 'heal') ctx.fillStyle = p.character === 'flower' ? '#d76287' : (p.character === 'wind' ? '#35b97e' : (p.character === 'star' ? '#d39a13' : (p.character === 'angel' ? '#c58a18' : '#168bc4')));
     else if (p.character === 'fire') ctx.fillStyle = '#ed5a25';
     else if (p.character === 'reactor') ctx.fillStyle = Number(p.reactorFxBand) >= 2 ? '#df4312' : (Number(p.reactorFxBand) >= 1 ? '#d8751d' : '#b56c32');
     else if (p.character === 'spray') ctx.fillStyle = '#1689a9';
     else if (p.character === 'sniper') ctx.fillStyle = '#8054bb';
+    else if (p.character === 'magnet_hook') ctx.fillStyle = '#ff9b53';
+    else if (p.character === 'magnet') ctx.fillStyle = '#779bc9';
     else if (p.character === 'mecha') ctx.fillStyle = '#2d9a61';
     else if (p.character === 'runner') ctx.fillStyle = '#d78113';
     else if (p.character === 'solar') ctx.fillStyle = '#d28b10';
@@ -4588,12 +4849,14 @@ function renderGame() {
     if (ultCost > 0) {
       ultimateButton.classList.remove('hidden');
       ultimateButton.classList.toggle('ready', ultReady);
+      const flowerTarget = me.character === 'flower' && selectedTargetId ? viewState.players.find(p => p.id === selectedTargetId && p.alive && p.team === me.team) : null;
       const bombTarget = me.character === 'runner' ? viewState.players.find(p => p.id === selectedTargetId && p.alive && p.team !== me.team) : null;
       const bombReady = me.character !== 'runner' || (bombTarget && targetSelectionState(me, bombTarget)?.inRange);
-      ultimateButton.disabled = !me.alive || me.stunned || !ultReady || !bombReady;
+      const flowerReady = me.character !== 'flower' || !!flowerTarget;
+      ultimateButton.disabled = !me.alive || me.stunned || !ultReady || !bombReady || !flowerReady;
       ultimateButton.textContent = !ultReady ? `⚡ ${ultPct}%` : (me.character === 'runner'
         ? (bombReady ? `💣 부착 · ${bombTarget.name} · R` : '💣 적 선택 (6m)')
-        : `⚡ ${ultDef?.ultimateName || '궁극기'} · R`);
+        : (me.character === 'flower' ? (flowerTarget ? `🌹 만개 · ${flowerTarget.name} · R` : '🌹 자신/아군 선택 필요') : `⚡ ${ultDef?.ultimateName || '궁극기'} · R`));
     } else {
       ultimateButton.classList.add('hidden');
       ultimateButton.classList.remove('ready');
@@ -4601,7 +4864,7 @@ function renderGame() {
     }
 
     const ability = $('abilityButton');
-    const hasAbility = ['dia','runner','wind','angel','shield','jet','witch','hacker','rescue'].includes(me.character);
+    const hasAbility = ['dia','runner','wind','angel','shield','jet','magnet','flower','witch','hacker','rescue'].includes(me.character);
     ability.classList.toggle('hidden', !hasAbility);
     const actionButtons = $('actionButtons');
     actionButtons.classList.toggle('hidden', !hasAbility && ultCost <= 0);
@@ -4625,6 +4888,16 @@ function renderGame() {
       else if (me.jetBoost) { ability.textContent = `🚀 부스터 ${(me.jetBoostMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.add('active'); }
       else if (me.jetBoostCooldownMs > 0) { ability.textContent = `🚀 쿨 ${(me.jetBoostCooldownMs/1000).toFixed(1)}`; ability.disabled = true; ability.classList.remove('active'); }
       else { ability.textContent = '🚀 부스터'; ability.disabled = false; ability.classList.remove('active'); }
+    } else if (me.character === 'flower') {
+      if (!me.alive) { ability.textContent = '🌹 부활 대기'; ability.disabled = true; }
+      else if (me.newAbilityCooldownMs > 0) { ability.textContent = `🌹 쿨 ${(me.newAbilityCooldownMs/1000).toFixed(1)}초`; ability.disabled = true; }
+      else { ability.textContent = '🌹 가시꽃 · Space'; ability.disabled = false; }
+      ability.classList.remove('active');
+    } else if (me.character === 'magnet') {
+      if (!me.alive) { ability.textContent = '🧲 부활 대기'; ability.disabled=true; }
+      else if (me.newAbilityCooldownMs > 0) { ability.textContent = `🧲 쿨 ${(me.newAbilityCooldownMs/1000).toFixed(1)}초`; ability.disabled=true; }
+      else { ability.textContent = '🧲 자석 · Space'; ability.disabled=false; }
+      ability.classList.remove('active');
     } else if (me.character === 'shield') {
       const target = viewState.players.find(p => p.id === selectedTargetId && p.alive);
       const def = characterPublicDef('shield');

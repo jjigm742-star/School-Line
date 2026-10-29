@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#10141b" />
   <title>School Line Mobile</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=1.10-release-notes1" />
 </head>
 <body class="access-checking access-locked">
   <div id="accessLockScreen" class="access-lock-screen" role="status" aria-live="polite">
@@ -45,7 +45,7 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">정식 1.9.1 · 26 캐릭터 · 랜덤 경쟁전 매칭</p>
+      <p class="subtitle">1.10 정식 버전 · 28 캐릭터 · 8종 밸런스 조정 · 부활 무적 1.5초</p>
       <div class="account-login-grid">
         <label>내 이름<select id="accountSelect" aria-label="계정 이름"><option value="">이름 선택</option></select></label>
         <label>4자리 PIN<input id="accountPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" autocomplete="off" /></label>
@@ -57,6 +57,7 @@
 
       <section class="random-queue-launch" aria-label="랜덤 경쟁전 매칭">
         <button id="randomQueueJoinButton" type="button" class="competitive-start">🏆 경쟁전 매칭</button>
+        <button id="latestPatchOpenButton" type="button" class="latest-patch-launch-button" aria-haspopup="dialog">🆕 최신 변경점 <small>현재 패치 확인</small></button>
         <p>먼저 신청한 8명이 만나고, A팀·B팀은 무작위로 나뉘어요.</p>
       </section>
       <section id="randomQueuePanel" class="random-queue-panel hidden" aria-live="polite">
@@ -193,6 +194,7 @@
           <div id="postGameWinner" class="post-game-winner hidden"></div>
         </div>
 
+        <button id="mobileCharacterGuideButton" class="mobile-character-guide-button" type="button" aria-label="현재 캐릭터 정보와 사용법 열기" title="캐릭터 정보 및 사용법" aria-haspopup="dialog" aria-controls="inGameCharacterGuideOverlay">ⓘ</button>
         <div id="myInfo" class="my-info"></div>
         <div id="spectatorBadge" class="spectator-badge hidden">📺 관전자</div>
         <div id="respawn" class="respawn"></div>
@@ -227,6 +229,18 @@
     </section>
 
 
+
+    <!-- Reuses the lobby character detail renderer; 1 toggles this in-game overlay. -->
+    <div id="inGameCharacterGuideOverlay" class="in-game-guide-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="inGameCharacterGuideTitle">
+      <article class="in-game-guide-card">
+        <header class="in-game-guide-header">
+          <div><div class="in-game-guide-kicker">🎮 내 캐릭터 · 1키 / 모바일 ⓘ</div><h2 id="inGameCharacterGuideTitle">캐릭터 정보 · 사용법</h2></div>
+          <button id="inGameCharacterGuideClose" type="button" aria-label="캐릭터 설명 닫기">✕</button>
+        </header>
+        <div class="in-game-guide-scroll"><div id="inGameCharacterGuideDetail" class="character-detail has-character-art"></div></div>
+        <footer class="in-game-guide-footer">게임은 멈추지 않습니다 · PC: 1 / ESC · 모바일: ✕ 닫기</footer>
+      </article>
+    </div>
 
     <div id="portraitHoverPreview" class="portrait-hover-preview hidden" aria-hidden="true"><img alt=""></div>
     <div id="portraitLightbox" class="portrait-lightbox hidden" role="dialog" aria-modal="true" aria-label="캐릭터 일러스트 크게 보기">
@@ -335,7 +349,7 @@
           <section class="help-guide-section hidden" data-help-panel="combat" role="tabpanel">
             <div class="help-rule-grid">
               <div class="help-rule"><b>💀 쓰러짐과 부활</b><span>HP가 0이 되면 쓰러지고 <strong>10초 뒤 최대 HP</strong>로 부활합니다.</span></div>
-              <div class="help-rule"><b>🛡️ 부활 무적</b><span>부활 후 <strong>2초 동안</strong> 피해와 적의 해로운 효과를 받지 않습니다. 무적 중에도 이동·공격·치유·능력 사용·점유·수비는 가능합니다.</span></div>
+              <div class="help-rule"><b>🛡️ 부활 무적</b><span>부활 후 <strong>1.5초 동안</strong> 피해와 적의 해로운 효과를 받지 않습니다. 무적 중에도 이동·공격·치유·능력 사용·점유·수비는 가능합니다.</span></div>
               <div class="help-rule"><b>💗 비전투 회복</b><span>마지막으로 적에게 실제 피해를 주거나 받은 뒤 <strong>4초 동안 전투가 없으면 초당 30 HP</strong>씩 자동 회복합니다. 치유를 주거나 받는 것은 전투로 계산하지 않습니다.</span></div>
               <div class="help-rule"><b>🧱 벽</b><span>벽은 캐릭터의 이동뿐 아니라 <strong>투사체와 광선</strong>도 막습니다.</span></div>
             </div>
@@ -363,11 +377,26 @@
                 <p><b>궁극기</b><span><strong>R</strong>로 사용. 좌측 상단 충전량이 100%가 되면 사용할 수 있습니다.</span></p>
               </div>
             </div>
-            <p class="help-guide-note">캐릭터별 수치와 고유 능력 설명은 로비의 캐릭터 선택 화면에서 확인할 수 있습니다.</p>
+            <p class="help-guide-note">캐릭터별 상세 수치·능력·궁극기 사용법은 로비에서 확인하거나, 경기 중 PC 숫자 1키 또는 모바일 화면 왼쪽 위의 ⓘ 버튼을 눌러 확인할 수 있습니다.</p>
           </section>
         </div>
 
         <button id="helpGuideCloseButton" type="button" class="accent help-guide-close">확인</button>
+      </article>
+    </div>
+
+    <!-- One current patch only. Replacing /latest-patch.json updates this view; no history or selector. -->
+    <div id="latestPatchOverlay" class="latest-patch-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="latestPatchTitle">
+      <article class="latest-patch-card">
+        <header class="latest-patch-header">
+          <div>
+            <div class="latest-patch-kicker">🆕 SCHOOL LINE · 최신 변경점</div>
+            <h2 id="latestPatchTitle">최신 패치노트</h2>
+          </div>
+          <button id="latestPatchCloseTop" type="button" class="latest-patch-x" aria-label="최신 변경점 닫기">✕</button>
+        </header>
+        <div id="latestPatchBody" class="latest-patch-body" aria-live="polite">불러오는 중...</div>
+        <button id="latestPatchCloseBottom" type="button" class="accent latest-patch-close">확인</button>
       </article>
     </div>
 
@@ -380,6 +409,6 @@
       </article>
     </div>
   </main>
-  <script src="/game.js?v=1.9.1-queue-fps1"></script>
+  <script src="/game.js?v=1.10-release-notes1"></script>
 </body>
 </html>

@@ -36,7 +36,7 @@ const CHARACTER_META = {
   drain:   { role:'딜러', name:'드레인', icon:'🩸', summary:'공격을 적중시키며 자신을 치유하는 흡혈 딜러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.10-release-roster28';
+const VISUAL_ASSET_VERSION = '1.11-playground-roster28';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
 const CHARACTER_ART = Object.freeze({
@@ -411,7 +411,7 @@ function characterUltimateGuide(id) {
     case 'angel': effect=`선택한 자신 또는 아군을 ${n(c.ultimateDuration)}초간 무적으로 만듭니다.`; break;
     case 'buffer': effect=`${n(c.ultimateDuration)}초 동안 링크 대상 치유량이 ${n(c.ultimateLinkHealHps)} HPS로 증가하고 이동속도 +${n(c.ultimateLinkedSpeedTierDelta)}단계.`; break;
     case 'light': effect=`전방 ${n(c.ultimateRange)}×${n(c.ultimateWidth)}m 범위 적 ${n(c.ultimateDamage)} 피해, 아군 ${n(c.ultimateHeal)} 회복, 자신도 ${n(c.ultimateSelfHeal)} 회복.`; break;
-    case 'witch': effect=`${n(c.ultimateDelay)}초 예고 후 반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateEffectDuration)}초 저주와 이동속도 ${n(c.ultimateSpeedTierDelta)}단계 효과.`; break;
+    case 'witch': effect=`즉시 전장 전체의 살아 있는 적에게 ${n(c.ultimateEffectDuration)}초간 저주(받는 피해 +25%)와 이동속도 ${n(Math.abs(c.ultimateSpeedTierDelta))}단계 감소. 무적 대상 제외.`; break;
     case 'hacker': effect=`반경 ${n(c.ultimateRadius)}m 적의 개인 보호막을 제거하고 ${n(c.ultimateStunDuration)}초 기절시킵니다. HP 피해 없음.`; break;
     case 'rescue': effect=`반경 ${n(c.ultimateRadius)}m 아군 및 자신 ${n(c.ultimateHeal)} 회복, 초과 치유량은 ${n(c.ultimateShieldDuration)}초 보호막으로 전환.`; break;
     case 'drain': effect=`자신을 즉시 ${n(c.ultimateHeal)} 회복하고 ${n(c.ultimateDuration)}초 동안 공격속도 +${pct(c.ultimateAttackSpeedBoost)}%. 공격 적중당 흡혈 ${n(c.lifestealOnHit)} HP도 유지.`; break;
@@ -1275,27 +1275,36 @@ function playUltimateUseFeedback(local=false) {
   if (local && navigator.vibrate) navigator.vibrate([45,25,80]);
 }
 
+// Three shared ultimate activation sounds, keyed only by role, not by character.
+// Sound synthesis stays within the existing Web Audio + limiter pipeline.
+// 1.5x the normal ability cue level; remote players remain slightly quieter.
+const ULTIMATE_ROLE_CUE_MULTIPLIER = 1.5;
 function playCharacterUltimateCue(character, local=false) {
-  playUltimateUseFeedback(local);
-  const gain = local ? 1 : .72;
-  if (character==='angel' || character==='star' || character==='water' || character==='wind' || character==='light') {
-    synthTone({freq:520,endFreq:820,duration:.18,type:'sine',gain:.030*gain});
-    synthTone({freq:820,endFreq:1180,duration:.16,type:'triangle',gain:.018*gain,when:.05});
-  } else if (character==='fire' || character==='mecha' || character==='cannon' || character==='reactor' || character==='poison' || character==='laser') {
-    noiseBurst(.070, .028*gain);
-    synthTone({freq:190,endFreq:120,duration:.20,type:'sawtooth',gain:.028*gain});
-  } else if (character==='runner' || character==='jet' || character==='shooter' || character==='sniper' || character==='spray') {
-    synthTone({freq:440,endFreq:940,duration:.18,type:'triangle',gain:.022*gain});
-    synthTone({freq:980,endFreq:1320,duration:.10,type:'sine',gain:.013*gain,when:.04});
+  if (local && navigator.vibrate) navigator.vibrate([45,25,80]);
+  const role = CHARACTER_META[character]?.role || '딜러';
+  const gain = (local ? 1 : .72) * ULTIMATE_ROLE_CUE_MULTIPLIER;
+  if (role === '탱커') {
+    // Heavy, short impact + descending sub-bass for defenders.
+    noiseBurst(.090, .026 * gain);
+    synthTone({freq:190,endFreq:78,duration:.30,type:'sawtooth',gain:.028*gain});
+    synthTone({freq:110,endFreq:62,duration:.36,type:'sine',gain:.028*gain,when:.02});
+  } else if (role === '힐러') {
+    // Bright rising harmony for restorative/support casts.
+    synthTone({freq:510,endFreq:790,duration:.24,type:'sine',gain:.029*gain});
+    synthTone({freq:760,endFreq:1220,duration:.26,type:'triangle',gain:.023*gain,when:.045});
+    synthTone({freq:1050,endFreq:1450,duration:.16,type:'sine',gain:.011*gain,when:.11});
   } else {
-    synthTone({freq:360,endFreq:760,duration:.20,type:'triangle',gain:.020*gain});
+    // Sharp, energetic burst for damage-dealing casts.
+    noiseBurst(.070, .018 * gain);
+    synthTone({freq:370,endFreq:1050,duration:.18,type:'sawtooth',gain:.028*gain});
+    synthTone({freq:1000,endFreq:640,duration:.16,type:'triangle',gain:.018*gain,when:.05});
   }
 }
 
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,runnerBombAttached:3000,runnerBombExplosion:650};
+  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -1368,7 +1377,7 @@ function addCharacterUltimateFx(player, phase='cast', extra={}) {
 }
 
 function isDelayedWarningUltimate(character) {
-  return character === 'iron' || character === 'ice' || character === 'star' || character === 'witch';
+  return character === 'iron' || character === 'ice' || character === 'star';
 }
 
 function processCombatFeedback(previousState, nextState) {
@@ -1500,6 +1509,16 @@ function processCombatFeedback(previousState, nextState) {
     if ((after.ultimateUseSeq||0) > (before.ultimateUseSeq||0)) {
       if (isDelayedWarningUltimate(after.character)) {
         addWorldFx('ultimateWindup', after, { radiusWorld: Math.max(0, Number(characterPublicDef(after.character)?.ultimateRadius) || 0) });
+      } else if (after.character === 'witch') {
+        // No cast-radius circle: the potion curses all living enemies immediately.
+        addCharacterUltimateFx(after, 'cast', {radiusWorld:0});
+        for (const target of afterById.values()) {
+          if (target.alive && target.team !== after.team && target.cursed &&
+              !(target.character === 'hacker' && target.stealthed && !spectatorMode &&
+                target.team !== afterById.get(myId)?.team)) {
+            addWorldFx('witchCurseBurst', target, {character:'witch'});
+          }
+        }
       } else if (after.character === 'shield') {
         for (const target of afterById.values()) {
           if (target.alive && target.team === after.team) addCharacterUltimateFx({...target, character:'shield'}, 'recipient');
@@ -2315,6 +2334,17 @@ $('spectatorJoinButton').onclick = () => {
   openConnection(() => ws.send(JSON.stringify({ type:'spectator_join', room:roomId, pin })));
 };
 
+function syncSelectedMapFromServer(msg) {
+  if (!config || !msg || msg.type !== 'state') return;
+  const mapId = String(msg.mapId || msg.competitive?.mapId || config.mapId || 'classroom');
+  if (mapId === config.mapId) return;
+  const selectedMap = config.maps?.[mapId];
+  if (!selectedMap || !Array.isArray(selectedMap.walls)) return;
+  config.mapId = mapId;
+  config.walls = selectedMap.walls;
+  battlefieldBackgroundCache = null;
+  lastCompetitiveRenderKey = null;
+}
 function handleMessage(msg) {
   if(onRandomQueueMessage(msg)) return;
   if (msg.type === 'ultimate_fx') {
@@ -2519,6 +2549,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'state') {
+    syncSelectedMapFromServer(msg);
     const previousState = state;
     const startedPlaying = msg.state === 'playing' && (!previousState || previousState.state !== 'playing');
     if (msg.state === 'ended' && previousState?.state === 'playing') {
@@ -2590,13 +2621,14 @@ function closeHelpGuide() {
 document.querySelectorAll('[data-help-tab]').forEach(tab => {
   tab.addEventListener('click', () => setHelpGuideTab(tab.dataset.helpTab));
 });
-// Current patch notes only. Future releases replace latest-patch.json (no history UI).
+// The homepage shows only the latest patch; older notes can be opened from admin stats.
 let latestPatchRequestId = 0;
+let latestPatchReturnFocus = $('latestPatchOpenButton');
 function closeLatestPatchNotes() {
   latestPatchRequestId++;
   $('latestPatchOverlay').classList.add('hidden');
   document.body.classList.remove('latest-patch-open');
-  $('latestPatchOpenButton').focus();
+  if (latestPatchReturnFocus && latestPatchReturnFocus.isConnected) latestPatchReturnFocus.focus();
 }
 function renderLatestPatchNotes(notes) {
   const content = $('latestPatchBody');
@@ -2615,7 +2647,7 @@ function renderLatestPatchNotes(notes) {
       if (group.label) {
         const label = document.createElement('h4');
         label.textContent = `- ${group.label}`;
-        if (group.tone === 'buff' || group.tone === 'nerf') label.classList.add(group.tone);
+        if (group.tone === 'buff' || group.tone === 'nerf' || group.tone === 'rework') label.classList.add(group.tone);
         groupElement.appendChild(label);
       }
       const list = document.createElement('ul');
@@ -2638,6 +2670,8 @@ async function openLatestPatchNotes() {
   const overlay = $('latestPatchOverlay');
   const content = $('latestPatchBody');
   const requestId = ++latestPatchRequestId;
+  latestPatchReturnFocus = $('latestPatchOpenButton');
+  $('latestPatchKicker').textContent = '🆕 SCHOOL LINE · 최신 변경점';
   $('latestPatchTitle').textContent = '최신 변경점';
   content.textContent = '패치노트를 불러오는 중...';
   overlay.classList.remove('hidden');
@@ -2660,6 +2694,18 @@ async function openLatestPatchNotes() {
       content.textContent = '최신 변경점을 불러오지 못했어요. 창을 닫고 다시 열어 주세요.';
     }
   }
+}
+function openArchivedPatchNotes() {
+  const version = String($('competitiveStatsVersion').value || '');
+  const notes = lastAdminStatsData?.patchNotesByVersion?.[version];
+  if (!notes || !Array.isArray(notes.sections)) return;
+  latestPatchRequestId++; // Prevent an older async current-patch response replacing the archive.
+  latestPatchReturnFocus = $('competitiveStatsPatchNotes');
+  $('latestPatchKicker').textContent = '📜 SCHOOL LINE · 통계 버전 기록';
+  renderLatestPatchNotes(notes);
+  $('latestPatchOverlay').classList.remove('hidden');
+  document.body.classList.add('latest-patch-open');
+  $('latestPatchCloseTop').focus();
 }
 $('latestPatchOpenButton').onclick = openLatestPatchNotes;
 $('latestPatchCloseTop').onclick = closeLatestPatchNotes;
@@ -3096,18 +3142,40 @@ window.addEventListener('pointercancel', () => {
   readyDrag.ghost?.remove();
   readyDrag = null;
 });
+function drawDraftMapPreview(mapId) {
+  const canvas = $('draftMapPreview');
+  if (!canvas || !config) return;
+  const map = config.maps?.[mapId];
+  if (!map) return;
+  const c = canvas.getContext('2d');
+  const sx=canvas.width/config.world.height, sy=canvas.height/config.world.width;
+  c.fillStyle='#e6edf4'; c.fillRect(0,0,canvas.width,canvas.height);
+  c.fillStyle='rgba(73,130,235,.18)'; c.fillRect(0,0,config.world.aZoneEnd*sx,canvas.height);
+  c.fillStyle='rgba(255,100,100,.16)'; c.fillRect(config.world.bZoneStart*sx,0,(config.world.height-config.world.bZoneStart)*sx,canvas.height);
+  c.fillStyle='#566477';
+  for (const w of (map.walls||[])) c.fillRect(w.y*sx,w.x*sy,w.h*sx,w.w*sy);
+  for (const pack of (map.healthPacks||[])) {
+    c.beginPath();c.arc(pack.y*sx,pack.x*sy,5,0,Math.PI*2);c.fillStyle='#189461';c.fill();
+    c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.moveTo(pack.y*sx-3,pack.x*sy);c.lineTo(pack.y*sx+3,pack.x*sy);c.moveTo(pack.y*sx,pack.x*sy-3);c.lineTo(pack.y*sx,pack.x*sy+3);c.stroke();
+  }
+}
 function renderCompetitiveDraft() {
   if (!state || !state.competitive) return;
   const comp = state.competitive;
   const me = !spectatorMode ? playerFromState(myId) : null;
   $('draftRoomLabel').textContent = state.room || '';
+  const mapId = state.mapId || comp.mapId || 'classroom';
+  const mapDef = config?.maps?.[mapId];
+  const draftMapLabel = $('draftMapName');
+  if (draftMapLabel) draftMapLabel.textContent = `🗺️ ${mapDef?.name || '교실'}${mapId==='playground'?' · 힐팩 2개':''}`;
+  drawDraftMapPreview(mapId);
   const seconds = Math.max(0, Math.ceil(Number(comp.phaseTimeLeft || 0)));
   $('draftTimer').textContent = seconds;
   $('draftTimer').classList.toggle('danger', seconds <= 3);
   const structuralKey = JSON.stringify({
     state:state.state, phase:comp.phase, activeBanTeam:comp.activeBanTeam, bans:comp.bans, picks:comp.picks,
     pickIndex:comp.pickIndex, currentPickerId:comp.currentPickerId, myBanVote:comp.myBanVote, banVoteCounts:comp.banVoteCounts,
-    assignments:state.players.map(p=>[p.id,p.character,p.connected]), teamOrders:comp.teamOrders
+    assignments:state.players.map(p=>[p.id,p.character,p.connected]), teamOrders:comp.teamOrders, mapId:state.mapId
   });
   if (structuralKey === lastCompetitiveRenderKey) return;
   lastCompetitiveRenderKey = structuralKey;
@@ -3242,10 +3310,23 @@ function renderCompetitiveStats(data) {
     versionSelect.appendChild(option);
   }
   versionSelect.disabled = versions.length <= 1;
+  const patchButton = $('competitiveStatsPatchNotes');
+  const hasPatchNotes = !!data.patchNotesByVersion?.[statsVersion];
+  patchButton.disabled = !hasPatchNotes;
+  patchButton.textContent = hasPatchNotes ? `📜 ${statsVersion} 패치노트 보기` : '📜 패치노트 없음';
   const rosterLabel = data.currentBuild?.rosterVersion ? ` · 현재 로스터 ${data.currentBuild.rosterVersion}` : '';
   const net = data.network || null;
   const netLabel = net ? ` · WS ${Number(net.totalMiB || 0).toFixed(1)}MB / 현재 ${Number(net.activeConnections || 0)}연결 / 차단 ${Number(net.skippedLiveSnapshots || 0)}회` : '';
   $('competitiveStatsSummary').textContent = `${data.statsFilterLabel || statsVersion || '현재'} 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${netLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
+  const mapsEl=$('competitiveMapStats');
+  if (mapsEl) {
+    const maps=data.advanced?.maps || {};
+    mapsEl.innerHTML=Object.values(maps).filter(m=>m.games>0).map(m=>{
+      const rank=Object.entries(m.characters||{}).sort((a,b)=>b[1].picks-a[1].picks).slice(0,3).map(([id,r])=>`${escapeHtml(characterLabel(id))} ${r.picks}픽 / ${r.picks?((r.wins+0.5*r.draws)/r.picks*100).toFixed(0):'—'}%`).join(' · ')||'—';
+      const bans=Object.entries(m.characters||{}).sort((a,b)=>b[1].bans-a[1].bans).slice(0,3).map(([id,r])=>`${escapeHtml(characterLabel(id))} ${r.bans}밴`).join(' · ')||'—';
+      return `<div class="stats-map-card"><b>🗺️ ${escapeHtml(m.name)} · ${Number(m.games)}경기</b><small>상위 픽: ${rank}<br>상위 밴: ${bans}</small></div>`;
+    }).join('');
+  }
   const persistence = data.persistence || {};
   const persistenceBadge = $('competitiveStatsPersistenceBadge');
   if (persistenceBadge) {
@@ -3336,10 +3417,11 @@ function renderCompetitiveStats(data) {
     const teamLine=team=>assigns.filter(p=>p.team===team).map(p=>`${escapeHtml(p.playerName||'학생')}(${escapeHtml(characterPublicDef(p.character)?.name||p.character||'?')})`).join(', ');
     const bans=(Array.isArray(m.bans)?m.bans:[]).map(b=>`${b.team}:${escapeHtml(characterPublicDef(b.character)?.name||b.character||'?')}`).join(' / ');
     const dq=m.dataQuality?.complete===false?' ⚠️ 불완전':'';
-    row.innerHTML = `<span>${escapeHtml(m.room || '')} · ${escapeHtml(m.gameVersion || '?')} · ${m.matchmakingMode === 'random_queue' ? '🎲 랜덤 매칭' : m.matchmakingMode === 'manual_room' ? '수동 방' : '기존 방식'} · ${m.endedAt ? new Date(m.endedAt).toLocaleString('ko-KR') : ''}<small class="stats-match-detail">밴 ${bans||'—'}<br>A ${teamLine('A')||'—'}<br>B ${teamLine('B')||'—'}</small></span><b>${result} · ${scoreA}:${scoreB}${killTie}${dq}</b>`;
+    row.innerHTML = `<span>${escapeHtml(m.room || '')} · ${escapeHtml(m.gameVersion || '?')} · 🗺️ ${escapeHtml(m.mapName||config?.maps?.[m.mapId]?.name||'맵 기록 없음')} · ${m.matchmakingMode === 'random_queue' ? '🎲 랜덤 매칭' : m.matchmakingMode === 'manual_room' ? '수동 방' : '기존 방식'} · ${m.endedAt ? new Date(m.endedAt).toLocaleString('ko-KR') : ''}<small class="stats-match-detail">밴 ${bans||'—'}<br>A ${teamLine('A')||'—'}<br>B ${teamLine('B')||'—'}</small></span><b>${result} · ${scoreA}:${scoreB}${killTie}${dq}</b>`;
     recent.appendChild(row);
   }
 }
+$('competitiveStatsPatchNotes').onclick = openArchivedPatchNotes;
 $('competitiveStatsVersion').onchange = () => {
   selectedCompetitiveStatsVersion = $('competitiveStatsVersion').value || null;
   void requestCompetitiveStatsHttp(selectedCompetitiveStatsVersion);
@@ -3827,7 +3909,7 @@ const ULTIMATE_FX_STYLE = Object.freeze({
   star:{color:'#b47e00',dark:'#654500'}, angel:{color:'#ad7100',dark:'#614000'}, buffer:{color:'#7250aa',dark:'#3b2860'},
   light:{color:'#aa7c00',dark:'#5e4300'}, laser:{color:'#c92968',dark:'#6d1035'}, ice:{color:'#0785a5',dark:'#064858'},
   dia:{color:'#2478ba',dark:'#0b416c'},
-  witch:{color:'#cb9239',dark:'#6b4619'}, hacker:{color:'#4d69ff',dark:'#1e277b'},
+  witch:{color:'#a54ce9',dark:'#4c176e'}, hacker:{color:'#4d69ff',dark:'#1e277b'},
   rescue:{color:'#e56c68',dark:'#793038'}, drain:{color:'#e22852',dark:'#71152d'}
 });
 
@@ -3896,6 +3978,16 @@ function drawCharacterUltimateWorldFx(fx, q, a) {
     ctx.beginPath(); ctx.moveTo(a.x-3,a.y); ctx.bezierCurveTo(a.x-16-q*8,a.y-18,a.x-35-q*10,a.y-6,a.x-41-q*8,a.y+8); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(a.x+3,a.y); ctx.bezierCurveTo(a.x+16+q*8,a.y-18,a.x+35+q*10,a.y-6,a.x+41+q*8,a.y+8); ctx.stroke();
     ctx.globalAlpha=fade*.92; ctx.strokeStyle=color; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(a.x,a.y-22-q*8,14+q*5,5+q*2,0,0,Math.PI*2); ctx.stroke();
+  } else if (ch==='witch') {
+    // Instant map-wide curse: compact potion burst on caster, no false range ring.
+    for (let k=0;k<9;k++) {
+      const angle=k*Math.PI*2/9+phase*.12;
+      const r=10+q*(23+(k%3)*4);
+      ctx.globalAlpha=fade*.88; ctx.fillStyle=k%2?'#a54ce9':'#eed4ff';
+      ctx.beginPath(); ctx.arc(a.x+Math.cos(angle)*r,a.y+Math.sin(angle)*r,2.3+(1-q)*2.1,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=fade*.86; ctx.strokeStyle='#8a2ed4'; ctx.lineWidth=3.2;
+    ctx.beginPath(); ctx.arc(a.x,a.y,7+q*25,0,Math.PI*2); ctx.stroke();
   } else if (ch==='dia') {
     const wave=fx.type==='diaUltimateWave';
     const count=wave?16:8;
@@ -3959,7 +4051,19 @@ function drawWorldFx(nowMs) {
     const a=worldToScreen(fx.x,fx.y);
     const c=fxCharacterColor(fx.character);
     ctx.save();
-    if (fx.type === 'ultimateRectHit') {
+    if (fx.type === 'witchCurseBurst') {
+      // Immediate local marker on each enemy actually affected by the global cast.
+      const rr=9+q*27;
+      ctx.globalAlpha=(1-q)*.94; ctx.strokeStyle='#57118a'; ctx.lineWidth=5*(1-q)+1.4;
+      ctx.beginPath(); ctx.arc(a.x,a.y,rr,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=(1-q)*.98; ctx.strokeStyle='#c77aff'; ctx.lineWidth=2.6;
+      ctx.beginPath(); ctx.arc(a.x,a.y,rr+3,0,Math.PI*2); ctx.stroke();
+      for (let k=0;k<6;k++) {
+        const ang=k*Math.PI/3+q*.5, dist=10+q*(13+k%2*8);
+        ctx.globalAlpha=(1-q)*.80;ctx.fillStyle='#9b43e0';
+        ctx.beginPath();ctx.arc(a.x+Math.cos(ang)*dist,a.y+Math.sin(ang)*dist,2.6,0,Math.PI*2);ctx.fill();
+      }
+    } else if (fx.type === 'ultimateRectHit') {
       const length=(Number(fx.length)||24), half=(Number(fx.width)||6)/2;
       const dx=Number(fx.dx)||0, dy=Number(fx.dy)||0;
       const ax=-dy, ay=dx;
@@ -4341,6 +4445,29 @@ let lastHudRefreshAt = -Infinity;
 let lastHudTargetId = null;
 let lastHudSnapshot = null;
 
+function drawHealthPacks(viewState, nowMs=performance.now()) {
+  for (const row of (viewState.healthPacks || [])) {
+    const [,x,y,remaining] = row;
+    const pos=worldToScreen(Number(x),Number(y));
+    const available=!(Number(remaining)>0);
+    ctx.save();
+    ctx.translate(pos.x,pos.y);
+    const glow=available?0.5+0.18*Math.sin(nowMs/200):0.12;
+    ctx.fillStyle=available?'rgba(36,198,117,.22)':'rgba(75,110,91,.10)';
+    ctx.beginPath();ctx.arc(0,0,19+glow*3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=available?'#24b56f':'#576b65';
+    ctx.strokeStyle=available?'#d4ffe8':'#869c8e';ctx.lineWidth=2.3;
+    ctx.beginPath();ctx.arc(0,0,12.5,0,Math.PI*2);ctx.fill();ctx.stroke();
+    if (available) {
+      ctx.strokeStyle='#fff';ctx.lineWidth=3.3;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(-5.5,0);ctx.lineTo(5.5,0);ctx.moveTo(0,-5.5);ctx.lineTo(0,5.5);ctx.stroke();
+    } else {
+      ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(String(Math.ceil(Number(remaining)||0)),0,0);
+    }
+    ctx.restore();
+  }
+}
 function renderGame() {
   requestAnimationFrame(renderGame);
   const viewState = state;
@@ -4355,6 +4482,7 @@ function renderGame() {
   const viewerTeam = healerViewer?.team;
   const healerAttentionEnabled = updateHealerLowHpAttention(viewState, healerViewer);
   if (!drawCachedBattlefield(viewState)) return;
+  drawHealthPacks(viewState);
 
   const beamFxNow = performance.now();
 
@@ -4477,7 +4605,7 @@ function renderGame() {
 
     // Local-only pre-cast radius guide for Iron/Water. Opponents never see this readiness guide;
     // the authoritative warning/effect rings are rendered for everyone after use.
-    const ultGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && ['iron','water','witch','hacker','rescue'].includes(p.character));
+    const ultGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && ['iron','water','hacker','rescue'].includes(p.character));
     if (ultGuidePlayer) {
       const udef = characterPublicDef(ultGuidePlayer.character);
       const cost = Math.max(0, Number(udef?.ultimateCost) || 0);

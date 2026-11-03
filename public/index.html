@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#10141b" />
   <title>School Line Mobile</title>
-  <link rel="stylesheet" href="/style.css?v=1.10-release-notes1" />
+  <link rel="stylesheet" href="/style.css?v=1.11-playground1" />
 </head>
 <body class="access-checking access-locked">
   <div id="accessLockScreen" class="access-lock-screen" role="status" aria-live="polite">
@@ -45,7 +45,7 @@
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
-      <p class="subtitle">1.10 정식 버전 · 28 캐릭터 · 8종 밸런스 조정 · 부활 무적 1.5초</p>
+      <p class="subtitle">1.11 정식 버전 · 28 캐릭터 · 신규 맵 운동장 · 맵별 밴픽</p>
       <div class="account-login-grid">
         <label>내 이름<select id="accountSelect" aria-label="계정 이름"><option value="">이름 선택</option></select></label>
         <label>4자리 PIN<input id="accountPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" autocomplete="off" /></label>
@@ -152,6 +152,10 @@
           </div>
           <div id="draftTimer" class="draft-timer">10</div>
         </header>
+        <div class="draft-map-banner" aria-label="경쟁전 맵 공개">
+          <div class="draft-map-copy"><small>🗺️ 이번 경기 맵 · 밴픽 전 공개</small><strong id="draftMapName">🗺️ 교실</strong><span>경기 시작 전에 맵을 보고 밴·픽하세요.</span></div>
+          <canvas id="draftMapPreview" width="272" height="168" aria-label="현재 맵 지형 미리보기"></canvas>
+        </div>
         <div id="draftBanSummary" class="draft-ban-summary"></div>
         <div id="draftOrder" class="draft-order"></div>
         <div id="draftNotice" class="draft-notice"></div>
@@ -261,8 +265,8 @@
           </div>
         </header>
         <div class="stats-scroll-content">
-        <div id="competitiveStatsSummary" class="stats-summary"></div>
-        <div class="stats-version-row"><label for="competitiveStatsVersion">통계 버전</label><select id="competitiveStatsVersion" aria-label="경쟁 통계 버전"></select></div>
+        <div id="competitiveStatsSummary" class="stats-summary"></div><div id="competitiveMapStats" class="stats-map-cards" aria-label="맵별 통계"></div>
+        <div class="stats-version-row"><label for="competitiveStatsVersion">통계 버전</label><select id="competitiveStatsVersion" aria-label="경쟁 통계 버전"></select><button id="competitiveStatsPatchNotes" class="stats-patchnotes-button" type="button" disabled>📜 버전 패치노트</button></div>
         <div class="stats-note">통계 1.7부터 PostgreSQL에 경기별 원본을 영구 저장합니다. 1.7 / 1.8 / 1.9 통계는 시리즈별로 분리하고, 1.9와 1.9.1은 단독·통합 조회를 지원되며 신캐는 출시 이후 실제 선택 가능 경기만 분모에 포함됩니다.</div>
         <div class="stats-note stats-note-secondary">승률 옆 95% CI는 표본 불확실성을 나타냅니다. GitHub/Render 재배포와 무관하게 PostgreSQL 기록이 유지되며, JSON 버튼은 별도의 수동 백업 수단입니다.</div>
         <div id="competitiveStatsDataQuality" class="stats-quality"></div>
@@ -385,12 +389,12 @@
       </article>
     </div>
 
-    <!-- One current patch only. Replacing /latest-patch.json updates this view; no history or selector. -->
+    <!-- Home always shows only the current patch; archived notes are accessible through administrator statistics. -->
     <div id="latestPatchOverlay" class="latest-patch-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="latestPatchTitle">
       <article class="latest-patch-card">
         <header class="latest-patch-header">
           <div>
-            <div class="latest-patch-kicker">🆕 SCHOOL LINE · 최신 변경점</div>
+            <div id="latestPatchKicker" class="latest-patch-kicker">🆕 SCHOOL LINE · 최신 변경점</div>
             <h2 id="latestPatchTitle">최신 패치노트</h2>
           </div>
           <button id="latestPatchCloseTop" type="button" class="latest-patch-x" aria-label="최신 변경점 닫기">✕</button>
@@ -409,6 +413,6 @@
       </article>
     </div>
   </main>
-  <script src="/game.js?v=1.10-release-notes1"></script>
+  <script src="/game.js?v=1.11-playground2-patchnotes"></script>
 </body>
 </html>

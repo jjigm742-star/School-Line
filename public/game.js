@@ -36,7 +36,7 @@ const CHARACTER_META = {
   drain:   { role:'딜러', name:'드레인', icon:'🩸', summary:'공격을 적중시키며 자신을 치유하는 흡혈 딜러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.11-playground-roster28';
+const VISUAL_ASSET_VERSION = '1.12-release-roster28';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
 const CHARACTER_ART = Object.freeze({
@@ -1304,7 +1304,7 @@ function playCharacterUltimateCue(character, local=false) {
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650};
+  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650,diaExplosion:580};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -1377,7 +1377,7 @@ function addCharacterUltimateFx(player, phase='cast', extra={}) {
 }
 
 function isDelayedWarningUltimate(character) {
-  return character === 'iron' || character === 'ice' || character === 'star';
+  return character === 'iron' || character === 'ice' || character === 'star' || character === 'dia';
 }
 
 function processCombatFeedback(previousState, nextState) {
@@ -1606,6 +1606,7 @@ function updateAccessUi(open, message='') {
 }
 
 function resetClientForAccessLock(message='') {
+  clearSessionReconnect();
   updateAccessUi(false, message);
   resetPostGameSequence();
   stopBgm();
@@ -2004,7 +2005,7 @@ $('leaveRoomButton').onclick = () => {
 };
 
 refreshRoomDirectory();
-setInterval(() => { if (!myId && !spectatorMode) refreshRoomDirectory(); }, 1000);
+setInterval(() => { if (!myId && !spectatorMode && !sessionReconnectActive) refreshRoomDirectory(); }, 1000);
 
 // In-match detail is intentionally the same renderer and the same server data
 // as the lobby picker; there is no independently maintained 1-key stat sheet.
@@ -2056,6 +2057,99 @@ function show(which) {
 
 function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`; }
 
+// 1.11 transport stabilization (no gameplay or stats-series changes).
+let sessionReconnectActive = false;
+let sessionReconnectAborted = false;
+let sessionReconnectAttempt = 0;
+let sessionReconnectTimer = null;
+let sessionReconnectStartedAt = 0;
+let socketRttMs = null;
+let lastNetPingNonce = 0;
+let lastNetPongAt = 0;
+let measuredFps = null;
+const reconnectBanner = document.createElement('div');
+reconnectBanner.id = 'connectionRecoveryStatus';
+reconnectBanner.setAttribute('role', 'status');
+reconnectBanner.setAttribute('aria-live', 'polite');
+reconnectBanner.style.cssText = 'position:fixed;z-index:99999;top:12px;left:50%;transform:translateX(-50%);background:rgba(12,22,40,.96);color:white;border:2px solid #6dc5ff;border-radius:12px;padding:10px 16px;font:700 14px system-ui,sans-serif;box-shadow:0 4px 20px #0008;text-align:center;max-width:92vw;pointer-events:none;display:none';
+document.body.appendChild(reconnectBanner);
+function setReconnectBanner(message, failed = false) {
+  reconnectBanner.textContent = message;
+  reconnectBanner.style.borderColor = failed ? '#ff8a8a' : '#6dc5ff';
+  reconnectBanner.style.display = message ? 'block' : 'none';
+}
+function clearSessionReconnect() {
+  sessionReconnectActive = false;
+  sessionReconnectAborted = false;
+  sessionReconnectAttempt = 0;
+  clearTimeout(sessionReconnectTimer);
+  sessionReconnectTimer = null;
+  setReconnectBanner('');
+}
+function abortSessionReconnect(message) {
+  sessionReconnectAborted = true;
+  sessionReconnectActive = false;
+  clearTimeout(sessionReconnectTimer);
+  sessionReconnectTimer = null;
+  setReconnectBanner(message || '재접속할 수 없습니다. 페이지를 새로고침하여 다시 입장해주세요.', true);
+}
+function scheduleSessionReconnect() {
+  if (!sessionReconnectActive || sessionReconnectAborted || accessLockActive) return;
+  clearTimeout(sessionReconnectTimer);
+  const delay = Math.min(8000, 500 * (2 ** Math.min(4, sessionReconnectAttempt)));
+  sessionReconnectTimer = setTimeout(attemptSessionReconnect, delay);
+  setReconnectBanner(`⚠️ 연결 복구 중 · ${Math.ceil(delay/1000)}초 후 재시도 (${sessionReconnectAttempt + 1}번째)`);
+}
+function attemptSessionReconnect() {
+  if (!sessionReconnectActive || sessionReconnectAborted || accessLockActive) return;
+  const saved = getResumeCredentials();
+  if (!saved) { abortSessionReconnect('복귀 정보가 없습니다. 페이지를 새로고침하여 다시 입장해주세요.'); return; }
+  sessionReconnectAttempt++;
+  setReconnectBanner(`🔄 서버 재접속 중… (${sessionReconnectAttempt}번째)`);
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  openConnection(() => {
+    if (sessionReconnectActive && ws?.readyState === WebSocket.OPEN) {
+      const latest = getResumeCredentials();
+      if (latest) ws.send(JSON.stringify({type:'resume', room:latest.room, resumeToken:latest.resumeToken}));
+    }
+  });
+}
+function beginSessionReconnect() {
+  if (sessionReconnectAborted || accessLockActive) return;
+  if (!getResumeCredentials()) {
+    abortSessionReconnect('서버 연결이 끊겼습니다. 페이지를 새로고침하여 다시 입장해주세요.');
+    return;
+  }
+  resetInputs();
+  stopBeamHum();
+  if (!sessionReconnectActive) {
+    sessionReconnectActive = true;
+    sessionReconnectStartedAt = performance.now();
+    sessionReconnectAttempt = 0;
+  }
+  scheduleSessionReconnect();
+}
+// Lightweight transport diagnostics: the browser can distinguish low FPS from high RTT.
+setInterval(() => {
+  if (!ws || ws.readyState !== WebSocket.OPEN || (!myId && !spectatorMode)) return;
+  lastNetPingNonce = Date.now();
+  ws.send(JSON.stringify({type:'net_ping',nonce:lastNetPingNonce}));
+}, 3000);
+let fpsSamples = 0;
+let fpsSampleStarted = performance.now();
+function countDiagnosticFrame(now) {
+  fpsSamples++;
+  if (now - fpsSampleStarted >= 2000) {
+    measuredFps = Math.round(fpsSamples * 1000 / (now - fpsSampleStarted));
+    fpsSamples = 0; fpsSampleStarted = now;
+  }
+  requestAnimationFrame(countDiagnosticFrame);
+}
+requestAnimationFrame(countDiagnosticFrame);
+window.schoolLineNetworkHealth = () => ({fps:measuredFps,rttMs:socketRttMs,
+  lastStateAgeMs:lastPlayingSnapshotAt ? Math.round(performance.now()-lastPlayingSnapshotAt) : null,
+  reconnecting:sessionReconnectActive,reconnectAttempt:sessionReconnectAttempt});
+
 function openConnection(onOpen) {
   if (accessLockActive) { $('joinError').textContent = '관리자가 입장을 제한했습니다.'; return; }
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
@@ -2063,7 +2157,11 @@ function openConnection(onOpen) {
   lastAdminStatsData = null;
   selectedCompetitiveStatsVersion = null;
   ws = new WebSocket(wsUrl());
-  ws.onopen = onOpen;
+  const connection = ws;
+  let openTimeout = setTimeout(() => {
+    if (ws === connection && connection.readyState === WebSocket.CONNECTING) connection.close();
+  }, 6500);
+  connection.onopen = () => { clearTimeout(openTimeout); if (ws === connection) onOpen?.(); };
   
 function expandCompactPlayerRow(p) {
   if (!Array.isArray(p)) return p;
@@ -2289,9 +2387,18 @@ function expandWireMessage(msg) {
   return msg;
 }
 
-ws.onmessage = ev => handleMessage(expandWireMessage(JSON.parse(ev.data)));
-  ws.onerror = () => $('joinError').textContent = '서버에 연결하지 못했습니다.';
-  ws.onclose = () => {
+connection.onmessage = ev => {
+    if (ws !== connection) return;
+    try { handleMessage(expandWireMessage(JSON.parse(ev.data))); } catch (err) { console.warn('[network] malformed packet',err); }
+  };
+  connection.onerror = () => {
+    if (ws !== connection) return;
+    if (!sessionReconnectActive) $('joinError').textContent = '서버에 연결하지 못했습니다.';
+  };
+  connection.onclose = () => {
+    clearTimeout(openTimeout);
+    if (ws !== connection) return;
+    ws = null;
     if (accessLockActive) return;
     if(randomQueueActive && !randomQueueManualCancel && !myId) {
       $('randomQueueStatus').textContent='연결이 끊겼어요. 재접속 중…';
@@ -2304,9 +2411,10 @@ ws.onmessage = ev => handleMessage(expandWireMessage(JSON.parse(ev.data)));
       },1200);
       return;
     }
-    if (myId || spectatorMode) {
-      alert(spectatorMode ? '서버 연결이 끊겼습니다.' : '서버 연결이 끊겼습니다. 돌아가기 버튼을 누르거나, 같은 방에 같은 이름으로 다시 입장하면 기존 자리로 복귀합니다.');
-      location.reload();
+    if (sessionReconnectAborted) return;
+    if (myId) { beginSessionReconnect(); return; }
+    if (spectatorMode) {
+      setReconnectBanner('관전 연결이 끊겼습니다. 새로고침하여 다시 입장해주세요.', true);
     }
   };
 }
@@ -2354,6 +2462,8 @@ function handleMessage(msg) {
       });
     } else if (msg.kind === 'runner_bomb_attach') {
       addWorldFx('runnerBombAttached', { x:msg.x, y:msg.y, character:'runner', team:msg.team }, { targetId:msg.targetId });
+    } else if (msg.kind === 'dia_burst') {
+      addWorldFx('diaExplosion', { x:msg.x, y:msg.y, character:'dia', team:msg.team }, { radiusWorld:Number(msg.radius)||16 });
     } else if (msg.kind === 'runner_bomb_explode') {
       // Discard any stale fuse indicator on that victim.
       for (let i=worldFx.length-1;i>=0;i--) if (worldFx[i].type==='runnerBombAttached' && worldFx[i].targetId===msg.targetId) worldFx.splice(i,1);
@@ -2362,6 +2472,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'room_closed') {
+    clearSessionReconnect();
     const message = msg.message || '경기가 종료되어 방이 자동으로 닫혔습니다.';
     resetPostGameSequence();
     stopBgm();
@@ -2384,6 +2495,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'left_room') {
+    clearSessionReconnect();
     resetPostGameSequence();
     stopBgm();
     stopBeamHum();
@@ -2421,14 +2533,25 @@ function handleMessage(msg) {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
     return;
   }
+  if (msg.type === 'net_pong') {
+    if (Number(msg.nonce) === lastNetPingNonce) {
+      socketRttMs = Math.max(0,Date.now()-lastNetPingNonce);
+      lastNetPongAt = performance.now();
+    }
+    return;
+  }
   if (msg.type === 'error') {
     $('joinError').textContent = msg.message;
+    if (sessionReconnectActive && (msg.code === 'resume_invalid' || msg.code === 'resume_unavailable')) {
+      abortSessionReconnect(msg.message || '경기가 종료되어 자동 재접속할 수 없습니다. 새로고침해주세요.');
+    }
     if (msg.code === 'resume_invalid' || msg.code === 'resume_unavailable') clearResumeCredentials();
     if (msg.code === 'room_limit') setTimeout(refreshRoomDirectory, 0);
     if (ws) ws.close();
     return;
   }
   if (msg.type === 'joined') {
+    clearSessionReconnect();
     if(randomQueueActive) randomQueueBusyUi(false);
     if (msg.accountId) localStorage.setItem(PLAYER_ACCOUNT_KEY, msg.accountId);
     if ($('accountPinInput')) $('accountPinInput').value = '';
@@ -2442,6 +2565,9 @@ function handleMessage(msg) {
     show('lobby'); return;
   }
   if (msg.type === 'resumed') {
+    const recoveryDuration = sessionReconnectActive ? Math.round(performance.now()-sessionReconnectStartedAt) : 0;
+    clearSessionReconnect();
+    if (recoveryDuration) console.info('[network] reconnected after', recoveryDuration, 'ms');
     if (msg.accountId) localStorage.setItem(PLAYER_ACCOUNT_KEY, msg.accountId);
     if ($('accountPinInput')) $('accountPinInput').value = '';
     clearLiveProjectileRegistry();
@@ -3077,18 +3203,18 @@ function renderReadyAssignments(comp) {
     const section = document.createElement('section');
     section.className = `ready-team team-${team.toLowerCase()}-ready`;
     const h = document.createElement('h3');
-    h.textContent = `${team === 'A' ? '🔵' : '🔴'} ${team}팀 ${me?.team === team ? '· 우리 팀은 드래그로 자유 교환' : ''}`;
+    h.textContent = `${team === 'A' ? '🔵' : '🔴'} ${team}팀 ${me?.team === team ? '· 자신의 카드만 드래그해 교환 요청' : ''}`;
     section.appendChild(h);
     const players = teamPlayerOrder(team, comp);
     for (const p of players) {
       const slot = document.createElement('div');
       slot.className = 'ready-player-slot';
       slot.dataset.playerId = p.id;
-      const draggable = !!me && me.team === team;
+      const draggable = !!me && p.id === myId && me.team === team;
       const card = document.createElement('div');
       card.className = 'ready-character-card' + (draggable ? ' draggable' : '');
       card.dataset.sourcePlayerId = p.id;
-      card.innerHTML = `<span>${characterLabel(p.character)}</span><small>${draggable ? '↔ 드래그' : ''}</small>`;
+      card.innerHTML = `<span>${characterLabel(p.character)}</span><small>${draggable ? '↔ 교환 요청' : ''}</small>`;
       if (draggable) card.onpointerdown = e => startReadyDrag(p.id, e);
       slot.innerHTML = `<div class="ready-player-name">${p.id === myId ? '⭐ ' : ''}${escapeHtml(p.name)}${p.connected === false ? ' · 📡' : ''}</div>`;
       slot.appendChild(card);
@@ -3096,12 +3222,32 @@ function renderReadyAssignments(comp) {
     }
     root.appendChild(section);
   }
+  if (comp?.outgoingReadySwap) {
+    const outgoing = comp.outgoingReadySwap;
+    const target = playerFromState(outgoing.targetId);
+    const waiting = document.createElement('div'); waiting.className='ready-swap-consent';
+    waiting.textContent = `⏳ ${target?.name || '팀원'}님의 교환 수락을 기다리는 중…`;
+    root.appendChild(waiting);
+  }
+  if (comp?.incomingReadySwap) {
+    const incoming = comp.incomingReadySwap;
+    const source = playerFromState(incoming.sourceId);
+    const panel = document.createElement('div'); panel.className='ready-swap-consent';
+    const label=document.createElement('strong'); label.textContent=`🤝 ${source?.name || '팀원'}님이 ${characterLabel(incoming.sourceCharacter)} ↔ ${characterLabel(incoming.targetCharacter)} 교환을 요청했습니다.`;
+    panel.appendChild(label);
+    for (const [text, type] of [['✅ 수락','ready_swap_accept'],['❌ 거절','ready_swap_decline']]) {
+      const btn=document.createElement('button'); btn.type='button'; btn.textContent=text;
+      btn.onclick=()=>{ if (ws?.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type,requestId:incoming.requestId})); };
+      panel.appendChild(btn);
+    }
+    root.appendChild(panel);
+  }
 }
 function startReadyDrag(sourcePlayerId, e) {
   if (!state || state.state !== 'ready' || spectatorMode || readyDrag) return;
   const source = playerFromState(sourcePlayerId);
   const me = playerFromState(myId);
-  if (!source || !me || source.team !== me.team) return;
+  if (!source || !me || source.id !== myId || source.team !== me.team) return;
   e.preventDefault();
   const ghost = document.createElement('div');
   ghost.className = 'ready-drag-ghost';
@@ -3130,7 +3276,8 @@ window.addEventListener('pointerup', e => {
   const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.ready-player-slot');
   const targetPlayerId = hit?.dataset?.playerId || null;
   if (targetPlayerId && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type:'ready_swap', sourcePlayerId:drag.sourcePlayerId, targetPlayerId }));
+    if (targetPlayerId !== myId && playerFromState(targetPlayerId)?.team === playerFromState(myId)?.team)
+      ws.send(JSON.stringify({ type:'ready_swap_request', targetPlayerId }));
   }
   clearReadyDropTargets();
   drag.ghost?.remove();
@@ -3175,7 +3322,8 @@ function renderCompetitiveDraft() {
   const structuralKey = JSON.stringify({
     state:state.state, phase:comp.phase, activeBanTeam:comp.activeBanTeam, bans:comp.bans, picks:comp.picks,
     pickIndex:comp.pickIndex, currentPickerId:comp.currentPickerId, myBanVote:comp.myBanVote, banVoteCounts:comp.banVoteCounts,
-    assignments:state.players.map(p=>[p.id,p.character,p.connected]), teamOrders:comp.teamOrders, mapId:state.mapId
+    assignments:state.players.map(p=>[p.id,p.character,p.connected]), teamOrders:comp.teamOrders, mapId:state.mapId,
+    incomingReadySwap:comp.incomingReadySwap, outgoingReadySwap:comp.outgoingReadySwap
   });
   if (structuralKey === lastCompetitiveRenderKey) return;
   lastCompetitiveRenderKey = structuralKey;
@@ -3184,8 +3332,8 @@ function renderCompetitiveDraft() {
 
   if (state.state === 'ready' || comp.phase === 'ready') {
     $('draftPhaseTitle').textContent = '준비 단계';
-    $('draftPhaseSubtitle').textContent = '20초 동안 우리 팀의 4개 픽을 팀원 슬롯 사이에서 드래그해 최종 담당자를 정합니다.';
-    $('draftNotice').textContent = me ? '우리 팀 캐릭터 카드를 원하는 팀원에게 드래그하세요. 이미 캐릭터가 있으면 두 픽이 즉시 서로 바뀝니다.' : '양 팀이 최종 담당 캐릭터를 정하는 중입니다.';
+    $('draftPhaseSubtitle').textContent = '20초 동안 자신의 캐릭터를 드래그해 팀원에게 교환을 요청할 수 있습니다.';
+    $('draftNotice').textContent = me ? '자신의 캐릭터 카드를 팀원에게 드래그해 요청하세요. 상대가 수락해야 교환됩니다.' : '양 팀이 최종 담당 캐릭터를 정하는 중입니다.';
     $('draftCharacterGrid').classList.add('hidden');
     $('readyAssignments').classList.remove('hidden');
     $('draftHelp').textContent = '준비시간이 끝나면 자동으로 배치가 잠기고 경쟁 경기가 시작됩니다.';
@@ -3316,7 +3464,7 @@ function renderCompetitiveStats(data) {
   patchButton.textContent = hasPatchNotes ? `📜 ${statsVersion} 패치노트 보기` : '📜 패치노트 없음';
   const rosterLabel = data.currentBuild?.rosterVersion ? ` · 현재 로스터 ${data.currentBuild.rosterVersion}` : '';
   const net = data.network || null;
-  const netLabel = net ? ` · WS ${Number(net.totalMiB || 0).toFixed(1)}MB / 현재 ${Number(net.activeConnections || 0)}연결 / 차단 ${Number(net.skippedLiveSnapshots || 0)}회` : '';
+  const netLabel = net ? ` · WS ${Number(net.totalMiB || 0).toFixed(1)}MB / 현재 ${Number(net.activeConnections || 0)}연결 / 전송 생략 ${Number(net.skippedLiveSnapshots || 0)}회 / 혼잡 누락 ${Number(net.droppedBackpressure || 0)}회 / Pong 종료 ${Number(net.staleConnectionsClosed || 0)}회 / 동시 이탈 경고 ${Number(net.massDisconnectWarnings || 0)}회 / 서버 지연 ${Number(net.eventLoopMaxDelayMs || 0)}ms` : '';
   $('competitiveStatsSummary').textContent = `${data.statsFilterLabel || statsVersion || '현재'} 경쟁 통계 ${total}판 · 전체 저장 ${allTimeTotal}판${rosterLabel}${netLabel}${data.updatedAt ? ` · 이 버전 마지막 기록 ${new Date(data.updatedAt).toLocaleString('ko-KR')}` : ''}`;
   const mapsEl=$('competitiveMapStats');
   if (mapsEl) {
@@ -4051,7 +4199,13 @@ function drawWorldFx(nowMs) {
     const a=worldToScreen(fx.x,fx.y);
     const c=fxCharacterColor(fx.character);
     ctx.save();
-    if (fx.type === 'witchCurseBurst') {
+    if (fx.type === 'diaExplosion') {
+      const fullRadius = (Number(fx.radiusWorld)||16) * SCALE;
+      const r = fullRadius * Math.min(1, q*.95+.05);
+      ctx.globalAlpha=(1-q)*.35; ctx.fillStyle='#36bfff'; ctx.beginPath();ctx.arc(a.x,a.y,r,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=(1-q)*.94;ctx.strokeStyle='#063f91';ctx.lineWidth=9*(1-q)+2;ctx.beginPath();ctx.arc(a.x,a.y,r,0,Math.PI*2);ctx.stroke();
+      ctx.globalAlpha=(1-q);ctx.strokeStyle='#a4efff';ctx.lineWidth=4.5*(1-q)+1;ctx.beginPath();ctx.arc(a.x,a.y,r,0,Math.PI*2);ctx.stroke();
+    } else if (fx.type === 'witchCurseBurst') {
       // Immediate local marker on each enemy actually affected by the global cast.
       const rr=9+q*27;
       ctx.globalAlpha=(1-q)*.94; ctx.strokeStyle='#57118a'; ctx.lineWidth=5*(1-q)+1.4;
@@ -4576,9 +4730,17 @@ function renderGame() {
   // Only the player controlling Sniper sees their 36 m directional guide.
   // Rendered locally, never sent as a separate network event or shown to spectators.
   if (!spectatorMode) {
-    const sniperGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && p.character === 'sniper');
+    const shieldGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && p.character === 'shield');
+    if (shieldGuidePlayer) {
+      const radius = Number(characterPublicDef('shield')?.shieldAbilityRange) || 24;
+      const pos = renderedPlayerWorldPosition(shieldGuidePlayer, beamFxNow);
+      const screen = worldToScreen(pos.x, pos.y);
+      ctx.save(); ctx.globalAlpha = .25; ctx.strokeStyle = '#5ec7ef'; ctx.lineWidth = 1.5; ctx.setLineDash([5,8]);
+      ctx.beginPath(); ctx.arc(screen.x, screen.y, radius*SCALE, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+    }
+    const sniperGuidePlayer = viewState.players.find(p => p.id === myId && p.alive && ['sniper','star'].includes(p.character));
     if (sniperGuidePlayer) {
-      const sniperDef = characterPublicDef('sniper');
+      const sniperDef = characterPublicDef(sniperGuidePlayer.character);
       const range = Number(sniperDef?.range) || 36;
       const origin = renderedPlayerWorldPosition(sniperGuidePlayer, beamFxNow);
       // Prefer active local thumb aim to avoid 10 Hz snapshot-angle lag on mobile.

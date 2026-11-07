@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const zlib = require('zlib');
+const { monitorEventLoopDelay } = require('perf_hooks');
 const { DurableStore } = require('./durable_store');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -30,7 +31,9 @@ const MAX_WS_PENDING_BYTES = Math.max(65536, Number(process.env.SCHOOL_LINE_MAX_
 const MAX_WS_INBOUND_FRAME_BYTES = Math.max(4096, Math.min(1048576, Number(process.env.SCHOOL_LINE_MAX_WS_INBOUND_FRAME_BYTES) || 65536));
 const MAX_WS_INBOUND_BUFFER_BYTES = Math.max(MAX_WS_INBOUND_FRAME_BYTES + 14, Math.min(2097152, Number(process.env.SCHOOL_LINE_MAX_WS_INBOUND_BUFFER_BYTES) || 262144));
 const WS_PING_INTERVAL_MS = Math.max(5000, Number(process.env.SCHOOL_LINE_WS_PING_INTERVAL_MS || 10000));
-const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS + 5000, Number(process.env.SCHOOL_LINE_WS_STALE_TIMEOUT_MS || 15000));
+// Allow several 10s ping cycles and short Wi-Fi outages before closing a socket.
+const WS_STALE_TIMEOUT_MS = Math.max(WS_PING_INTERVAL_MS * 3 + 5000, Number(process.env.SCHOOL_LINE_WS_STALE_TIMEOUT_MS || 35000));
+const WS_CLOSE_GRACE_MS = 1500;
 const DT = 1 / TICK_RATE;
 const MATCH_SECONDS = 180;
 const POST_GAME_ROOM_CLOSE_MS = 30000;
@@ -45,10 +48,11 @@ const COMPETITIVE_DATA_DIR = path.join(__dirname, 'data'); // seed/static data o
 // Archiving notes in the repository keeps old versions available after deployment,
 // while export includes a snapshot alongside the original PostgreSQL match records.
 const ARCHIVED_110_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.10.json');
+const ARCHIVED_111_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.11.json');
 const CURRENT_PATCH_FILE = path.join(PUBLIC_DIR, 'latest-patch.json');
 function bundledCompetitivePatchNotes() {
   const notes = {};
-  for (const file of [ARCHIVED_110_PATCH_FILE, CURRENT_PATCH_FILE]) {
+  for (const file of [ARCHIVED_110_PATCH_FILE, ARCHIVED_111_PATCH_FILE, CURRENT_PATCH_FILE]) {
     const note = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (!note || !/^\d+\.\d+$/.test(note.version) || !Array.isArray(note.sections)) {
       throw new Error(`Invalid packaged patch notes: ${file}`);
@@ -67,17 +71,18 @@ const NONCOMBAT_REGEN_DELAY_MS = 4000;
 const NONCOMBAT_REGEN_HPS = 30;
 const ULTIMATE_AUTO_CHARGE_INTERVAL_MS = 4000;
 const ULTIMATE_AUTO_CHARGE_RATIO = 0.03;
-const SPECTATOR_PIN_HASH = 'e0687aaa8689e196e8bdb1d9c79b6c7631067a21246bfd7372657e6cd129bd72'; // SHA-256 of administrator PIN
+const LEGACY_ADMIN_PIN_HASH = 'e0687aaa8689e196e8bdb1d9c79b6c7631067a21246bfd7372657e6cd129bd72';
+const SPECTATOR_PIN_HASH = '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0'; // Spectator-only PIN 0000
 const SPECTATOR_MAX_FAILURES = 5;
 const SPECTATOR_LOCK_MS = 30000;
-const ADMIN_STATS_PIN_HASH = SPECTATOR_PIN_HASH; // Same administrator PIN, kept hashed server-side.
+const ADMIN_STATS_PIN_HASH = LEGACY_ADMIN_PIN_HASH; // Preserve existing administrator PIN.
 const ADMIN_STATS_MAX_FAILURES = 5;
 const ADMIN_STATS_LOCK_MS = 30000;
-const ACCESS_ADMIN_PIN_HASH = SPECTATOR_PIN_HASH; // Reuse the same teacher PIN hash; plaintext never leaves the browser request.
+const ACCESS_ADMIN_PIN_HASH = LEGACY_ADMIN_PIN_HASH; // Preserve existing classroom access PIN.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.11';
-const GAME_VERSION = '1.11';
+const BALANCE_VERSION = '1.12';
+const GAME_VERSION = '1.12';
 const COMPETITIVE_STATS_SCHEMA_VERSION = 7;
 // Stats series reset: historical 1.6 data is intentionally NOT imported. This build starts at 1.7.
 // From gameplay 1.7 onward the series follows major.minor automatically, so 1.7.x / 1.8.x split without hard-coded lists.
@@ -90,8 +95,8 @@ function statsSeriesForBalanceVersion(balanceVersion) {
 }
 // Official builds use their major.minor stats series; prerelease tags remain isolated.
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION.includes('-pre') ? BALANCE_VERSION : statsSeriesForBalanceVersion(BALANCE_VERSION);
-const COMPETITIVE_BUILD_ID = '1.11-playground-roster28';
-const COMPETITIVE_ROSTER_VERSION = '1.11-release-roster-28';
+const COMPETITIVE_BUILD_ID = '1.12-consent-and-balance-roster28';
+const COMPETITIVE_ROSTER_VERSION = '1.12-release-roster-28';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
 const pendingCompetitiveRecords = new Map();
@@ -285,14 +290,14 @@ const CHARACTERS = {
     name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13,
-    ultimateName: '자폭', ultimateCost: 1000, ultimateDescription: '4초 후 반경 16m 적에게 200 피해를 주고 자신도 200 피해를 받는다.', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 4
+    ultimateName: '자폭', ultimateCost: 800, ultimateDescription: '4초 후 반경 16m 적에게 200 피해를 주고 자신도 200 피해를 받는다.', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 4
   },
   magnet: {
     name: '마그넷', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
     fireRate: 2, range: 16, projectileSpeed: 14, projectileRadius: 0.70,
     projectileType: 'attack', damage: 40, abilityId: 'magnet',
     magnetRange: 20, magnetCooldown: 12, magnetProjectileSpeed: 42, magnetProjectileRadius: 0.52,
-    magnetPullDuration: 0.3, magnetPullOffset: 0.5,
+    magnetPullDuration: 0.3, magnetPullOffset: 0.5, magnetHookDamage: 30,
     ultimateName: '과충전', ultimateCost: 800,
     ultimateDescription: '자석 쿨타임을 즉시 초기화한다. 8초간 자석의 쿨타임이 4초가 되고 초당 10 HP를 회복한다.',
     ultimateDuration: 8, ultimateMagnetCooldown: 4, ultimateSelfHealHps: 10
@@ -309,16 +314,16 @@ const CHARACTERS = {
     name: '솔라', role: '탱커', hp: 400, speed: 5.0, radius: 1.00,
     attackType: 'beam', range: 16, beamDps: 55,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
-    solarProjectileRadius: 0.32, solarProjectileDamage: 25, solarSelfHeal: 25,
-    ultimateName: '일출', ultimateCost: 1200, ultimateDescription: '4초간 반경 24m 적에게 초당 15 피해를 주고 자신은 초당 30 회복한다.', ultimateDuration: 4, ultimateRadius: 24, ultimateAuraDps: 15, ultimateSelfHealHps: 30
+    solarProjectileRadius: 0.32, solarProjectileDamage: 30, solarSelfHeal: 30,
+    ultimateName: '일출', ultimateCost: 1200, ultimateDescription: '6초간 반경 24m 적에게 초당 25 피해를 주고 자신은 초당 50 회복한다. 궁극기 활성 중 충전 불가.', ultimateDuration: 6, ultimateRadius: 24, ultimateAuraDps: 25, ultimateSelfHealHps: 50
   },
   shield: {
     name: '쉴드', role: '탱커', hp: 400, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 14, projectileRadius: 0.32,
     projectileType: 'attack', damage: 15,
     abilityId: 'shield', shieldAmount: 150, shieldDuration: 3, shieldCap: GLOBAL_SHIELD_CAP,
-    shieldMaxCharges: 2, shieldRecharge: 8,
-    abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false },
+    shieldMaxCharges: 2, shieldRecharge: 8, shieldAbilityRange: 24,
+    abilityTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], range: 24, requireLos: false },
     ultimateName: '보호막 홍수', ultimateCost: 600, ultimateDescription: '자신과 모든 아군에게 3초간 300 보호막을 부여한다.', ultimateShield: 300, ultimateShieldDuration: 3
   },
   runner: {
@@ -335,7 +340,7 @@ const CHARACTERS = {
     ultimateName: '자신감', ultimateCost: 700, ultimateDescription: '8초간 이동속도가 2단계 증가하고 150 DPS, 사거리 32m가 된다.', ultimateDuration: 8, ultimateDamage: 30, ultimateRange: 32, ultimateSpeedTierDelta: 2
   },
   sniper: {
-    name: '스나이퍼', role: '딜러', hp: 150, speed: 5.0, radius: 0.65,
+    name: '스나이퍼', role: '딜러', hp: 150, speed: 4.0, radius: 0.65,
     fireRate: 2, range: 36, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'attack', damage: 55,
     ultimateName: '정밀사격', ultimateCost: 800, ultimateDescription: '8초간 거리에 관계없이 160 DPS(발당 80 피해)로 공격하고 투사체 크기가 증가한다.', ultimateDuration: 8, ultimateDamage: 80, ultimateProjectileRadius: 0.32
@@ -354,21 +359,21 @@ const CHARACTERS = {
   },
   poison: {
     name: '포이즌', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
-    attackType: 'beam', range: 16, beamDps: 85,
+    attackType: 'beam', range: 16, beamDps: 90,
     poisonHealReduction: 0.50, poisonDuration: 1.5,
-    ultimateName: '맹독', ultimateCost: 1200, ultimateDescription: '반경 12m 적에게 50 피해를 주고 3초간 치유를 차단한다.', ultimateRadius: 12, ultimateDamage: 50, ultimatePoisonDuration: 3
+    ultimateName: '맹독', ultimateCost: 1200, ultimateDescription: '반경 16m 적에게 50 피해를 주고 3초간 치유를 차단한다.', ultimateRadius: 16, ultimateDamage: 50, ultimatePoisonDuration: 3
   },
   reactor: {
     name: '리액터', role: '딜러', hp: 225, speed: 6.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 16,
+    projectileType: 'attack', damage: 15,
     // Official output stages use exclusive upper bounds for stages 1 and 2:
     // stage 1 = [0,33), stage 2 = [33,66), stage 3 = [66,100].
-    // Alpha 1.5 structure pass: 80 / 105 / 130 DPS at 5 shots/s.
+    // 1.12 stages: 75 / 100 / 125 DPS at 5 shots/s.
     reactorOutputBands: [
-      { max: 33, damage: 16 },
-      { max: 66, damage: 21 },
-      { max: 100, damage: 26 }
+      { max: 33, damage: 15 },
+      { max: 66, damage: 20 },
+      { max: 100, damage: 25 }
     ],
     reactorDamagePerOutput: 5, reactorKillOutputGain: 10, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
     reactorHighThreshold: 66, reactorHighSpeed: 7.0,
@@ -381,7 +386,7 @@ const CHARACTERS = {
     projectileType: 'attack', damage: 14,
     spraySideProjectileRadius: 0.20, spraySideDamage: 4,
     spraySideAngleDeg: 10, spraySideOffset: 1.2,
-    ultimateName: '탄막', ultimateCost: 1400, ultimateDescription: '0·1·2·3초마다 360° 8방향에 대형 탄환을 발사한다. 회차마다 11.25° 회전, 대상당 회차별 최대 25 피해.', ultimateDuration: 4, ultimateDamage: 25, ultimateProjectileCount: 8, ultimateVolleyCount: 4, ultimateVolleyInterval: 1, ultimateRotationDeg: 11.25, ultimateProjectileRadius: 0.52
+    ultimateName: '탄막', ultimateCost: 1200, ultimateDescription: '기존 다이아 궁극기처럼 0·1·2초에 360° 16방향 투사체(총 48발)를 발사한다. 회차마다 대상당 최대 40 피해.', ultimateDuration: 3, ultimateDamage: 40, ultimateProjectileCount: 16, ultimateVolleyCount: 3, ultimateVolleyInterval: 1, ultimateProjectileRadius: 0.32, ultimateProjectileSpeed: 20, ultimateProjectileRange: 24
   },
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
@@ -399,7 +404,7 @@ const CHARACTERS = {
   },
   star: {
     name: '스타', role: '힐러', hp: 200, speed: 5.0, radius: 0.80,
-    fireRate: 2, range: 30, projectileSpeed: 42, projectileRadius: 0.20,
+    fireRate: 2, range: 36, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'heal', heal: 45, damage: 25,
     ultimateName: '슈퍼노바', ultimateCost: 1400, ultimateDescription: '반경 30m 자신과 아군을 150 회복하고 적에게 100 피해를 준다.', ultimateRadius: 30, ultimateHeal: 150, ultimateDamage: 100, ultimateDelay: 2
   },
@@ -433,7 +438,7 @@ const CHARACTERS = {
     name: '라이트', role: '힐러', hp: 275, speed: 6.0, radius: 0.65,
     attackType: 'lightBeam', range: 16, healHps: 60, beamDps: 50,
     beamAllyHitPadding: 0.5, beamEnemyHitPadding: 0.2,
-    ultimateName: '스포트라이트', ultimateCost: 800, ultimateDescription: '전방 24×6m 직사각형 내 적에게 50 피해, 아군에게 100 치유, 자신도 별도 100 회복. 벽 관통.', ultimateRange: 24, ultimateWidth: 6, ultimateDamage: 50, ultimateHeal: 100, ultimateSelfHeal: 100
+    ultimateName: '스포트라이트', ultimateCost: 600, ultimateDescription: '전방 24×6m 직사각형 내 적에게 50 피해, 아군에게 100 치유, 자신도 별도 100 회복. 벽 관통.', ultimateRange: 24, ultimateWidth: 6, ultimateDamage: 50, ultimateHeal: 100, ultimateSelfHeal: 100
   },
   laser: {
     name: '레이저', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
@@ -442,7 +447,7 @@ const CHARACTERS = {
   },
   ice: {
     name: '아이스', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
-    attackType: 'beam', range: 16, beamDps: 80,
+    attackType: 'beam', range: 16, beamDps: 85,
     slowTierDelta: -1, slowDuration: 1.5,
     ultimateName: '절대영도', ultimateCost: 1000, ultimateDescription: '반경 16m 적을 1초 기절시키고 자신은 300 회복한다.', ultimateRadius: 16, ultimateStunDuration: 1, ultimateHeal: 300, ultimateDelay: 2
   },
@@ -452,7 +457,7 @@ const CHARACTERS = {
     projectileType: 'attack', damage: 13,
     formDuration: 6, formCooldown: 14, formHp: 450, formSpeed: 7.0,
     formRange: 16, formBeamDps: 95, formKillCooldownReduction: 6, abilityId: 'form',
-    ultimateName: '수정 폭발', ultimateCost: 800, ultimateDescription: '3번에 걸쳐 총 48개의 수정 투사체를 사방으로 발사해 24m 이내의 적에게 투사체당 40 피해를 준다.', ultimateDamage: 40, ultimateProjectileCount: 16, ultimateVolleyCount: 3, ultimateVolleyInterval: 1
+    ultimateName: '수정 폭발', ultimateCost: 800, ultimateDescription: '시전 후 2초간 다이아를 따라가는 반경 16m 경고 범위. 2초 뒤 현재 위치에서 푸른 폭발로 적 각각 125 피해, 실제 피해를 입은 적당 자신 65 회복. 대기 중 충전 불가.', ultimateRadius: 16, ultimateDamage: 125, ultimateHealPerHit: 65, ultimateDelay: 2
   },
   witch: {
     name: '위치', role: '탱커', hp: 500, speed: 5.0, radius: 1.00,
@@ -573,8 +578,35 @@ const accessAdminAuthFailures = new Map();
 const activeConnections = new Set();
 const NETWORK_METRICS = {
   startedAt: Date.now(), totalBytes: 0, totalFrames: 0, byKind: Object.create(null),
-  droppedBackpressure: 0, skippedLiveSnapshots: 0, staleConnectionsClosed: 0
+  droppedBackpressure: 0, skippedLiveSnapshots: 0, staleConnectionsClosed: 0,
+  disconnectsByReason: Object.create(null), recentDisconnects: [], massDisconnectWarnings: 0,
+  eventLoopMaxDelayMs: 0, eventLoopMeanDelayMs: 0
 };
+let eventLoopMonitor = null;
+
+// Avoid IP addresses, player names and account identifiers in operational diagnostics.
+function recordConnectionClose(conn, reason = 'socket_closed', errorCode = null, now = Date.now()) {
+  if (!conn || conn.terminationRecorded) return;
+  conn.terminationRecorded = true;
+  const safeReason = String(reason || 'socket_closed').replace(/[^a-z_]/g, '').slice(0, 48);
+  const safeError = String(errorCode || '').replace(/[^A-Z0-9_]/g, '').slice(0, 36) || null;
+  NETWORK_METRICS.disconnectsByReason[safeReason] = (NETWORK_METRICS.disconnectsByReason[safeReason] || 0) + 1;
+  const event = { at: new Date(now).toISOString(), reason: safeReason, errorCode: safeError,
+    room: conn.roomCode || null, gameSeat: !!conn.playerId,
+    lastPongAgeMs: Math.max(0, now - Number(conn.lastPongAt || now)),
+    pendingBytes: Number(conn.socket?.writableLength || 0) };
+  NETWORK_METRICS.recentDisconnects.push(event);
+  if (NETWORK_METRICS.recentDisconnects.length > 80) NETWORK_METRICS.recentDisconnects.shift();
+  const burst = NETWORK_METRICS.recentDisconnects.filter(v => v.gameSeat && now - Date.parse(v.at) <= 1500);
+  if (event.gameSeat && burst.length >= 3 && (!NETWORK_METRICS.lastBurstLogAt || now - NETWORK_METRICS.lastBurstLogAt >= 1500)) {
+    NETWORK_METRICS.lastBurstLogAt = now;
+    NETWORK_METRICS.massDisconnectWarnings += 1;
+    console.warn('[network] simultaneous player disconnects:', JSON.stringify({ count:burst.length,
+      reasons:burst.map(v=>v.reason), eventLoopMaxDelayMs:NETWORK_METRICS.eventLoopMaxDelayMs }));
+  }
+  console.warn('[network] socket closed:', JSON.stringify(event));
+}
+
 let schoolLineAccessOpen = false; // Safe default: a server restart returns School Line to LOCKED.
 let idCounter = 1;
 let spectatorCounter = 1;
@@ -682,6 +714,11 @@ function publicNetworkStats() {
     droppedBackpressure: NETWORK_METRICS.droppedBackpressure,
     skippedLiveSnapshots: NETWORK_METRICS.skippedLiveSnapshots,
     staleConnectionsClosed: NETWORK_METRICS.staleConnectionsClosed,
+    disconnectsByReason: { ...NETWORK_METRICS.disconnectsByReason },
+    recentDisconnects: NETWORK_METRICS.recentDisconnects.slice(-30),
+    massDisconnectWarnings: NETWORK_METRICS.massDisconnectWarnings,
+    eventLoopMaxDelayMs: NETWORK_METRICS.eventLoopMaxDelayMs,
+    eventLoopMeanDelayMs: NETWORK_METRICS.eventLoopMeanDelayMs,
     liveRoomBudgetBps: LIVE_ROOM_BUDGET_BPS,
     byKind,
     rooms: roomsOut
@@ -1673,6 +1710,7 @@ function activateShieldAbility(room, player, target, now = Date.now()) {
   const def = CHARACTERS.shield;
   updateShieldAbilityCharges(player, now);
   if ((player.shieldAbilityCharges || 0) <= 0) return false;
+  if (distance(player.x, player.y, target.x, target.y) > def.shieldAbilityRange + 1e-9) return false;
   player.shieldAbilityCharges -= 1;
   if (!player.shieldRechargeAt) player.shieldRechargeAt = now + Number(def.shieldRecharge) * 1000;
   applyShield(room, player, target, def.shieldAmount, { now });
@@ -2005,6 +2043,9 @@ function makeWsConnection(socket, remoteAddress = '') {
     lastPingAt: 0,
     outboundBytes: 0,
     outboundFrames: 0,
+    needsFullSync: false,
+    closeReason: null,
+    terminationRecorded: false,
     send(obj, kind = null) {
       if (this.closed || socket.destroyed) return false;
       try {
@@ -2016,7 +2057,7 @@ function makeWsConnection(socket, remoteAddress = '') {
     },
     sendSerialized(text, kind = 'message') {
       if (this.closed || socket.destroyed) return false;
-      if (kind === 'live_state' && Number(socket.writableLength || 0) > MAX_WS_PENDING_BYTES) {
+      if (kind.startsWith('live_state') && Number(socket.writableLength || 0) > MAX_WS_PENDING_BYTES) {
         noteBackpressureDrop(this);
         return false;
       }
@@ -2026,12 +2067,16 @@ function makeWsConnection(socket, remoteAddress = '') {
         return true;
       } catch (_) { return false; }
     },
-    close(code = null) {
+    close(code = null, reason = 'server_close') {
       if (this.closed) return;
+      this.closeReason = reason;
       this.closed = true;
       const body = Number.isInteger(code) ? Buffer.from([code >> 8, code & 0xff]) : Buffer.alloc(0);
       try { const bytes = sendFrame(socket, 0x8, body); recordWsOutbound(this, bytes, 'close'); } catch (_) {}
       try { socket.end(); } catch (_) {}
+      // End handshake can stall behind a broken connection. Release reserved game seats.
+      const timer = setTimeout(() => { if (!socket.destroyed) socket.destroy(); }, WS_CLOSE_GRACE_MS);
+      timer.unref?.();
     }
   };
   return conn;
@@ -2053,8 +2098,17 @@ server.on('upgrade', (req, socket) => {
   const conn = makeWsConnection(socket, req.socket.remoteAddress || 'unknown');
   activeConnections.add(conn);
   socket.on('data', chunk => parseWsData(conn, chunk));
-  socket.on('close', () => { activeConnections.delete(conn); disconnect(conn); });
-  socket.on('error', () => { activeConnections.delete(conn); disconnect(conn); });
+  socket.on('close', () => {
+    activeConnections.delete(conn);
+    recordConnectionClose(conn, conn.closeReason || conn.socketErrorCode || 'socket_closed', conn.socketErrorCode);
+    disconnect(conn);
+  });
+  socket.on('error', (err) => {
+    conn.socketErrorCode = String(err?.code || 'socket_error');
+    activeConnections.delete(conn);
+    recordConnectionClose(conn, conn.closeReason || 'socket_error', conn.socketErrorCode);
+    disconnect(conn);
+  });
 });
 
 function parseWsData(conn, chunk) {
@@ -2521,7 +2575,7 @@ function startCompetitiveDraft(room, now = Date.now()) {
     phaseEndAt: now + COMPETITIVE_BAN_MS,
     banVotes: { A: Object.create(null), B: Object.create(null) },
     bans: [], teamOrders, pickSequence, pickIndex: 0, picks: [],
-    draftEvents: [], readySwaps: [], matchEvents: [],
+    draftEvents: [], readySwaps: [], pendingReadySwaps: new Map(), matchEvents: [],
     readyEndAt: 0, draftStartedAt: now, matchStartedAt: 0,
     finalAssignments: [],
     matchId: crypto.randomUUID(),
@@ -2605,22 +2659,54 @@ function autoCompetitivePick(room, now = Date.now()) {
   const character = randomChoice(choices);
   return character ? commitCompetitivePick(room, playerId, character, true, now) : false;
 }
-function swapCompetitiveReadyAssignments(room, requester, sourcePlayerId, targetPlayerId) {
-  const comp = room && room.competitive;
-  if (!comp || room.state !== 'ready' || comp.phase !== 'ready' || !requester) return false;
-  const source = room.players.get(String(sourcePlayerId || ''));
+// 1.12 ready-stage consent. No third party can swap teammates' picks.
+function requestCompetitiveReadySwap(room, requester, targetPlayerId, now = Date.now()) {
+  const comp = room?.competitive;
+  if (!comp || room.state !== 'ready' || comp.phase !== 'ready' || now >= comp.readyEndAt || !requester?.connected) return false;
   const target = room.players.get(String(targetPlayerId || ''));
-  if (!source || !target || source.team !== requester.team || target.team !== requester.team || source.team !== target.team) return false;
-  if (!source.character || !target.character) return false;
+  if (!target || target.id === requester.id || target.team !== requester.team || !target.connected || !requester.character || !target.character) return false;
+  if (!comp.pendingReadySwaps) comp.pendingReadySwaps = new Map();
+  for (const pending of comp.pendingReadySwaps.values()) {
+    if ([pending.sourceId, pending.targetId].includes(requester.id) || [pending.sourceId, pending.targetId].includes(target.id)) return false;
+  }
+  comp.pendingReadySwaps.set(target.id, {
+    requestId: crypto.randomUUID(), sourceId: requester.id, targetId: target.id,
+    sourceCharacter: requester.character, targetCharacter: target.character,
+    team: requester.team, expiresAt: comp.readyEndAt
+  });
+  return true;
+}
+function swapCompetitiveReadyAssignments(room, requester, sourcePlayerId, targetPlayerId, acceptedBy, now = Date.now()) {
+  const comp = room?.competitive;
+  if (!comp || room.state !== 'ready' || comp.phase !== 'ready' || now >= comp.readyEndAt || !requester || !acceptedBy) return false;
+  const pending = comp.pendingReadySwaps?.get(String(targetPlayerId || ''));
+  if (!pending || pending.sourceId !== String(sourcePlayerId || '') || pending.targetId !== acceptedBy.id || pending.sourceId !== requester.id || now >= pending.expiresAt) return false;
+  const source = room.players.get(pending.sourceId), target = room.players.get(pending.targetId);
+  if (!source || !target || !source.connected || !target.connected || source.team !== target.team || source.team !== pending.team || source.character !== pending.sourceCharacter || target.character !== pending.targetCharacter) return false;
   const sourceBefore = source.character, targetBefore = target.character;
   [source.character, target.character] = [target.character, source.character];
-  comp.readySwaps.push({ at: new Date().toISOString(), requesterId: requester.id, requesterName: requester.name, team: requester.team, sourcePlayerId: source.id, sourcePlayerName: source.name, targetPlayerId: target.id, targetPlayerName: target.name, sourceBefore, targetBefore, sourceAfter: source.character, targetAfter: target.character });
-  comp.draftEvents.push({ type:'ready_swap', atSec: Math.max(0, (Date.now() - comp.draftStartedAt) / 1000), team: requester.team, sourcePlayerId: source.id, targetPlayerId: target.id, sourceBefore, targetBefore, sourceAfter: source.character, targetAfter: target.character });
+  comp.pendingReadySwaps.delete(pending.targetId);
+  comp.readySwaps.push({ at: new Date(now).toISOString(), requesterId: requester.id, requesterName: requester.name, accepterId: acceptedBy.id, team: requester.team, sourcePlayerId: source.id, sourcePlayerName: source.name, targetPlayerId: target.id, targetPlayerName: target.name, sourceBefore, targetBefore, sourceAfter: source.character, targetAfter: target.character });
+  comp.draftEvents.push({ type:'ready_swap', atSec: Math.max(0, (now - comp.draftStartedAt) / 1000), team: requester.team, sourcePlayerId: source.id, targetPlayerId: target.id, sourceBefore, targetBefore, sourceAfter: source.character, targetAfter: target.character });
+  // Once either character has changed, all outstanding consent must be requested anew.
+  comp.pendingReadySwaps.clear();
   return true;
+}
+function respondCompetitiveReadySwap(room, target, requestId, accept, now = Date.now()) {
+  const comp = room?.competitive;
+  if (!comp || room.state !== 'ready' || comp.phase !== 'ready' || now >= comp.readyEndAt || !target?.connected) return false;
+  const pending = comp.pendingReadySwaps?.get(target.id);
+  if (!pending || pending.requestId !== String(requestId || '') || now >= pending.expiresAt) return false;
+  if (!accept) { comp.pendingReadySwaps.delete(target.id); return true; }
+  const requester = room.players.get(pending.sourceId);
+  if (swapCompetitiveReadyAssignments(room, requester, pending.sourceId, target.id, target, now)) return true;
+  comp.pendingReadySwaps.delete(target.id);
+  return false;
 }
 function finalizeCompetitiveReady(room, now = Date.now()) {
   const comp = room && room.competitive;
   if (!comp || room.state !== 'ready') return false;
+  comp.pendingReadySwaps?.clear();
   comp.finalAssignments = [...room.players.values()].map(p => ({ playerId: p.id, playerName: p.name, team: p.team, character: p.character }));
   comp.matchStartedAt = now;
   startMatch(room, now);
@@ -2799,7 +2885,9 @@ function competitiveSnapshot(room, viewer, spectator, now) {
     currentPickerId: currentCompetitivePickerId(room),
     picks: (comp.picks || []).map(p => ({ ...p })),
     banVoteCounts: voteCounts, myBanVote,
-    readyTimeLeft: room.state === 'ready' ? Math.max(0, (comp.readyEndAt - now) / 1000) : 0
+    readyTimeLeft: room.state === 'ready' ? Math.max(0, (comp.readyEndAt - now) / 1000) : 0,
+    incomingReadySwap: !spectator && viewer ? [...(comp.pendingReadySwaps?.values() || [])].find(x => x.targetId === viewer.id) || null : null,
+    outgoingReadySwap: !spectator && viewer ? [...(comp.pendingReadySwaps?.values() || [])].find(x => x.sourceId === viewer.id) || null : null
   };
 }
 
@@ -2842,6 +2930,14 @@ function onMessage(conn, msg) {
   if (msg.type === 'random_queue_cancel') return cancelRandomQueue(conn);
   if (msg.type === 'random_queue_confirm') return confirmRandomQueue(conn);
   if (msg.type === 'random_queue_decline') return refuseRandomQueue(conn);
+  if (msg.type === 'net_ping') {
+    const now = Date.now();
+    if (now - Number(conn.lastClientPingAt || 0) >= 750) {
+      conn.lastClientPingAt = now;
+      conn.send({ type:'net_pong', nonce: Number(msg.nonce) || 0 }, 'net_pong');
+    }
+    return;
+  }
   if (msg.type === 'resume') return resumeRoom(conn, msg);
   if (msg.type === 'create_room') return createRoomAndJoin(conn, msg);
   if (msg.type === 'join_room') return joinRoom(conn, { ...msg, room: msg.roomId }, { allowCreate: false });
@@ -2960,8 +3056,12 @@ function onMessage(conn, msg) {
     if (commitCompetitivePick(room, player.id, requested, false, Date.now())) broadcast(room);
     return;
   }
-  if (msg.type === 'ready_swap' && room.state === 'ready') {
-    if (swapCompetitiveReadyAssignments(room, player, msg.sourcePlayerId, msg.targetPlayerId)) broadcast(room);
+  if (msg.type === 'ready_swap_request' && room.state === 'ready') {
+    if (requestCompetitiveReadySwap(room, player, msg.targetPlayerId)) broadcast(room);
+    return;
+  }
+  if ((msg.type === 'ready_swap_accept' || msg.type === 'ready_swap_decline') && room.state === 'ready') {
+    if (respondCompetitiveReadySwap(room, player, msg.requestId, msg.type === 'ready_swap_accept')) broadcast(room);
     return;
   }
   if (msg.type === 'perk_choose' && room.state === 'playing') {
@@ -3089,7 +3189,9 @@ function joinSpectator(conn, msg) {
     type: 'spectator_joined', id: spectatorId, room: roomDisplayName(room), roomId: code, roomNumber: room.displayNumber, mode: room.mode,
     config: { world: WORLD, mapId:room.mapId, walls:getRoomWalls(room), maps:publicMapDefinitions(), characters:publicCharacterDefs() }
   });
-  if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.send(snapshot(room, null, true));
+  if (room.state === 'playing') {
+    if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.needsFullSync = true;
+  } else conn.send(snapshot(room, null, true));
 }
 
 function joinRoom(conn, msg, options = {}) {
@@ -3290,7 +3392,9 @@ function attachExistingPlayerConnection(conn, room, player, options = {}) {
     resumeToken: player.resumeToken, recoveredByNickname, recoveredByAccount, accountId: player.accountId || null,
     config: { world: WORLD, mapId:room.mapId, walls:getRoomWalls(room), maps:publicMapDefinitions(), characters:publicCharacterDefs() }
   });
-  if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.send(snapshot(room, player.id));
+  if (room.state === 'playing') {
+    if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.needsFullSync = true;
+  } else conn.send(snapshot(room, player.id));
   if (PERK_SYSTEM.enabled && room.state === 'playing') {
     if (player.perkChoiceId) {
       const chosen = perkOptionsForCharacter(player.character).find(option => String(option.id || '') === player.perkChoiceId);
@@ -3340,14 +3444,14 @@ function publicCharacterDefs() {
     'solarProjectileRadius', 'solarProjectileDamage', 'solarSelfHeal',
     'sprintDuration', 'sprintCooldown', 'abilityCooldown', 'abilityHeal',
     'boostDistance', 'boostDuration', 'boostCooldown', 'boostShield', 'boostShieldDuration',
-    'magnetRange', 'magnetCooldown', 'magnetProjectileSpeed', 'magnetProjectileRadius', 'magnetPullDuration', 'magnetPullOffset', 'ultimateMagnetCooldown',
+    'magnetRange', 'magnetCooldown', 'magnetProjectileSpeed', 'magnetProjectileRadius', 'magnetPullDuration', 'magnetPullOffset', 'magnetHookDamage', 'ultimateMagnetCooldown',
     'flowerThornsCooldown', 'flowerThornsDuration', 'flowerThornsDamage', 'ultimateSpeedTierDelta',
-    'shieldAmount', 'shieldDuration', 'shieldCap', 'shieldMaxCharges', 'shieldRecharge',
+    'shieldAmount', 'shieldDuration', 'shieldCap', 'shieldMaxCharges', 'shieldRecharge', 'shieldAbilityRange',
     'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
     'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction',
     'curseDuration', 'curseDamageTakenBonus', 'stealthDuration', 'lifestealOnHit', 'ultimateAttackSpeedBoost', 'ultimateEffectDuration',
-    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedTierDelta', 'ultimateProjectileCount', 'ultimateVolleyCount', 'ultimateVolleyInterval', 'ultimateFanAngleDeg', 'ultimateRotationDeg', 'ultimateWidth', 'ultimateMaxHpDamageRatio', 'ultimateSelfHeal'
+    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateHealPerHit', 'ultimateProjectileSpeed', 'ultimateProjectileRange', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedTierDelta', 'ultimateProjectileCount', 'ultimateVolleyCount', 'ultimateVolleyInterval', 'ultimateFanAngleDeg', 'ultimateRotationDeg', 'ultimateWidth', 'ultimateMaxHpDamageRatio', 'ultimateSelfHeal'
   ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
     const def = {
@@ -4008,6 +4112,20 @@ function scheduleDelayedUltimate(player, character, now, delaySeconds) {
 function resolveDelayedUltimate(room, player, character, now, centerX = player.x, centerY = player.y) {
   const def = CHARACTERS[character];
   if (!def) return false;
+  if (character === 'dia') {
+    const radius = Number(def.ultimateRadius) || 16;
+    let hitCount = 0;
+    for (const target of room.players.values()) {
+      if (!target.alive || target.team === player.team) continue;
+      if (distance(centerX, centerY, target.x, target.y) > radius + 1e-9) continue;
+      const result = dealDamageDetailed(room, player.id, target, Number(def.ultimateDamage) || 125, now, { countsForUltimate:false });
+      if (result.total > 0) hitCount += 1;
+      if (target.hp <= 0) { registerDirectKill(room, player.id, now); die(room, target, now); }
+    }
+    if (hitCount > 0) applyHealing(room, player, player, hitCount * (Number(def.ultimateHealPerHit) || 65), now, { countsForUltimate:false });
+    emitPrototypeUltimateFx(room, { kind:'dia_burst', character:'dia', team:player.team, x:centerX, y:centerY, radius });
+    return true;
+  }
   if (character === 'iron') {
     const radius = Number(def.ultimateRadius) || 12;
     for (const target of room.players.values()) {
@@ -4053,28 +4171,6 @@ function resolveDelayedUltimate(room, player, character, now, centerX = player.x
   return false;
 }
 
-function spawnDiaUltimateVolley(room, player, now) {
-  if (!room || !player || !player.alive || player.character !== 'dia') return 0;
-  const def = CHARACTERS.dia;
-  const projectileCount = Math.max(1, Math.floor(Number(def.ultimateProjectileCount) || 16));
-  const volleySeq = Math.max(0, Number(player.diaUltimateVolleySeq) || 0) + 1;
-  player.diaUltimateVolleySeq = volleySeq;
-  const volleyId = `${player.id}:diaU:${player.ultimateUseSeq || 0}:${volleySeq}:${Math.floor(now)}`;
-  let spawned = 0;
-  for (let i = 0; i < projectileCount; i++) {
-    const angle = (Math.PI * 2 * i) / projectileCount;
-    const id = spawnProjectileFromDirection(room, player, def, now, Math.cos(angle), Math.sin(angle), {
-      projectileType: 'attack',
-      damage: Number(def.ultimateDamage) || 40,
-      countsForUltimate: false,
-      diaUltimateVolleyId: volleyId,
-      ultimateProjectile: true
-    });
-    if (id) spawned += 1;
-  }
-  return spawned;
-}
-
 // Alpha 1.8 ultimate prototype: one canonical wall-agnostic rectangular hit test.
 // A target's body center, not radius overlap, determines inclusion; snapshot caster aim.
 function ultimateRectDirection(player, castAim = null) {
@@ -4111,11 +4207,13 @@ function spawnPatternUltimateVolley(room, player, now, volleyIndex) {
   for (let i = 0; i < count; i++) {
     const angle = player.character === 'fire'
       ? base + ((i / (count - 1)) - 0.5) * def.ultimateFanAngleDeg * Math.PI / 180
-      : (i * 360 / count + volleyIndex * def.ultimateRotationDeg) * Math.PI / 180;
+      : (i * 360 / count) * Math.PI / 180;
     const id = spawnProjectileFromDirection(room, player, def, now, Math.cos(angle), Math.sin(angle), {
       projectileType: 'attack', damage: def.ultimateDamage, countsForUltimate: false,
       ultimateProjectile: true, ultimateVolleyId: volleyId,
-      projectileRadius: player.character === 'spray' ? def.ultimateProjectileRadius : def.projectileRadius
+      projectileRadius: player.character === 'spray' ? def.ultimateProjectileRadius : def.projectileRadius,
+      projectileSpeed: player.character === 'spray' ? def.ultimateProjectileSpeed : undefined,
+      projectileRange: player.character === 'spray' ? def.ultimateProjectileRange : undefined
     });
     if (id) spawned++;
   }
@@ -4336,12 +4434,8 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
     // Crystal Burst is independent from Dia's normal form-change ability.
     // The first radial volley is immediate; the next two are emitted from Dia's
     // then-current position at one-second intervals.
-    player.diaUltimateVolleySeq = 0;
-    spawnDiaUltimateVolley(room, player, now);
-    player.diaUltimateBurstsRemaining = Math.max(0, (Number(def.ultimateVolleyCount) || 3) - 1);
-    player.diaUltimateNextBurstAt = player.diaUltimateBurstsRemaining > 0
-      ? now + (Number(def.ultimateVolleyInterval) || 1) * 1000
-      : 0;
+    // The danger circle follows Dia until detonation; do not snapshot its cast position.
+    scheduleDelayedUltimate(player, 'dia', now, def.ultimateDelay);
     activated = true;
   }
 
@@ -4721,12 +4815,12 @@ function spawnProjectileFromDirection(room, player, def, now, dx, dy, options = 
     id, ownerId: player.id, team: player.team, character: player.character,
     type: options.projectileType || def.projectileType,
     x, y,
-    vx: dx * def.projectileSpeed,
-    vy: dy * def.projectileSpeed,
+    vx: dx * (options.projectileSpeed ?? def.projectileSpeed),
+    vy: dy * (options.projectileSpeed ?? def.projectileSpeed),
     radius: projectileRadius,
     damage: Number(options.damage ?? def.damage) || 0,
     heal: Number(options.heal ?? def.heal) || 0,
-    range: def.range,
+    range: options.projectileRange ?? def.range,
     traveled: 0,
     burnDps: def.burnDps || 0,
     burnDuration: def.burnDuration || 0,
@@ -4891,11 +4985,12 @@ function updateProjectiles(room, dt, now) {
           t.diaUltimateVolleyHits.set(volleyId, now + 3000);
         }
         if (p.magnetHook) {
-          // Position displacement only: no damage, stun, or ultimate charge.
-          // Destination is locked to Magnet's cast position/direction on HIT, not to later motion.
+          // Magnet 1.12: one hook collision deals 30 damage and retains its pull.
           const owner = room.players.get(p.ownerId);
           if (owner && owner.alive && owner.character === 'magnet' && t.invulnerableUntil <= now) {
-            beginMagnetPull(t, owner, now, room);
+            const result = dealDamageDetailed(room, owner.id, t, CHARACTERS.magnet.magnetHookDamage, now);
+            if (result.total > 0 && t.hp <= 0) { registerDirectKill(room, owner.id, now); die(room, t, now); }
+            else beginMagnetPull(t, owner, now, room);
             ensureMatchStats(owner).magnetHookHits += 1;
             owner.projectileHitSeq = (owner.projectileHitSeq || 0) + 1;
           }
@@ -5115,6 +5210,7 @@ function updateRoom(room, dt, now) {
 
     if (player.pendingUltimateAt > 0 && now >= player.pendingUltimateAt) {
       const pendingId = player.pendingUltimateId;
+      // Delayed bursts are centered on the caster's CURRENT location at the end of the warning.
       const centerX = player.x, centerY = player.y;
       player.pendingUltimateId = null;
       player.pendingUltimateAt = 0;
@@ -5134,14 +5230,7 @@ function updateRoom(room, dt, now) {
       }
     }
 
-    if (player.character === 'dia' && player.diaUltimateBurstsRemaining > 0 && player.diaUltimateNextBurstAt > 0 && now >= player.diaUltimateNextBurstAt) {
-      const intervalMs = (Number(CHARACTERS.dia.ultimateVolleyInterval) || 1) * 1000;
-      while (player.alive && player.diaUltimateBurstsRemaining > 0 && now >= player.diaUltimateNextBurstAt) {
-        spawnDiaUltimateVolley(room, player, player.diaUltimateNextBurstAt);
-        player.diaUltimateBurstsRemaining -= 1;
-        player.diaUltimateNextBurstAt = player.diaUltimateBurstsRemaining > 0 ? player.diaUltimateNextBurstAt + intervalMs : 0;
-      }
-    }
+
 
     if (player.character === 'mecha' && player.mechaSelfDestructAt > 0 && now >= player.mechaSelfDestructAt) {
       const radius = Number(CHARACTERS.mecha.ultimateRadius) || 16;
@@ -5670,8 +5759,9 @@ function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), for
 function sendPlayingSnapshotToConnection(room, conn, now = Date.now()) {
   if (!room || !conn || room.state !== 'playing') return false;
   const text = JSON.stringify(compactPlayingSnapshotForWire(snapshot(room, null, true), room, now, true));
-  conn.sendSerialized(text, 'live_state_sync');
-  return true;
+  const ok = conn.sendSerialized(text, 'live_state_sync');
+  if (ok) conn.needsFullSync = false;
+  return ok;
 }
 
 function broadcast(room, now = Date.now()) {
@@ -5694,10 +5784,24 @@ function broadcast(room, now = Date.now()) {
       room.lastBroadcastAt = now;
       return false;
     }
-    for (const conn of room.clients.values()) conn.sendSerialized(text, 'live_state');
-    for (const conn of room.spectators.values()) conn.sendSerialized(text, 'live_state');
-    room.projectileNetPendingSpawns?.clear();
-    room.projectileNetPendingRemoves?.clear();
+    // If one client missed a projectile event while backpressured, resend full
+    // player metadata and projectile state on its next writable frame.
+    let fullText = null;
+    let delivered = 0;
+    for (const conn of [...room.clients.values(), ...room.spectators.values()]) {
+      if (conn.needsFullSync && !fullText) {
+        fullText = JSON.stringify(compactPlayingSnapshotForWire(snapshot(room, null, true), room, now, true));
+      }
+      const ok = conn.sendSerialized(conn.needsFullSync ? fullText : text, conn.needsFullSync ? 'live_state_sync' : 'live_state');
+      if (ok) { delivered += 1; conn.needsFullSync = false; }
+      else conn.needsFullSync = true;
+    }
+    // Preserve events if nobody received the update. Per-client failed sends are
+    // recovered by the forced authoritative full sync above.
+    if (delivered) {
+      room.projectileNetPendingSpawns?.clear();
+      room.projectileNetPendingRemoves?.clear();
+    }
   } else {
     for (const [playerId, conn] of room.clients.entries()) conn.send(snapshot(room, playerId));
     for (const conn of room.spectators.values()) conn.send(snapshot(room, null, true));
@@ -5719,6 +5823,18 @@ async function startSchoolLineServer() {
   await initializePlayerAccountsFromDatabase();
   await refreshCompetitiveStatsFromDatabase();
   console.log(`[startup] durable persistence ready · ${competitiveStats.totalMatches} persisted competitive matches · stats series ${COMPETITIVE_STATS_VERSION}`);
+
+  eventLoopMonitor = monitorEventLoopDelay({ resolution: 20 });
+  eventLoopMonitor.enable();
+  setInterval(() => {
+    if (!eventLoopMonitor) return;
+    NETWORK_METRICS.eventLoopMaxDelayMs = Math.round(eventLoopMonitor.max / 1e6);
+    NETWORK_METRICS.eventLoopMeanDelayMs = Number((eventLoopMonitor.mean / 1e6 || 0).toFixed(1));
+    if (NETWORK_METRICS.eventLoopMaxDelayMs > 350) {
+      console.warn('[network] event loop delay spike (ms):', NETWORK_METRICS.eventLoopMaxDelayMs);
+    }
+    eventLoopMonitor.reset();
+  }, 5000);
 
   setInterval(() => {
     const now = Date.now();
@@ -5748,7 +5864,7 @@ async function startSchoolLineServer() {
       if (conn.closed || conn.socket.destroyed) continue;
       if (now - Number(conn.lastPongAt || 0) > WS_STALE_TIMEOUT_MS) {
         NETWORK_METRICS.staleConnectionsClosed += 1;
-        try { conn.close(); } catch (_) {}
+        try { conn.close(1001, 'stale_pong_timeout'); } catch (_) {}
         continue;
       }
       if (now - Number(conn.lastPingAt || 0) >= WS_PING_INTERVAL_MS) {
@@ -5776,6 +5892,7 @@ async function shutdownSchoolLine(signal) {
     await new Promise(resolve => setTimeout(resolve, 200));
   }
   if (pendingCompetitiveRecords.size) console.error(`[shutdown] ${pendingCompetitiveRecords.size} competitive record(s) still pending when shutdown deadline expired.`);
+  try { eventLoopMonitor?.disable(); } catch (_) {}
   try { await durableStore.close(); } catch (_) {}
   process.exit(0);
 }
@@ -5797,14 +5914,14 @@ module.exports = {
   getTargetRelation, isTargetRelationAllowed, resolveTargetedAbilityTarget, recordSupportContribution,
   applyStatus, getStatus, hasStatus, clearStatus, clearAllStatuses, isStunned,
   applyShield, clearShield, consumeShieldAttribution, dealDamage, dealDamageDetailed, applyHealing, queueHealerNumberFeedback, flushHealerNumberFeedback,
-  ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate, scheduleDelayedUltimate, resolveDelayedUltimate, spawnDiaUltimateVolley, spawnPatternUltimateVolley, resolveRunnerBombs, ultimateRectContains,
+  ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate, scheduleDelayedUltimate, resolveDelayedUltimate, spawnPatternUltimateVolley, resolveRunnerBombs, ultimateRectContains,
   reactorStageForOutput, reactorDamageForOutput, currentAttackDef,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
   POST_GAME_ROOM_CLOSE_MS, MAX_ROOMS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
-  makeMatchStats, newRoom, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
+  makeMatchStats, newRoom, makeWsConnection, recordConnectionClose, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateFlowerThorns, activateMagnetHook, beginMagnetPull, updateMagnetPull, magnetPullEndpoint, magnetHookCooldownSeconds, activateNewHeroAbility, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
-  startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
+  startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, requestCompetitiveReadySwap, respondCompetitiveReadySwap, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,
   competitiveAvailableCharacters, currentCompetitivePickerId, publicCompetitiveStats, saveCompetitiveStats, isExactCompetitiveRoster, normalizeCompetitiveStats, normalizeStatsVersion, fullBalanceVersion, statsVersionFromMatch, competitiveStatsBackupPayload, rebuildCompetitiveStatsFromMatches, statsSeriesForBalanceVersion, buildCompetitiveResult, buildAdvancedCompetitiveStats, combinations,
   queueAccount, randomQueue, randomConfirmGroups, enrollRandomQueue, confirmRandomQueue, refuseRandomQueue, cancelRandomQueue, processRandomMatchQueue, resetRandomMatchQueue, finalizeRandomQueueGroup,
   teamKillTotals, resolveMatchWinner, competitivePhaseWireSnapshot, sendCompetitiveBanVoteUpdate,

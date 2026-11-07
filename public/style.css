@@ -743,3 +743,9 @@ body.latest-patch-open { overflow:hidden; }
 .stats-map-card>b{font-size:13px;color:#d8f7e9}
 .stats-map-card>small{font-size:11px;color:#b6ccda;line-height:1.5}
 @media(max-width:520px){.draft-map-banner{gap:8px;padding:9px}.draft-map-copy strong{font-size:16px}#draftMapPreview{width:102px;height:63px;flex-basis:102px}}
+
+/* 1.12 mutual-consent pick exchange controls. */
+.ready-swap-consent { padding: 10px 13px; margin: 8px auto; max-width: 760px; color: #173156; border: 1px solid #a7c0da; background: #eaf6ff; border-radius: 12px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.ready-swap-consent strong { flex: 1 1 260px; }
+.ready-swap-consent button { cursor: pointer; padding: 6px 12px; border: 1px solid #89b7d4; border-radius: 8px; background: white; color: #183d61; font-weight: 700; }
+.ready-swap-consent button:hover { background: #d4efff; }

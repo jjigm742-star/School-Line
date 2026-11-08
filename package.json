@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "check": "node --check server.js && node --check durable_store.js && node --check public/game.js",
-    "test": "node tests/patch112.test.js && node tests/network_112_optimization.test.js"
+    "test": "node tests/patch112.test.js && node tests/network_112_optimization.test.js && node tests/patch112_additional_qa.test.js && node tests/patch112_editorial_notes.test.js"
   },
   "engines": {
     "node": ">=20"

@@ -358,10 +358,10 @@ function characterAbilityGuide(id) {
   const ally = '아군을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)';
   const enemy = '적을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)';
   switch (id) {
-    case 'magnet': return {name:'자석', effect:`사거리 ${n(c.magnetRange)}m, 쿨타임 ${n(c.magnetCooldown)}초. 빠른 자석탄에 맞은 적을 ${n(c.magnetPullDuration)}초 동안 적중 시점 마그넷 전방 ${n(c.magnetPullOffset)}m로 끌어옵니다. 피해와 기절 없음. 제트 부스터 이동보다 자석의 끌어오기가 우선합니다.`, control:direct};
+    case 'magnet': return {name:'자석', effect:`사거리 ${n(c.magnetRange)}m, 쿨타임 ${n(c.magnetCooldown)}초. 빠른 자석탄에 맞은 적에게 ${n(c.magnetHookDamage)} 피해를 주고 ${n(c.magnetPullDuration)}초 동안 적중 시점 마그넷 전방 ${n(c.magnetPullOffset)}m로 끌어옵니다. 기절은 없으며 제트 부스터 이동보다 자석의 끌어오기가 우선합니다.`, control:direct};
     case 'jet': return {name:'부스터', effect:`쿨타임 ${n(c.boostCooldown)}초. ${n(c.boostDuration)}초에 걸쳐 최대 ${n(c.boostDistance)}m 돌진하고 ${n(c.boostShieldDuration)}초 보호막 ${n(c.boostShield)} 획득. 벽은 통과할 수 없습니다.`, control:'이동할 방향을 조준한 뒤 Space 키 (모바일: 능력 버튼)'};
     case 'dia': return {name:'폼체인지', effect:`쿨타임 ${n(c.formCooldown)}초. ${n(c.formDuration)}초 동안 다이아폼(최대 HP ${n(c.formHp)}, 속도 ${n(c.formSpeed)}m/s, ${n(c.formRange)}m 광선 ${n(c.formBeamDps)} DPS)으로 변신. 적 처치 시 남은 쿨타임 ${n(c.formKillCooldownReduction)}초 감소.`,control:direct};
-    case 'shield': return {name:'보호막', effect:`보호막 ${n(c.shieldAmount)}, ${n(c.shieldDuration)}초 지속. 최대 ${n(c.shieldMaxCharges)}회 충전, ${n(c.shieldRecharge)}초마다 1회 재충전. 거리·시야 제한 없음.`,control:'자신 또는 아군을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)'};
+    case 'shield': return {name:'보호막', effect:`보호막 ${n(c.shieldAmount)}, ${n(c.shieldDuration)}초 지속. 아군에게 반경 ${n(c.shieldAbilityRange)}m 이내에서 사용 가능(시야 제한 없음). 최대 ${n(c.shieldMaxCharges)}회 충전, ${n(c.shieldRecharge)}초마다 1회 재충전.`,control:'자신 또는 아군을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)'};
     case 'runner': return {name:'질주',effect:`쿨타임 ${n(c.sprintCooldown)}초. ${n(c.sprintDuration)}초 동안 이동속도 +1단계.`,control:direct};
     case 'wind': return {name:'순풍',effect:`쿨타임 ${n(c.tailwindCooldown)}초. ${n(c.tailwindDuration)}초 동안 아군 전체 이동속도 +${n(c.tailwindTierDelta)}단계.`,control:direct};
     case 'flower': return {name:'가시꽃',effect:`쿨타임 ${n(c.flowerThornsCooldown)}초. ${n(c.flowerThornsDuration)}초간 치유탄이 공격 전용 가시탄으로 바뀝니다. 치유는 중단되고 공격은 ${shotDps(c.flowerThornsDamage)} DPS(발당 ${n(c.flowerThornsDamage)})가 됩니다. 사거리·속도·크기는 유지.`,control:direct};
@@ -391,7 +391,7 @@ function characterUltimateGuide(id) {
     case 'mecha': effect=`${n(c.ultimateDelay)}초 후 반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateDamage)} 피해. 자신도 ${n(c.ultimateSelfDamage)} 피해.`; break;
     case 'magnet': effect=`자석 쿨타임 즉시 초기화. ${n(c.ultimateDuration)}초간 자석 쿨타임 ${n(c.ultimateMagnetCooldown)}초, 자신의 체력 초당 ${n(c.ultimateSelfHealHps)} 회복.`; break;
     case 'jet': effect=`부스터 즉시 재충전. ${n(c.ultimateDuration)}초 동안 재사용 대기시간 ${n(c.ultimateBoostCooldown)}초.`; break;
-    case 'dia': effect=`${n(c.ultimateVolleyCount)}회에 걸쳐 매회 ${n(c.ultimateProjectileCount)}개 수정탄을 방사형으로 발사, 탄환당 ${n(c.ultimateDamage)} 피해.`; break;
+    case 'dia': effect=`시전 후 ${n(c.ultimateDelay)}초간 다이아를 따라다니는 반경 ${n(c.ultimateRadius)}m 경고 범위. 종료 시 현재 위치에서 푸른 폭발로 범위 내 적 각각 ${n(c.ultimateDamage)} 피해, 실제 피해를 입은 적 1명당 자신 ${n(c.ultimateHealPerHit)} HP 회복. 대기 중 및 폭발 피해·회복으로 궁극기 충전 불가.`; break;
     case 'solar': effect=`${n(c.ultimateDuration)}초간 반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateAuraDps)} DPS, 자신은 ${n(c.ultimateSelfHealHps)} HPS 회복.`; break;
     case 'shield': effect=`자신 및 모든 아군에게 ${n(c.ultimateShieldDuration)}초간 보호막 ${n(c.ultimateShield)} 부여.`; break;
     case 'runner': effect=`선택한 적에게 폭탄 부착. ${n(c.ultimateDelay)}초 후 ${n(c.ultimateDamage)} 피해.`; break;
@@ -2756,6 +2756,20 @@ function closeLatestPatchNotes() {
   document.body.classList.remove('latest-patch-open');
   if (latestPatchReturnFocus && latestPatchReturnFocus.isConnected) latestPatchReturnFocus.focus();
 }
+function appendPatchFormattedText(parent, raw) {
+  // Support bold in the editorial patch notes without interpreting untrusted HTML.
+  const parts = String(raw).split(/(\*\*[^*]+\*\*)/g);
+  for (const part of parts) {
+    if (!part) continue;
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      const emphasis = document.createElement('strong');
+      emphasis.textContent = part.slice(2, -2);
+      parent.appendChild(emphasis);
+    } else {
+      parent.appendChild(document.createTextNode(part));
+    }
+  }
+}
 function renderLatestPatchNotes(notes) {
   const content = $('latestPatchBody');
   content.replaceChildren();
@@ -2782,7 +2796,7 @@ function renderLatestPatchNotes(notes) {
         const name = document.createElement('strong');
         name.textContent = String(entry.name);
         item.appendChild(name);
-        item.appendChild(document.createTextNode(`${section.heading.startsWith('1.') ? ' — ' : ': '}${String(entry.text)}`));
+        appendPatchFormattedText(item, `${section.heading.startsWith('1.') ? ' — ' : ': '}${String(entry.text)}`);
         list.appendChild(item);
       }
       groupElement.appendChild(list);

@@ -4283,7 +4283,9 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
     activated = true;
   } else if (player.character === 'fire' || player.character === 'spray') {
     // Use sequence is incremented at the end of activation; first volley is immediately generated.
-    player.ultimateUntil = now + def.ultimateDuration * 1000;
+    // Spray 1.12 inherits 1.11 Dia's radial ultimate, including NO ordinary-charge lock.
+    // Its ultimate projectiles explicitly do not charge the next ultimate.
+    if (player.character === 'fire') player.ultimateUntil = now + def.ultimateDuration * 1000;
     player.patternUltimateNextAt = now + def.ultimateVolleyInterval * 1000;
     player.patternUltimateRemaining = def.ultimateVolleyCount - 1;
     spawnPatternUltimateVolley(room, player, now, 0);
@@ -4431,9 +4433,8 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
     scheduleDelayedUltimate(player, 'ice', now, Number(def.ultimateDelay) || 2);
     activated = true;
   } else if (player.character === 'dia') {
-    // Crystal Burst is independent from Dia's normal form-change ability.
-    // The first radial volley is immediate; the next two are emitted from Dia's
-    // then-current position at one-second intervals.
+    // 1.12 Crystal Burst is a mobile, 2-second telegraphed AoE,
+    // independent from Dia's normal form-change ability.
     // The danger circle follows Dia until detonation; do not snapshot its cast position.
     scheduleDelayedUltimate(player, 'dia', now, def.ultimateDelay);
     activated = true;
@@ -5224,7 +5225,9 @@ function updateRoom(room, dt, now) {
       const udef = CHARACTERS[player.character], intervalMs = udef.ultimateVolleyInterval * 1000;
       while (player.alive && player.patternUltimateRemaining > 0 && now >= player.patternUltimateNextAt) {
         const index = udef.ultimateVolleyCount - player.patternUltimateRemaining;
-        if (!isStunned(player, player.patternUltimateNextAt)) spawnPatternUltimateVolley(room, player, player.patternUltimateNextAt, index);
+        // As with 1.11 Dia, an already-cast Spray radial ultimate continues
+        // its scheduled waves even if the caster becomes stunned; death cancels them.
+        if (player.character === 'spray' || !isStunned(player, player.patternUltimateNextAt)) spawnPatternUltimateVolley(room, player, player.patternUltimateNextAt, index);
         player.patternUltimateRemaining--;
         player.patternUltimateNextAt = player.patternUltimateRemaining > 0 ? player.patternUltimateNextAt + intervalMs : 0;
       }

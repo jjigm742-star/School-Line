@@ -1,6 +1,6 @@
 {
   "project": "SchoolLine",
-  "release": "1.12",
+  "release": "1.12 verified QA refresh",
   "base_artifact": "SchoolLine_1.11_Network_Optimized.zip",
   "gameVersion": "1.12",
   "balanceVersion": "1.12",
@@ -16,22 +16,25 @@
     "item system"
   ],
   "tests": {
-    "npm run check": "passed",
-    "npm test": "passed",
+    "npm run check": "passed on verified source",
+    "npm test": "passed on verified source (3 checks)",
     "real student devices": "not tested",
-    "production database": "not tested"
+    "production database": "not tested",
+    "node tests/patch111.test.js": "passed (unchanged/common checks)",
+    "historical 1.11 version-specific tests": "not applicable to v1.12"
   },
   "files": {
     ".env.example": "50684568b1ee490544e835f6809ed367c2859f2e7aa615f0acef7f40f1d4cd70",
     ".gitignore": "7f8d3c0018adb2e906ca62caa424d8e008493b9407d7be994929d57732f91e5e",
-    "BALANCE_DESIGN_1_12.md": "39e2185fd5de55caac2c2def7f4ba56b9a2adbc820e49d426e4935fc23b13cd4",
+    "BALANCE_DESIGN_1_12.md": "aa671a335d8d2d651a6018210205c193749d4501d338056026b61eddb9c159e3",
     "DATABASE_SCHEMA.sql": "548d06d7c8d520d8e686bd8525dabb1abfa528c00f79afbfc580095d7e88bacc",
     "NETWORK_OPTIMIZATION_1_11.md": "a3f09c6fa817f5c67508127729c4ad4f59d7e507a3ed2eafcdf90eceddcde3f5",
-    "README.md": "8444ba02b8ea1c5406cded00de9434676a9bd5649591bb104ec830c5693e35a7",
+    "README.md": "9e804fc974fc764ea6f72856a8faef59dfca9516603c83e92b68111a2c1112f5",
+    "VERIFICATION_REPORT_1_12.md": "6855b7d5d81a8431fdcde881f8bcda1f0c319a2dff47c6e5d8ca8fc89e9eda06",
     "data/patch_notes/1.10.json": "d0d1ebab3eb01ed649a86c47397583d8cf4a6f360d666f70cfddaef6d941208e",
     "data/patch_notes/1.11.json": "ae97d272124ddcec6286402f22262770d0d06125f7ae5ad50f3eaf5a9ff66f6d",
     "durable_store.js": "40d58a84ebedd34bf0d86e827c8441e31407c8cae36d4c951b5eb4d617835923",
-    "package.json": "ee78d667416cd8ea4123f94458d9abd36ca7a987826c571f615ab5b0d146bd30",
+    "package.json": "112f339e87d5233f615b5931e9e4f558153fc17a6269119d7d5f582ac5b2901b",
     "public/assets/characters/angel/portrait.webp": "40339950aef5b62f59c990a2f4c6c7620500fc667541ad0ed03cc0e02b67a219",
     "public/assets/characters/angel/token.webp": "fa72843355790dc65e49125af64e90f13c2c85684cceceb83e979399a523aa4b",
     "public/assets/characters/buffer/portrait.webp": "5ea45643796e5f531015b11908d04e5219618a88c1d840fbabca3e37f96a1e4d",
@@ -88,17 +91,27 @@
     "public/assets/characters/wind/token.webp": "bcdca7c09d443ae9627ffd545e6026925712ec342cf46da3d9096fb47513180d",
     "public/assets/characters/witch/portrait.webp": "221a3e6aa4db0b6f3b1d2c09f6c95b62b178d68a52b2fad8cfe7f39d3136c005",
     "public/assets/characters/witch/token.webp": "daec22e1373080f3f58d3a81e3edee7be7a6fd651d4b964e20e4ec922eb9cd81",
-    "public/game.js": "b326187dff8e5ae0497df8e33ededb40d14d133cc7d0d0b822b790d0f8675432",
-    "public/index.html": "cf0b56e697cdc2d92392836f9cbf8a8d0a724fb1f4f593492a8aaea1731950d6",
+    "public/game.js": "0b42c89c4fe0243ac353c028558bbb8c11c1831680f0f1bb8839678ba354e37a",
+    "public/index.html": "77610380b011d98fc7ac86d2e938f36e61f67fc8ac546f2137b33406633a6596",
     "public/latest-patch.json": "64772c06e3967887f1a93dce4ca81a40386f8eae1eb34c1800288224f9318f17",
     "public/style.css": "aaa00829674193c01b85544ce51353e01bfd0d27ef84d6f1937936eb8b56681c",
-    "server.js": "a6051fb30a1ada62f7100cd2785a4feb2bd37ca3fd6d13e3f4930847e91f1f37",
+    "server.js": "50c18f679878cffe0dc1fb2de781b872a1cad9ced78fc27a942b84706bfd73c0",
     "tests/network_111_optimization.test.js": "cf8bbab401063f4e4ee1680f0067b42ea35efd0abc8894c35420d55387373784",
     "tests/network_112_optimization.test.js": "2f6e8202f6dbbf6b3d099e924d62f11e03dc1bf78a788486f3623a09b1344d39",
     "tests/patch111.test.js": "3817485a25ab9d366d974bc144e27d1d450469608324c1b71590e0a672ccd916",
     "tests/patch111_final.test.js": "f0efb997b7eb69e4c24c3ecd59fde65d75f490b784aceedabbd40ccb5acd4e15",
     "tests/patch111_patchnotes_exact.test.js": "43065987914f8095bd9e527d949c48bf4ee29369a1b78d80118d0a6bceb37fea",
     "tests/patch112.test.js": "79c170c8cdca34ddd3c4483a408134d18cd7e58887ee12174de5aa5ab86e5dd1",
+    "tests/patch112_additional_qa.test.js": "a4ef63bd29212c581e207583187f8d7ea7675120ebc13e52ec2432eaee6024be",
     "tests/patchnotes.test.js": "a42cb14d9c698a6727a46ebbbd124b325975c70a1c1e5b1b0392e4a9f04bd598"
-  }
+  },
+  "status": "deployment candidate; no student-device or production database end-to-end verification",
+  "verification_date": "2026-11-08",
+  "tested_against": "SchoolLine_1.12_Patch_Release.zip / SchoolLine_1.11_Network_Optimized.zip",
+  "additional_fixes": [
+    "Client descriptions for Shield, Magnet and Dia updated to match 1.12 engine",
+    "Spray ultimate inherits 1.11 Dia stun-continuation and ordinary charge timing; its ultimate projectiles still grant no charge",
+    "Frontend JS cache tag bumped",
+    "Additional 1.12 QA tests"
+  ]
 }

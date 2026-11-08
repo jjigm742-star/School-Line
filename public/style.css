@@ -720,7 +720,7 @@ body.post-game-sequence .mobile-character-guide-button { display:none !important
 .latest-patch-group h4.nerf { color:#ffb5b5; }
 .latest-patch-group h4.rework { color:#d6afff; }
 .latest-patch-group ul { list-style:disc; padding-left:23px; margin:5px 0 9px; }
-.latest-patch-group li { margin:7px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; }
+.latest-patch-group li { margin:7px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; white-space:pre-line; }
 .latest-patch-group li strong { color:#fff; }
 .latest-patch-close { flex:0 0 auto; margin-top:12px; width:100%; min-height:44px; font-weight:900; }
 body.latest-patch-open { overflow:hidden; }

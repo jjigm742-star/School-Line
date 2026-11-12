@@ -138,6 +138,8 @@ body.desktop-controls-only .touch-controls { display:none !important; }
 .character-detail-hero { display:flex; align-items:center; gap:11px; min-width:0; margin-bottom:8px; }
 .character-portrait-wrap { position:relative; flex:0 0 76px; width:76px; height:95px; overflow:hidden; border-radius:11px; border:1px solid rgba(255,255,255,.10); background:#111823; box-shadow:0 5px 13px rgba(0,0,0,.20); }
 .character-portrait { position:relative; z-index:2; display:block; width:100%; height:100%; object-fit:cover; object-position:center top; background:#111823; }
+/* Until the shared portrait atlas is loaded, keep the text fallback visible. */
+.character-portrait:not([src]), .character-portrait.hidden { display:none; }
 .character-portrait-placeholder { position:absolute; inset:0; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:6px; text-align:center; color:#8fa5be; background:linear-gradient(145deg,#111a26,#172333); }
 .character-portrait-placeholder span { font-size:28px; line-height:1; filter:grayscale(.15); }
 .character-portrait-placeholder small { font-size:9px; line-height:1.2; font-weight:850; word-break:keep-all; }
@@ -749,3 +751,27 @@ body.latest-patch-open { overflow:hidden; }
 .ready-swap-consent strong { flex: 1 1 260px; }
 .ready-swap-consent button { cursor: pointer; padding: 6px 12px; border: 1px solid #89b7d4; border-radius: 8px; background: white; color: #183d61; font-weight: 700; }
 .ready-swap-consent button:hover { background: #d4efff; }
+
+/* Schoolline 1.13 final: only the casting player sees this screen-layer callout.
+   Kept separate from the canvas so world FX remain visible to every participant. */
+.local-ultimate-reveal { --ultimate-accent:#ffe3a0; position:absolute; inset:0; z-index:18;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+  pointer-events:none; opacity:0; visibility:hidden; text-align:center; user-select:none; }
+.local-ultimate-reveal.playing { visibility:visible; animation:localUltimateReveal .52s ease-out both; }
+.local-ultimate-reveal::before { content:""; position:absolute; inset:0; pointer-events:none;
+  border:clamp(5px,1.7vw,15px) solid var(--ultimate-accent);
+  box-shadow:inset 0 0 30px var(--ultimate-accent),0 0 19px var(--ultimate-accent);
+  opacity:.20; }
+.local-ultimate-kicker { font-size:clamp(8px,1.7vh,12px); letter-spacing:.38em;
+  font-weight:900; color:var(--ultimate-accent); text-shadow:0 2px 5px #111; }
+#localUltimateRevealName { padding:0 14px; max-width:62%; white-space:nowrap; overflow:hidden;
+  font-size:clamp(22px,5.3vh,47px); line-height:1.1; letter-spacing:.06em;
+  font-weight:1000; color:#fff; text-shadow:0 0 12px var(--ultimate-accent),0 3px 6px #10131c;
+  -webkit-text-stroke:1px rgba(19,20,32,.85); }
+.local-ultimate-streak { height:3px; width:min(210px,34vw);
+  background:linear-gradient(90deg,transparent,var(--ultimate-accent),#fff,var(--ultimate-accent),transparent);
+  box-shadow:0 0 13px var(--ultimate-accent); border-radius:5px; }
+@keyframes localUltimateReveal { 0%{opacity:0;transform:scale(.86)} 16%{opacity:1;transform:scale(1.045)}
+  62%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.03)} }
+@media (prefers-reduced-motion:reduce) { .local-ultimate-reveal.playing { animation:localUltimateReveal .52s linear both; }
+  @keyframes localUltimateReveal { 0%{opacity:0} 15%{opacity:1} 70%{opacity:1} 100%{opacity:0} } }

@@ -14,6 +14,7 @@ const CHARACTER_META = {
   solar:   { role:'탱커', name:'솔라', icon:'☀️', summary:'광선과 태양탄을 함께 다루는 자가회복 탱커' },
   shield:  { role:'탱커', name:'쉴드', icon:'🛡️', summary:'멀리 있는 아군에게 순간 보호막을 씌우는 보호형 탱커' },
   runner:  { role:'딜러', name:'러너', icon:'🏃', summary:'짧은 사거리와 질주를 활용하는 초고기동 딜러' },
+  blade:   { role:'딜러', name:'블레이드', icon:'⚡', summary:'전방 부채꼴 참격과 돌격으로 빈틈을 파고드는 근접 딜러' },
   shooter: { role:'딜러', name:'슈터', icon:'🎯', summary:'가장 표준적인 원거리 딜러' },
   sniper:  { role:'딜러', name:'스나이퍼', icon:'🔭', summary:'36m까지 일정한 화력으로 공격하는 초장거리 딜러' },
   cannon:  { role:'딜러', name:'캐논', icon:'💥', summary:'기동성을 버리고 화력을 얻은 중화기 딜러' },
@@ -36,67 +37,85 @@ const CHARACTER_META = {
   drain:   { role:'딜러', name:'드레인', icon:'🩸', summary:'공격을 적중시키며 자신을 치유하는 흡혈 딜러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.12-release-roster28';
+const VISUAL_ASSET_VERSION = '1.13-slim-atlas-v1';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
-const CHARACTER_ART = Object.freeze({
-  iron:    { portrait:artPath('/assets/characters/iron/portrait.webp'),    token:artPath('/assets/characters/iron/token.webp'),    renderScale:1.00 },
-  mecha:   { portrait:artPath('/assets/characters/mecha/portrait.webp'),   token:artPath('/assets/characters/mecha/token.webp'),   renderScale:1.00 },
-  magnet:  { portrait:artPath('/assets/characters/magnet/portrait.webp'), token:artPath('/assets/characters/magnet/token.webp'), renderScale:1.00 },
-  jet:     { portrait:artPath('/assets/characters/jet/portrait.webp'),     token:artPath('/assets/characters/jet/token.webp'),     renderScale:1.00 },
-  dia:     { portrait:artPath('/assets/characters/dia/portrait.webp'),     token:artPath('/assets/characters/dia/token.webp'),     renderScale:1.00 },
-  solar:   { portrait:artPath('/assets/characters/solar/portrait.webp'),   token:artPath('/assets/characters/solar/token.webp'),   renderScale:1.00 },
-  shield:  { portrait:artPath('/assets/characters/shield/portrait.webp'),  token:artPath('/assets/characters/shield/token.webp'),  renderScale:1.00 },
-  runner:  { portrait:artPath('/assets/characters/runner/portrait.webp'),  token:artPath('/assets/characters/runner/token.webp'),  renderScale:1.00 },
-  shooter: { portrait:artPath('/assets/characters/shooter/portrait.webp'), token:artPath('/assets/characters/shooter/token.webp'), renderScale:1.00 },
-  sniper:  { portrait:artPath('/assets/characters/sniper/portrait.webp'),  token:artPath('/assets/characters/sniper/token.webp'),  renderScale:1.00 },
-  cannon:  { portrait:artPath('/assets/characters/cannon/portrait.webp'),  token:artPath('/assets/characters/cannon/token.webp'),  renderScale:1.00 },
-  fire:    { portrait:artPath('/assets/characters/fire/portrait.webp'),    token:artPath('/assets/characters/fire/token.webp'),    renderScale:1.00 },
-  poison:  { portrait:artPath('/assets/characters/poison/portrait.webp'),  token:artPath('/assets/characters/poison/token.webp'),  renderScale:1.00 },
-  reactor: { portrait:artPath('/assets/characters/reactor/portrait.webp'), token:artPath('/assets/characters/reactor/token.webp'), renderScale:1.00 },
-  spray:   { portrait:artPath('/assets/characters/spray/portrait.webp'),   token:artPath('/assets/characters/spray/token.webp'),   renderScale:1.00 },
-  laser:   { portrait:artPath('/assets/characters/laser/portrait.webp'),   token:artPath('/assets/characters/laser/token.webp'),   renderScale:1.00 },
-  ice:     { portrait:artPath('/assets/characters/ice/portrait.webp'),     token:artPath('/assets/characters/ice/token.webp'),     renderScale:1.00 },
-  water:   { portrait:artPath('/assets/characters/water/portrait.webp'),   token:artPath('/assets/characters/water/token.webp'),   renderScale:1.00 },
-  wind:    { portrait:artPath('/assets/characters/wind/portrait.webp'),    token:artPath('/assets/characters/wind/token.webp'),    renderScale:1.00 },
-  star:    { portrait:artPath('/assets/characters/star/portrait.webp'),    token:artPath('/assets/characters/star/token.webp'),    renderScale:1.00 },
-  flower:  { portrait:artPath('/assets/characters/flower/portrait.webp'), token:artPath('/assets/characters/flower/token.webp'), renderScale:1.00 },
-  angel:   { portrait:artPath('/assets/characters/angel/portrait.webp'),   token:artPath('/assets/characters/angel/token.webp'),   renderScale:1.00 },
-  buffer:  { portrait:artPath('/assets/characters/buffer/portrait.webp'),  token:artPath('/assets/characters/buffer/token.webp'),  renderScale:1.00 },
-  light:   { portrait:artPath('/assets/characters/light/portrait.webp'),   token:artPath('/assets/characters/light/token.webp'),   renderScale:1.00 },
-  witch:   { portrait:artPath('/assets/characters/witch/portrait.webp'),   token:artPath('/assets/characters/witch/token.webp'),   renderScale:1.00 },
-  hacker:  { portrait:artPath('/assets/characters/hacker/portrait.webp'),  token:artPath('/assets/characters/hacker/token.webp'),  renderScale:1.00 },
-  rescue:  { portrait:artPath('/assets/characters/rescue/portrait.webp'),  token:artPath('/assets/characters/rescue/token.webp'),  renderScale:1.00 },
-  drain:   { portrait:artPath('/assets/characters/drain/portrait.webp'),   token:artPath('/assets/characters/drain/token.webp'),   renderScale:1.00 }
-});
+// 1.13 SLIM: one atlas per visual class, not 58 separately hosted files.
+// The original 512x640 portraits and 256x256 transparent minimi tokens are
+// cropped from the atlas in the browser. Character lookups remain stable.
+const CHARACTER_ATLAS_IDS = Object.freeze([
+  'iron','mecha','magnet','jet','dia','solar','shield','runner','shooter','sniper',
+  'cannon','fire','poison','reactor','spray','laser','ice','water','wind','star',
+  'flower','angel','buffer','light','witch','hacker','rescue','drain','blade'
+]);
+const CHARACTER_ATLAS_COLUMNS = 6;
+const CHARACTER_PORTRAIT_CELL = Object.freeze({ width: 512, height: 640 });
+const CHARACTER_TOKEN_CELL = Object.freeze({ width: 256, height: 256 });
+const CHARACTER_ART = Object.freeze(Object.fromEntries(
+  CHARACTER_ATLAS_IDS.map((id, index) => [id, Object.freeze({
+    index, renderScale: 1.00,
+    portraitRect: Object.freeze({
+      x: (index % CHARACTER_ATLAS_COLUMNS) * CHARACTER_PORTRAIT_CELL.width,
+      y: Math.floor(index / CHARACTER_ATLAS_COLUMNS) * CHARACTER_PORTRAIT_CELL.height,
+      width: CHARACTER_PORTRAIT_CELL.width,
+      height: CHARACTER_PORTRAIT_CELL.height
+    }),
+    tokenRect: Object.freeze({
+      x: (index % CHARACTER_ATLAS_COLUMNS) * CHARACTER_TOKEN_CELL.width,
+      y: Math.floor(index / CHARACTER_ATLAS_COLUMNS) * CHARACTER_TOKEN_CELL.height,
+      width: CHARACTER_TOKEN_CELL.width,
+      height: CHARACTER_TOKEN_CELL.height
+    })
+  })])
+));
+const CHARACTER_PORTRAIT_ATLAS = new Image();
+const CHARACTER_TOKEN_ATLAS = new Image();
+const CHARACTER_PORTRAIT_DATA = new Map();
+CHARACTER_PORTRAIT_ATLAS.decoding = 'async';
+CHARACTER_TOKEN_ATLAS.decoding = 'async';
 
-// Character art is visual-only; 28 characters have stable asset slots in PRE4.
-// Missing files show a placeholder in the picker and use the legacy circle + emoji in-game.
-// 1.7.1 visual update: all 22 characters now have wired portrait/token asset slots.
-const CHARACTER_TOKEN_IMAGES = new Map();
 function characterArt(id) { return CHARACTER_ART[id] || null; }
 function characterTokenImage(id) {
-  const art = characterArt(id);
-  if (!art || !art.token) return null;
-  let img = CHARACTER_TOKEN_IMAGES.get(id);
-  if (!img) {
-    img = new Image();
-    img.decoding = 'async';
-    img.dataset.failed = '0';
-    img.onload = () => { img.dataset.failed = '0'; };
-    img.onerror = () => { img.dataset.failed = '1'; };
-    img.src = art.token;
-    CHARACTER_TOKEN_IMAGES.set(id, img);
-  }
-  return img.dataset.failed !== '1' && img.complete && img.naturalWidth > 0 ? img : null;
+  return CHARACTER_ART[id] && CHARACTER_TOKEN_ATLAS.complete && CHARACTER_TOKEN_ATLAS.naturalWidth > 0
+    ? CHARACTER_TOKEN_ATLAS : null;
 }
+function portraitSourceForCharacter(id) {
+  const art = characterArt(id);
+  if (!art || !CHARACTER_PORTRAIT_ATLAS.complete || !CHARACTER_PORTRAIT_ATLAS.naturalWidth) return '';
+  if (CHARACTER_PORTRAIT_DATA.has(id)) return CHARACTER_PORTRAIT_DATA.get(id);
+  try {
+    const box = art.portraitRect;
+    const c = document.createElement('canvas');
+    c.width = box.width; c.height = box.height;
+    const cctx = c.getContext('2d');
+    if (!cctx) return '';
+    cctx.drawImage(CHARACTER_PORTRAIT_ATLAS,
+      box.x, box.y, box.width, box.height,
+      0, 0, box.width, box.height);
+    const src = c.toDataURL('image/webp', .95);
+    CHARACTER_PORTRAIT_DATA.set(id, src);
+    return src;
+  } catch (error) {
+    console.warn('[assets] Failed to crop portrait from atlas:', id, error);
+    return '';
+  }
+}
+CHARACTER_PORTRAIT_ATLAS.onload = () => {
+  document.querySelectorAll('img.character-portrait[data-character-id]').forEach(img => {
+    const src = portraitSourceForCharacter(img.dataset.characterId);
+    if (src) { img.classList.remove('hidden'); img.src = src; }
+  });
+};
+CHARACTER_PORTRAIT_ATLAS.src = artPath('/assets/characters/portrait_atlas.webp');
+CHARACTER_TOKEN_ATLAS.src = artPath('/assets/characters/token_atlas.webp');
+
 function characterPortraitHtml(id, name) {
   const art = characterArt(id);
   const icon = CHARACTER_META[id]?.icon || '◈';
-  const src = art?.portrait || '';
+  const src = art ? portraitSourceForCharacter(id) : '';
   const safeName = escapeHtml(name);
-  const imageHtml = src
-    ? `<img class="character-portrait" src="${src}" alt="${safeName} 캐릭터 일러스트" loading="lazy" decoding="async" onload="this.parentElement.classList.add('art-loaded')" onerror="this.classList.add('hidden')">`
+  const imageHtml = art
+    ? `<img class="character-portrait" data-character-id="${id}" ${src ? `src="${src}"` : ''} alt="${safeName} 캐릭터 일러스트" decoding="async" onload="this.parentElement.classList.add('art-loaded')" onerror="this.classList.add('hidden')">`
     : '';
   return `<button type="button" class="character-portrait-wrap" data-character-name="${safeName}" aria-label="${safeName} 일러스트 크게 보기">${imageHtml}<div class="character-portrait-placeholder" aria-hidden="true"><span>${icon}</span><small>일러스트 준비 중</small></div><span class="character-portrait-zoom" aria-hidden="true">🔍</span></button>`;
 }
@@ -131,6 +150,10 @@ const CHARACTER_STORIES = {
   runner: {
     title:'러너', icon:'🏃',
     text:'하루 종일 달리기만 연습해 온 프로 마라토너. 이제는 싸움까지 잘하고 싶다며 싸움판에 뛰어들었다. 달리기 실력은 여전하지만 아직 싸움에는 익숙하지 않아 조금 약하다. 광선 자매 중 둘째인 아이스에게는 늘 기가 죽는다고 한다.'
+  },
+  blade: {
+    title:'블레이드', icon:'⚡',
+    text:'무기 대신 비현실적인 붉은 판을 휘두르듯 허공을 가르며 적을 베어낸다. 돌격으로 순식간에 파고드는 속도전의 달인이다.'
   },
   cannon: {
     title:'캐논', icon:'💥',
@@ -243,6 +266,7 @@ function attackDisplayName(c) {
   if (!c) return '—';
   if (c.attackType === 'lightBeam') return '광선 (치유 + 공격)';
   if (c.attackType === 'beam') return '광선';
+  if (c.attackType === 'melee') return '근접 참격';
   if (c.projectileType === 'heal' && Number(c.damage || 0) > 0) return '치유 + 공격 투사체';
   if (c.projectileType === 'heal') return '치유 투사체';
   return '투사체';
@@ -258,7 +282,12 @@ function buildCharacterStats(id) {
   let rateLabel = '공격 속도';
   let rate = '—';
 
-  if (id === 'solar') {
+  if (id === 'blade') {
+    attackType = '근접 참격';
+    range = `${fmtNumber(c.range)} m`;
+    throughput = fmtNumber(Number(c.damage || 0) * Number(c.fireRate || 0));
+    rate = `${fmtNumber(c.fireRate)}회/s`;
+  } else if (id === 'solar') {
     attackType = '광선 + 투사체';
     range = `${fmtNumber(c.range)} m / ${fmtNumber(c.solarProjectileRange)} m`;
     const projectileDps = Number(c.solarProjectileDamage || 0) * Number(c.solarFireRate || 0);
@@ -329,6 +358,7 @@ function buildCharacterMini(id, meta) {
   if (!c) return meta.summary || '';
   const move = speedLabel(c.speed);
   if (c.role === '탱커') return `${fmtNumber(c.hp)} HP · ${move}`;
+  if (id === 'blade') return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
   if (id === 'buffer') return `${fmtNumber(c.linkHealHps)} HPS + 행동속도 ${fmtNumber(Number(c.actionSpeedBoost||0)*100)}% · ${move}`;
   if (c.projectileType === 'heal') {
     const healHps = Number(c.heal||0)*Number(c.fireRate||0);
@@ -359,6 +389,7 @@ function characterAbilityGuide(id) {
   const enemy = '적을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)';
   switch (id) {
     case 'magnet': return {name:'자석', effect:`사거리 ${n(c.magnetRange)}m, 쿨타임 ${n(c.magnetCooldown)}초. 빠른 자석탄에 맞은 적에게 ${n(c.magnetHookDamage)} 피해를 주고 ${n(c.magnetPullDuration)}초 동안 적중 시점 마그넷 전방 ${n(c.magnetPullOffset)}m로 끌어옵니다. 기절은 없으며 제트 부스터 이동보다 자석의 끌어오기가 우선합니다.`, control:direct};
+    case 'blade': return {name:'돌격', effect:`최대 ${n(c.bladeDashMaxCharges)}회 충전, 충전당 ${n(c.bladeDashRecharge)}초. 조준 방향으로 ${n(c.bladeDashDuration)}초간 최대 ${n(c.bladeDashDistance)}m 돌진합니다. 벽 관통 불가. 적 처치 관여 시 1회 즉시 충전.`, control:'이동할 방향을 조준한 뒤 Space 키 (모바일: 능력 버튼)'};
     case 'jet': return {name:'부스터', effect:`쿨타임 ${n(c.boostCooldown)}초. ${n(c.boostDuration)}초에 걸쳐 최대 ${n(c.boostDistance)}m 돌진하고 ${n(c.boostShieldDuration)}초 보호막 ${n(c.boostShield)} 획득. 벽은 통과할 수 없습니다.`, control:'이동할 방향을 조준한 뒤 Space 키 (모바일: 능력 버튼)'};
     case 'dia': return {name:'폼체인지', effect:`쿨타임 ${n(c.formCooldown)}초. ${n(c.formDuration)}초 동안 다이아폼(최대 HP ${n(c.formHp)}, 속도 ${n(c.formSpeed)}m/s, ${n(c.formRange)}m 광선 ${n(c.formBeamDps)} DPS)으로 변신. 적 처치 시 남은 쿨타임 ${n(c.formKillCooldownReduction)}초 감소.`,control:direct};
     case 'shield': return {name:'보호막', effect:`보호막 ${n(c.shieldAmount)}, ${n(c.shieldDuration)}초 지속. 아군에게 반경 ${n(c.shieldAbilityRange)}m 이내에서 사용 가능(시야 제한 없음). 최대 ${n(c.shieldMaxCharges)}회 충전, ${n(c.shieldRecharge)}초마다 1회 재충전.`,control:'자신 또는 아군을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)'};
@@ -395,6 +426,7 @@ function characterUltimateGuide(id) {
     case 'solar': effect=`${n(c.ultimateDuration)}초간 반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateAuraDps)} DPS, 자신은 ${n(c.ultimateSelfHealHps)} HPS 회복.`; break;
     case 'shield': effect=`자신 및 모든 아군에게 ${n(c.ultimateShieldDuration)}초간 보호막 ${n(c.ultimateShield)} 부여.`; break;
     case 'runner': effect=`선택한 적에게 폭탄 부착. ${n(c.ultimateDelay)}초 후 ${n(c.ultimateDamage)} 피해.`; break;
+    case 'blade': effect=`${n(c.ultimateDuration)}초 동안 전방 ${n(c.ultimateRange)}m·${n(c.ultimateMeleeFanAngleDeg)}° 부채꼴 범위 내 모든 적에게 공격당 ${n(c.ultimateDamage)} 피해(초당 ${n(c.fireRate)}회). 사용 시 돌격 충전 +1.`; break;
     case 'shooter': effect=`${n(c.ultimateDuration)}초간 공격 ${n(c.ultimateDamage * c.fireRate)} DPS, 사거리 ${n(c.ultimateRange)}m, 이동속도 +${n(c.ultimateSpeedTierDelta)}단계.`; break;
     case 'sniper': effect=`${n(c.ultimateDuration)}초간 ${n(c.ultimateDamage * c.fireRate)} DPS(발당 ${n(c.ultimateDamage)}), 투사체 크기 증가.`; break;
     case 'cannon': effect=`${n(c.ultimateDuration)}초 동안 이동 불가, 기본 공격 ${n(c.ultimateDamage * c.fireRate)} DPS.`; break;
@@ -407,7 +439,7 @@ function characterUltimateGuide(id) {
     case 'water': effect=`반경 ${n(c.ultimateRadius)}m 아군 ${n(c.ultimateHeal)} 회복, 적 ${n(c.ultimateDamage)} 피해와 ${n(c.ultimateStunDuration)}초 기절.`; break;
     case 'wind': effect=`${n(c.ultimateDuration)}초 동안 반경 ${n(c.ultimateRadius)}m 내 자신 및 아군을 ${n(c.ultimateHealHps)} HPS 회복.`; break;
     case 'star': effect=`${n(c.ultimateDelay)}초 후 반경 ${n(c.ultimateRadius)}m 아군 ${n(c.ultimateHeal)} 회복, 적 ${n(c.ultimateDamage)} 피해.`; break;
-    case 'flower': effect=`맵 전체에서 자신 또는 아군 1명에게 즉시 ${n(c.ultimateHeal)} HP 회복 + 보호막 ${n(c.ultimateShield)}(${n(c.ultimateShieldDuration)}초), 이동속도 +${n(c.ultimateSpeedTierDelta)}단계(${n(c.ultimateDuration)}초). 시야 제한 없음.`; break;
+    case 'flower': effect=`맵 전체에서 선택한 자신 또는 아군 1명에게 즉시 ${n(c.ultimateHeal)} HP 회복. 초과량을 ${n(c.ultimateShieldDuration)}초 보호막으로 전환. ${n(c.ultimateDuration)}초 동안 이동속도 +${n(c.ultimateSpeedTierDelta)}단계, 공격속도 +${pct(c.ultimateAttackSpeedBoost)}%. 사용자 궁극기 재충전 ${n(c.ultimateDuration)}초 잠금.`; break;
     case 'angel': effect=`선택한 자신 또는 아군을 ${n(c.ultimateDuration)}초간 무적으로 만듭니다.`; break;
     case 'buffer': effect=`${n(c.ultimateDuration)}초 동안 링크 대상 치유량이 ${n(c.ultimateLinkHealHps)} HPS로 증가하고 이동속도 +${n(c.ultimateLinkedSpeedTierDelta)}단계.`; break;
     case 'light': effect=`전방 ${n(c.ultimateRange)}×${n(c.ultimateWidth)}m 범위 적 ${n(c.ultimateDamage)} 피해, 아군 ${n(c.ultimateHeal)} 회복, 자신도 ${n(c.ultimateSelfHeal)} 회복.`; break;
@@ -428,6 +460,7 @@ function buildCharacterMechanic(id, fallback='') {
   const generic = {
     iron:'높은 기본 HP로 전선을 유지하는 탱커입니다.',
     mecha:'짧은 사거리 대신 높은 체력과 이동속도로 공간을 장악합니다.',
+    blade:'무기 없이 비현실적인 붉은 에너지 판을 휘두르듯 근접 참격합니다. 기본 공격은 전방 부채꼴에서 가장 가까운 적 하나만 맞으며, 용검 중에는 전원에게 적중합니다.',
     shooter:'빠른 기본 투사체를 중심으로 싸웁니다.',
     sniper:`${n(c.range)}m 사거리에서 일정한 기본 피해를 주며 본인에게만 조준 점선이 표시됩니다.`,
     cannon:'높은 연사 화력을 지닌 대신 이동속도가 느립니다.',
@@ -751,6 +784,7 @@ const CHARACTER_INTRO_TIPS = Object.freeze({
   iron: { role:'tank', text:'혼자 깊게 들어가기보다 팀과 함께 뭉쳐서 움직이세요. 속도가 느리니 방어에 집중하세요.' },
   mecha: { role:'tank', text:'빠른 속도로 적의 시선을 끌고 싸움을 흔드세요. 위험하면 도망쳐서 우리 팀 힐러에게 치유받거나, 4초 동안 구석에서 공격받지 않으면 체력이 차오릅니다.' },
   flower: { role:'healer', text:'가시꽃 도중에는 아군을 치료할 수 없습니다. 만개는 자신 또는 살아 있는 아군을 클릭해 선택한 뒤 R을 눌러야 발동합니다.' },
+  blade: { role:'dealer', text:'4m까지 다가가야 참격할 수 있습니다. 돌격은 최대 2회 저장되며 적 처치 관여 시 1회 충전됩니다. 용검을 쓰면 돌격도 1회 충전됩니다.' },
   magnet: { role:'tank', text:'적의 위치를 바꾸는 자석은 공격이 아니라 제어 기술입니다. 홈가드를 거점에서 끌어내거나 팀원의 공격 범위로 적을 당겨보세요.' },
   jet: { role:'tank', text:'부스터로 빠르게 진입해 연약한 적을 공격하세요. 아군이 따라올 수 없는 곳까지 혼자 들어가면 위험해요.' },
   solar: { role:'tank', text:'무리하게 돌진하기보다 태양탄을 명중시키며 계속 회복하세요. 속도가 느리니 방어에 집중하세요.' },
@@ -869,6 +903,7 @@ function schedulePostGame(fn, ms) {
 }
 
 function resetPostGameSequence() {
+  resetUltimateVisualState();
   clearPostGameTimers();
   postGameSequence.active = false;
   postGameSequence.finalState = null;
@@ -968,6 +1003,31 @@ let matchAlertTimer = null;
 const shownTimeWarnings = new Set();
 const worldFx = [];
 const playerHitFlashUntil = new Map();
+const ultimateRecipientFx = new Map(); // character:targetId -> local cosmetic expiration
+function revealMyUltimate(character) {
+  if (spectatorMode || !myId || !character || !state || state.state !== 'playing') return;
+  const layer=$('localUltimateReveal'), name=$('localUltimateRevealName');
+  const def=characterPublicDef(character);
+  if (!layer || !name || !def?.ultimateName) return;
+  name.textContent=def.ultimateName;
+  layer.style.setProperty('--ultimate-accent',fxCharacterColor(character));
+  layer.classList.remove('playing');
+  void layer.offsetWidth;
+  layer.classList.add('playing');
+}
+function rememberUltimateRecipient(character, targetId, durationMs) {
+  if (!character || !targetId) return;
+  const maxMs = character==='flower' ? 8000 : 3000;
+  const duration = Math.max(1, Math.min(maxMs, Number(durationMs)||maxMs));
+  ultimateRecipientFx.set(`${character}:${targetId}`, performance.now()+duration);
+}
+function resetUltimateVisualState() {
+  ultimateRecipientFx.clear();
+  $('localUltimateReveal')?.classList.remove('playing');
+}
+function isVisibleForUltimateFx(player, viewerTeam) {
+  return !!player?.alive && (spectatorMode || !player.stealthed || player.team===viewerTeam);
+}
 let audioEnabled = localStorage.getItem('schoolLineAudio') !== 'off';
 
 function ensureAudio() {
@@ -1304,7 +1364,7 @@ function playCharacterUltimateCue(character, local=false) {
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650,diaExplosion:580};
+  const durations={muzzle:90,bladeSlash:220,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650,diaExplosion:580};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -1448,7 +1508,15 @@ function processCombatFeedback(previousState, nextState) {
     }
 
     if ((after.shotSeq||0) > (before.shotSeq||0)) {
-      if (!(after.character === 'hacker' && after.stealthed && !spectatorMode && after.team !== afterById.get(myId)?.team)) addMuzzleFx(after);
+      if (after.character === 'blade') {
+        const dx = Number(after.aimX)-Number(after.x), dy = Number(after.aimY)-Number(after.y);
+        const len = Math.hypot(dx,dy)||1;
+        const powered = Number(after.ultimateActiveMs||0)>0;
+        // Consecutive swings alternate left-to-right, then right-to-left.
+        // The hit is already server-authoritative and instantaneous; the panel is visual only.
+        const sweepDirection = Number(after.shotSeq) % 2 === 1 ? 1 : -1;
+        addWorldFx('bladeSlash', after, {dx:dx/len,dy:dy/len,rangeWorld:powered?6:4,angleDeg:60,powered,sweepDirection});
+      } else if (!(after.character === 'hacker' && after.stealthed && !spectatorMode && after.team !== afterById.get(myId)?.team)) addMuzzleFx(after);
       if (after.id===myId && after.character==='sniper') playSniperShotCue();
     }
 
@@ -1502,16 +1570,19 @@ function processCombatFeedback(previousState, nextState) {
 
     const beforePending = Number(before.pendingUltimateMs || 0) > 0 ? (before.pendingUltimateId || before.character) : null;
     const afterPending = Number(after.pendingUltimateMs || 0) > 0 ? (after.pendingUltimateId || after.character) : null;
-    if (beforePending && !afterPending && after.alive && isDelayedWarningUltimate(beforePending)) {
+    if (beforePending && !afterPending && after.alive && beforePending === 'dia') {
+      // Other delayed bursts use authoritative resolution-point FX packets.
       addCharacterUltimateFx({...after, character:beforePending}, 'resolve');
     }
 
     if ((after.ultimateUseSeq||0) > (before.ultimateUseSeq||0)) {
+      const viewer = afterById.get(myId);
+      const visibleCast = isVisibleForUltimateFx(after, viewer?.team);
       if (isDelayedWarningUltimate(after.character)) {
-        addWorldFx('ultimateWindup', after, { radiusWorld: Math.max(0, Number(characterPublicDef(after.character)?.ultimateRadius) || 0) });
+        if (visibleCast) addWorldFx('ultimateWindup', after, { radiusWorld: Math.max(0, Number(characterPublicDef(after.character)?.ultimateRadius) || 0) });
       } else if (after.character === 'witch') {
         // No cast-radius circle: the potion curses all living enemies immediately.
-        addCharacterUltimateFx(after, 'cast', {radiusWorld:0});
+        if (visibleCast) addCharacterUltimateFx(after, 'cast', {radiusWorld:0});
         for (const target of afterById.values()) {
           if (target.alive && target.team !== after.team && target.cursed &&
               !(target.character === 'hacker' && target.stealthed && !spectatorMode &&
@@ -1521,26 +1592,21 @@ function processCombatFeedback(previousState, nextState) {
         }
       } else if (after.character === 'shield') {
         for (const target of afterById.values()) {
-          if (target.alive && target.team === after.team) addCharacterUltimateFx({...target, character:'shield'}, 'recipient');
+          if (target.alive && target.team === after.team) {
+            rememberUltimateRecipient('shield',target.id,3000);
+            addCharacterUltimateFx({...target, character:'shield'}, 'recipient');
+          }
         }
       } else if (after.character === 'laser' || after.character === 'light') {
         // Instant rectangle FX use the exact server-captured position and aim (ultimate_fx message).
-      } else if (after.character === 'angel') {
-        // Miracle is a targeted protection ultimate. Put its strong wings/halo on the
-        // player whose invulnerability actually increased, rather than on Angel merely
-        // because Angel's own ultimate timer is used for charge lock.
-        let target=null, bestIncrease=-Infinity;
-        for (const candidate of afterById.values()) {
-          if (!candidate.alive || candidate.team !== after.team) continue;
-          const prevCandidate=beforeById.get(candidate.id);
-          const increase=Number(candidate.invulnerableMs||0)-Number(prevCandidate?.invulnerableMs||0);
-          if (Number(candidate.invulnerableMs||0)>0 && increase>bestIncrease) { target=candidate; bestIncrease=increase; }
-        }
-        if (target && bestIncrease > 100) addCharacterUltimateFx({...target, character:'angel'}, 'recipient');
-        else addCharacterUltimateFx(after, 'cast');
-      } else {
+      } else if (after.character === 'angel' || after.character === 'flower' || after.character === 'rescue') {
+        // These use authoritative target or detonation events. No caster-centered decoy.
+      } else if (after.character === 'star' || after.character === 'iron' || after.character === 'ice' || after.character === 'mecha') {
+        // Cast windup / timed danger ring only; server sends detonation FX later.
+      } else if (visibleCast) {
         addCharacterUltimateFx(after, 'cast');
       }
+      if (after.id===myId && !spectatorMode) revealMyUltimate(after.character);
       playCharacterUltimateCue(after.character, after.id===myId);
       if (after.id===myId) pulseUltimateButton();
     }
@@ -2321,6 +2387,8 @@ function expandCompactPlayerRowC6(p, meta) {
       case 30: if (value) out.pendingUltimateId = value; break;
       case 31: out.newAbilityCooldownMs = Number(value || 0); break;
       case 32: out.stealthMs = Number(value || 0); break;
+      case 33: out.bladeDashCharges = Number(value || 0); break;
+      case 34: out.bladeDashRechargeMs = Number(value || 0); break;
       default: break;
     }
   }
@@ -2344,7 +2412,7 @@ function expandWireMessage(msg) {
   } else if (wireFormat === 'c3' || wireFormat === 'c4') msg.players = (msg.players || []).map(expandCompactPlayerRow);
   msg.projectiles = (msg.projectiles || []).map(p => ({
     id:p[0], x:p[1], y:p[2], radius:p[3], type:p[4], team:p[5], character:p[6],
-    reactorFxBand:p[7] == null ? null : p[7]
+    reactorFxBand:p[7] == null ? null : p[7], ownerId:p[8] || null, vx:Number(p[9]||0), vy:Number(p[10]||0)
   }));
   if (wireFormat === 'c4' || wireFormat === 'c5' || wireFormat === 'c6') {
     applyProjectileNetworkUpdate(msg);
@@ -2460,6 +2528,22 @@ function handleMessage(msg) {
       addWorldFx('ultimateRectHit', { x:msg.x, y:msg.y, character:msg.character, team:msg.team }, {
         dx:Number(msg.dx)||0, dy:Number(msg.dy)||0, length:Number(msg.length)||24, width:Number(msg.width)||6
       });
+    } else if (msg.kind === 'radial_burst') {
+      const char=String(msg.character||'');
+      if (['star','iron','ice','mecha','rescue'].includes(char) && Number.isFinite(Number(msg.x)) && Number.isFinite(Number(msg.y))) {
+        addCharacterUltimateFx({x:Number(msg.x),y:Number(msg.y),character:char,team:msg.team},'resolve',
+          {radiusWorld:Number(msg.radius)||Number(characterPublicDef(char)?.ultimateRadius)||0});
+      }
+    } else if (msg.kind === 'recipient') {
+      const char=String(msg.character||''), targetId=String(msg.targetId||'');
+      if (['angel','flower'].includes(char) && targetId) {
+        rememberUltimateRecipient(char,targetId,msg.durationMs);
+        const target=state?.players?.find(p=>p.id===targetId && p.alive);
+        const viewer=state?.players?.find(p=>p.id===myId);
+        if (target && isVisibleForUltimateFx(target, viewer?.team)) {
+          addCharacterUltimateFx({...target,character:char},'recipient',{radiusWorld:0});
+        }
+      }
     } else if (msg.kind === 'runner_bomb_attach') {
       addWorldFx('runnerBombAttached', { x:msg.x, y:msg.y, character:'runner', team:msg.team }, { targetId:msg.targetId });
     } else if (msg.kind === 'dia_burst') {
@@ -2944,6 +3028,7 @@ function useAbility() {
   if (me.character === 'wind' && me.windTailwindCooldownMs > 0) return;
   if (me.character === 'jet' && (me.jetBoost || me.jetBoostCooldownMs > 0)) return;
   if (['magnet','flower'].includes(me.character) && me.newAbilityCooldownMs > 0) return;
+  if (me.character === 'blade' && (Number(me.bladeDashCharges)||0) <= 0) return;
   if (me.character === 'angel' && (me.angelBlessCooldownMs > 0 || !selectedTargetId)) return;
   if (me.character === 'shield' && ((Number(me.shieldAbilityCharges)||0) <= 0 || !selectedTargetId)) return;
   if (['witch','hacker','rescue'].includes(me.character) && me.newAbilityCooldownMs > 0) return;
@@ -4005,7 +4090,7 @@ function liveVisualBeams(viewState, nowMs=performance.now()) {
     // truncate its visual ray; other beam characters still stop on enemies.
     if (p.character!=='light') for (const target of viewState.players) {
       if (!target?.alive || target.id===p.id || target.team===p.team) continue;
-      const tr=Number(config?.characters?.[target.character]?.radius || .8);
+      const tr=Number(config?.characters?.[target.character]?.radius || .8) + 0.2;
       const targetPos=renderedPlayerWorldPosition(target, nowMs);
       const t=visualSegmentCircleT(x1,y1,x2,y2,Number(targetPos.x||0),Number(targetPos.y||0),tr);
       if (t!==null && t>1e-6 && t<bestT) { bestT=t; impact='player'; }
@@ -4059,11 +4144,11 @@ function drawBeamFx(beam, nowMs) {
 }
 
 function fxCharacterColor(character) {
-  return ({witch:'#ca9740',hacker:'#4d69ff',rescue:'#f47670',drain:'#db2a54',iron:'#b56d00',mecha:'#168f55',jet:'#1179a8',solar:'#c98200',shield:'#1268c4',runner:'#d97900',shooter:'#176dc1',sniper:'#7442b6',cannon:'#a86100',fire:'#e24818',poison:'#7436a8',reactor:'#c14b12',spray:'#087f9f',water:'#0879b8',wind:'#16875a',star:'#ad7c00',angel:'#a86f00',buffer:'#7050a3',light:'#a87c00',laser:'#c52864',ice:'#087f9f',dia:'#276fae'})[character] || '#46515f';
+  return ({blade:'#d73a58',magnet:'#48a7e6',witch:'#ca9740',hacker:'#4d69ff',rescue:'#f47670',drain:'#db2a54',iron:'#b56d00',mecha:'#168f55',jet:'#1179a8',solar:'#c98200',shield:'#1268c4',runner:'#d97900',shooter:'#176dc1',sniper:'#7442b6',cannon:'#a86100',fire:'#e24818',poison:'#7436a8',reactor:'#c14b12',spray:'#087f9f',water:'#0879b8',wind:'#16875a',star:'#ad7c00',angel:'#a86f00',buffer:'#7050a3',light:'#a87c00',laser:'#c52864',ice:'#087f9f',dia:'#276fae'})[character] || '#46515f';
 }
 
 const ULTIMATE_FX_STYLE = Object.freeze({
-  iron:{color:'#d88500',dark:'#5b3500'}, mecha:{color:'#119455',dark:'#064a2b'}, jet:{color:'#087fac',dark:'#073b52'},
+  iron:{color:'#d88500',dark:'#5b3500'}, mecha:{color:'#119455',dark:'#064a2b'}, jet:{color:'#087fac',dark:'#073b52'}, blade:{color:'#dd3b5f',dark:'#6e1830'}, magnet:{color:'#48a7e6',dark:'#173e75'},
   solar:{color:'#d88a00',dark:'#684100'}, shield:{color:'#1268d1',dark:'#073e82'}, runner:{color:'#e17b00',dark:'#6a3600'},
   shooter:{color:'#176fd0',dark:'#083c78'}, sniper:{color:'#7543bd',dark:'#3c1d70'}, cannon:{color:'#b86b00',dark:'#5b3300'},
   fire:{color:'#ea4718',dark:'#7e1b05'}, poison:{color:'#7938b1',dark:'#3f1769'}, reactor:{color:'#c84b12',dark:'#682100'},
@@ -4085,6 +4170,81 @@ function traceRegularPolygon(cx, cy, radius, sides, rotation=0) {
   ctx.closePath();
 }
 
+// All glyphs are drawn from primitive geometry. The exact AoE is still a circle;
+// the star / paw / cog are decorative INSIDE that circle, not alternative hitboxes.
+function traceUltimateStar(cx,cy,r,points=5) {
+  ctx.beginPath();
+  for (let i=0;i<points*2;i++) {
+    const theta=-Math.PI/2+i*Math.PI/points;
+    const size=i%2===0?r:r*.43;
+    const x=cx+Math.cos(theta)*size, y=cy+Math.sin(theta)*size;
+    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+}
+function drawUltimateStarGlyph(a, radius, q) {
+  const fade=Math.max(0,1-q);
+  const r=Math.max(18, radius*.72);
+  ctx.globalAlpha=fade*.19; ctx.fillStyle='#ffda49'; traceUltimateStar(a.x,a.y,r); ctx.fill();
+  ctx.globalAlpha=fade*.85; ctx.lineWidth=7-3*q; ctx.strokeStyle='#97620c'; traceUltimateStar(a.x,a.y,r); ctx.stroke();
+  ctx.globalAlpha=fade*.95; ctx.lineWidth=3.4-1.6*q; ctx.strokeStyle='#fff2a5'; traceUltimateStar(a.x,a.y,r); ctx.stroke();
+  for(let k=0;k<10;k++) {
+    const theta=k*Math.PI/5+q*.18, rr=r*(.75+q*.23);
+    const x=a.x+Math.cos(theta)*rr, y=a.y+Math.sin(theta)*rr;
+    ctx.globalAlpha=fade*.72; ctx.fillStyle=k%2?'#fff5d5':'#ffb621';
+    ctx.beginPath();ctx.arc(x,y,Math.max(2,4-q*2),0,Math.PI*2);ctx.fill();
+  }
+}
+function drawUltimatePawGlyph(a,radius,q) {
+  const fade=Math.max(0,1-q), r=Math.max(16,radius*.67);
+  ctx.save(); ctx.translate(a.x,a.y);
+  const pad=(x,y,rx,ry,angle=0)=>{ctx.beginPath();ctx.ellipse(x,y,rx,ry,angle,0,Math.PI*2);ctx.fill();ctx.stroke();};
+  ctx.globalAlpha=fade*.27; ctx.fillStyle='#ff75ae'; ctx.strokeStyle='#9e285a';ctx.lineWidth=Math.max(3,r*.025);
+  pad(0,r*.23,r*.44,r*.33);
+  for (const [x,y,ang] of [[-.52,-.29,-.22],[-.18,-.53,-.06],[.20,-.53,.06],[.54,-.29,.22]]) pad(x*r,y*r,r*.16,r*.22,ang);
+  ctx.globalAlpha=fade*.84; ctx.fillStyle='rgba(255,200,225,.36)';ctx.strokeStyle='#ffe3ed';ctx.lineWidth=Math.max(2,r*.014);
+  pad(0,r*.23,r*.44,r*.33);
+  for (const [x,y,ang] of [[-.52,-.29,-.22],[-.18,-.53,-.06],[.20,-.53,.06],[.54,-.29,.22]]) pad(x*r,y*r,r*.16,r*.22,ang);
+  ctx.restore();
+}
+function drawUltimateCogGlyph(a,radius,q) {
+  const fade=Math.max(0,1-q),r=Math.max(24,radius*.58);
+  ctx.save();ctx.translate(a.x,a.y);ctx.rotate(q*.65);
+  ctx.beginPath();
+  for (let k=0;k<12;k++) {
+    const ang=k*Math.PI/6; const rr=k%3===0?r:r*.78;
+    const x=Math.cos(ang)*rr,y=Math.sin(ang)*rr;
+    if(k===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.closePath();ctx.globalAlpha=fade*.19;ctx.fillStyle='#f04732';ctx.fill();
+  ctx.globalAlpha=fade*.87;ctx.strokeStyle='#8d2318';ctx.lineWidth=6;ctx.stroke();
+  ctx.globalAlpha=fade*.95;ctx.strokeStyle='#ffd5a6';ctx.lineWidth=2.7;ctx.stroke();
+  ctx.globalAlpha=fade*.71;ctx.strokeStyle='#ff7c45';ctx.lineWidth=4;
+  ctx.beginPath();ctx.arc(0,0,r*.28,0,Math.PI*2);ctx.stroke();ctx.restore();
+}
+function drawUltimateSnowflake(a,r,q) {
+  const fade=1-q, size=r*.57;
+  for(let i=0;i<6;i++) {
+    const angle=i*Math.PI/3;
+    const dx=Math.cos(angle),dy=Math.sin(angle),px=-dy,py=dx;
+    ctx.globalAlpha=fade*.94;ctx.strokeStyle=i%2?'#c8faff':'#319bbf';ctx.lineWidth=4.2;
+    ctx.beginPath();ctx.moveTo(a.x+dx*size*.08,a.y+dy*size*.08);ctx.lineTo(a.x+dx*size,a.y+dy*size);ctx.stroke();
+    for(const u of [.60,.82]) {
+      const x=a.x+dx*size*u,y=a.y+dy*size*u;
+      for(const sign of [-1,1]) {ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-dx*size*.12+px*sign*size*.12,y-dy*size*.12+py*sign*size*.12);ctx.stroke();}
+    }
+  }
+}
+function drawUltimateRoseGlyph(a,r,q) {
+  const fade=1-q,size=r*(.12+.55*q);
+  ctx.save();ctx.translate(a.x,a.y);ctx.rotate(q*.9);
+  for(let i=0;i<7;i++){
+    const t=i*Math.PI*2/7;
+    ctx.save();ctx.rotate(t);ctx.globalAlpha=fade*.24;ctx.fillStyle=i%2?'#f57cb7':'#eb3b7a';ctx.strokeStyle='#9b264e';ctx.lineWidth=2;
+    ctx.beginPath();ctx.ellipse(0,-size*.35,size*.27,size*.48,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
+  }
+  ctx.globalAlpha=fade*.78;ctx.fillStyle='#ffe0ed';ctx.beginPath();ctx.arc(0,0,size*.18,0,Math.PI*2);ctx.fill();ctx.restore();
+}
 function drawCharacterUltimateWorldFx(fx, q, a) {
   const ch=fx.character;
   const style=ULTIMATE_FX_STYLE[ch] || {color:fxCharacterColor(ch),dark:'#24303d'};
@@ -4102,7 +4262,41 @@ function drawCharacterUltimateWorldFx(fx, q, a) {
     ctx.beginPath(); ctx.arc(a.x,a.y,exact,0,Math.PI*2); ctx.fill();
   }
 
-  if (ch==='shield') {
+  if (ch==='blade') {
+    for(let k=0;k<4;k++) {
+      const start=phase*.28+k*Math.PI/2,rr=12+q*(25+k*5);
+      ctx.globalAlpha=fade*(.8-k*.11);ctx.strokeStyle=k%2?'#ff9cb7':'#a80c36';ctx.lineWidth=5-k*.7;
+      ctx.beginPath();ctx.arc(a.x,a.y,rr,start,start+1.0);ctx.stroke();
+    }
+    ctx.globalAlpha=fade*.19;ctx.fillStyle='#ad153c';ctx.beginPath();ctx.arc(a.x,a.y,15+q*24,0,Math.PI*2);ctx.fill();
+  } else if (ch==='star' && fx.phase==='resolve') {
+    drawUltimateStarGlyph(a,exact,q);
+  } else if (ch==='rescue' && fx.phase==='resolve') {
+    drawUltimatePawGlyph(a,exact,q);
+    ctx.globalAlpha=fade*.55;ctx.strokeStyle='#ff9dc2';ctx.lineWidth=5-3*q;
+    ctx.beginPath();ctx.arc(a.x,a.y,exact*(.1+.9*q),0,Math.PI*2);ctx.stroke();
+  } else if (ch==='mecha' && fx.phase==='resolve') {
+    drawUltimateCogGlyph(a,exact,q);
+  } else if (ch==='ice' && fx.phase==='resolve') {
+    drawUltimateSnowflake(a,exact,q);
+  } else if (ch==='iron' && fx.phase==='resolve') {
+    const crackR=exact*(.1+.65*q);
+    for (let k=0;k<12;k++) {
+      const angle=k*Math.PI/6+.15*Math.sin(k*3),outer=crackR*(.84+.12*(k%3));
+      ctx.globalAlpha=fade*.85;ctx.lineWidth=6-3*q;ctx.strokeStyle='#a65b06';
+      ctx.beginPath();ctx.moveTo(a.x,a.y);
+      ctx.lineTo(a.x+Math.cos(angle)*outer*.44,a.y+Math.sin(angle)*outer*.44);
+      ctx.lineTo(a.x+Math.cos(angle+.085)*outer*.7,a.y+Math.sin(angle+.085)*outer*.7);
+      ctx.lineTo(a.x+Math.cos(angle)*outer,a.y+Math.sin(angle)*outer);ctx.stroke();
+    }
+  } else if (ch==='flower' && fx.phase==='recipient') {
+    drawUltimateRoseGlyph(a,48,q);
+  } else if (ch==='rescue') {
+    // Only the server-authoritative burst emits the paw; never invent one at caster position.
+  } else if (ch==='star') {
+    for(let k=0;k<7;k++){const theta=k*Math.PI*2/7+phase*.15;
+      ctx.globalAlpha=fade*.65;ctx.fillStyle='#ffe76d';ctx.beginPath();ctx.arc(a.x+Math.cos(theta)*(12+q*38),a.y+Math.sin(theta)*(12+q*38),3.3,0,Math.PI*2);ctx.fill();}
+  } else if (ch==='shield') {
     for (let k=0;k<3;k++) {
       const rr=16+q*(18+k*6);
       ctx.globalAlpha=fade*(.76-k*.14); ctx.lineWidth=5-k; ctx.strokeStyle=k===0?dark:color;
@@ -4173,6 +4367,31 @@ function drawCharacterUltimateWorldFx(fx, q, a) {
     ctx.globalAlpha=fade*.82; ctx.strokeStyle=dark; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(a.x,a.y,rr,0,Math.PI*2); ctx.stroke();
     ctx.globalAlpha=fade*.98; ctx.strokeStyle=color; ctx.lineWidth=2.3; ctx.beginPath(); ctx.arc(a.x,a.y,rr,0,Math.PI*2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(a.x-rr-10,a.y); ctx.lineTo(a.x+rr+10,a.y); ctx.moveTo(a.x,a.y-rr-10); ctx.lineTo(a.x,a.y+rr+10); ctx.stroke();
+  } else if (ch==='magnet') {
+    for(let k=0;k<3;k++) {
+      const rr=14+q*(21+k*8),start=k*Math.PI*.7+phase*.35;
+      ctx.globalAlpha=fade*(.9-k*.18);ctx.strokeStyle=k%2?'#b4ebff':'#3a84c7';ctx.lineWidth=3.5;
+      ctx.beginPath();ctx.ellipse(a.x,a.y,rr,rr*.6,start,start+.3,start+Math.PI*1.65);ctx.stroke();
+    }
+    for(const sign of [-1,1]) {
+      ctx.globalAlpha=fade*.76;ctx.fillStyle=sign===1?'#f4848f':'#6bd2ff';
+      ctx.beginPath();ctx.arc(a.x+sign*(12+q*22),a.y,5*(1-q)+2,0,Math.PI*2);ctx.fill();
+    }
+  } else if (ch==='hacker') {
+    for(let k=0;k<16;k++) {
+      const angle=k*Math.PI/8,rr=(exact||45)*(.12+.86*q);
+      const px=a.x+Math.cos(angle)*rr,py=a.y+Math.sin(angle)*rr;
+      ctx.globalAlpha=fade*(.75+.18*(k%3));ctx.fillStyle=k%3===0?'#d1fffc':'#4c86ff';
+      const size=3+(k%3)*1.8;ctx.fillRect(px-size/2,py-size/2,size,size);
+    }
+    ctx.globalAlpha=fade*.7;ctx.strokeStyle='#7be3fa';ctx.lineWidth=2.4;
+    ctx.setLineDash([5,7]);ctx.beginPath();ctx.arc(a.x,a.y,(exact||45)*(.15+.85*q),0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  } else if (ch==='poison') {
+    for(let k=0;k<11;k++){
+      const theta=k*Math.PI*2/11+q*.55,rr=10+q*(25+(k%3)*7);
+      ctx.globalAlpha=fade*.7;ctx.fillStyle=k%3?'#b879ea':'#f4e8ff';
+      ctx.beginPath();ctx.arc(a.x+Math.cos(theta)*rr,a.y+Math.sin(theta)*rr,2+(k%3),0,Math.PI*2);ctx.fill();
+    }
   } else if (ch==='jet' || ch==='runner') {
     for (let k=0;k<4;k++) {
       const rr=10+q*(20+k*8), st=phase*.45+k*1.45;
@@ -4186,6 +4405,13 @@ function drawCharacterUltimateWorldFx(fx, q, a) {
       ctx.beginPath(); ctx.arc(a.x+Math.cos(ang)*rr,a.y+Math.sin(ang)*rr,k%2?3:4.5,0,Math.PI*2); ctx.fill();
     }
     ctx.globalAlpha=fade*.92; ctx.strokeStyle=color; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(a.x,a.y,9+q*25,0,Math.PI*2); ctx.stroke();
+  } else if (ch==='drain') {
+    for(let k=0;k<6;k++){
+      const theta=k*Math.PI/3+phase*.26,rr=12+q*34;
+      ctx.save();ctx.translate(a.x+Math.cos(theta)*rr,a.y+Math.sin(theta)*rr);ctx.rotate(theta);
+      ctx.globalAlpha=fade*.84;ctx.strokeStyle='#e22852';ctx.lineWidth=2.8;
+      ctx.beginPath();ctx.moveTo(-8,0);ctx.quadraticCurveTo(-4,-8,0,-2);ctx.quadraticCurveTo(4,-8,8,0);ctx.stroke();ctx.restore();
+    }
   } else if (ch==='spray') {
     for (let k=0;k<12;k++) {
       const ang=k*Math.PI/6+phase*.12, r1=8+q*9, r2=18+q*(24+(k%3)*5);
@@ -4205,6 +4431,90 @@ function drawCharacterUltimateWorldFx(fx, q, a) {
   }
 }
 
+function drawSustainedUltimateAura(p,x,y,radius,nowMs) {
+  const char=p.character,active=Number(p.ultimateActiveMs||0)>0;
+  const phase=nowMs*.0045, pulse=.74+.26*Math.sin(phase*3);
+  if (!active || ['angel','iron','star','ice','dia','water','hacker','shield','rescue','light','laser'].includes(char)) return;
+  const style=ULTIMATE_FX_STYLE[char]||{color:fxCharacterColor(char),dark:'#263041'};
+  ctx.save();
+  if (char==='blade') {
+    // Dense crimson afterglow persists for exactly the Dragonblade timer.
+    ctx.globalAlpha=.16*pulse;ctx.fillStyle='#c41545';ctx.beginPath();ctx.arc(x,y,radius+19,0,Math.PI*2);ctx.fill();
+    for(let k=0;k<5;k++){
+      const th=k*Math.PI*2/5+phase,rr=radius+14+6*Math.sin(phase*2+k);
+      ctx.globalAlpha=.48+.22*pulse;ctx.strokeStyle=k%2?'#ff466f':'#a81039';ctx.lineWidth=3.5;
+      ctx.beginPath();ctx.arc(x,y,rr,th,th+.66);ctx.stroke();
+    }
+  } else if (char==='solar') {
+    ctx.globalAlpha=.21*pulse;ctx.fillStyle='#ffd34c';ctx.beginPath();ctx.arc(x,y,radius+20,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=.9;ctx.strokeStyle='#efb72d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,radius+14,0,Math.PI*2);ctx.stroke();
+    for(let k=0;k<8;k++){const th=k*Math.PI/4+phase*.1;ctx.beginPath();ctx.moveTo(x+Math.cos(th)*(radius+18),y+Math.sin(th)*(radius+18));ctx.lineTo(x+Math.cos(th)*(radius+27),y+Math.sin(th)*(radius+27));ctx.stroke();}
+  } else if (char==='magnet') {
+    for(let k=0;k<2;k++){ctx.globalAlpha=.82-k*.22;ctx.strokeStyle=k?'#90d9ff':'#3975b4';ctx.lineWidth=3;
+      ctx.beginPath();ctx.ellipse(x,y,radius+13+k*7,radius+7+k*5,phase*.45+k,0,Math.PI*2);ctx.stroke();}
+  } else if (char==='jet') {
+    for(let k=0;k<3;k++){const th=phase+k*Math.PI*2/3;
+      ctx.globalAlpha=.65;ctx.strokeStyle='#a8ebff';ctx.lineWidth=3;
+      ctx.beginPath();ctx.moveTo(x+Math.cos(th)*(radius+6),y+Math.sin(th)*(radius+6));ctx.lineTo(x+Math.cos(th)*(radius+23),y+Math.sin(th)*(radius+23));ctx.stroke();}
+  } else if (char==='wind') {
+    for(let k=0;k<5;k++){const th=phase*.35+k*Math.PI*2/5;
+      ctx.globalAlpha=.63;ctx.strokeStyle=k%2?'#86e6a7':'#138f5c';ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(x,y,radius+13+k%2*6,th,th+.65);ctx.stroke();}
+  } else if (char==='reactor') {
+    for(let k=0;k<6;k++){const th=k*Math.PI/3+phase*.6;
+      ctx.globalAlpha=.65+.2*pulse;ctx.fillStyle=k%2?'#fff1b8':'#f47d33';
+      ctx.beginPath();ctx.arc(x+Math.cos(th)*(radius+15),y+Math.sin(th)*(radius+15),3,0,Math.PI*2);ctx.fill();}
+  } else if (char==='drain') {
+    for(let k=0;k<3;k++){const th=phase*.3+k*Math.PI*2/3;
+      const bx=x+Math.cos(th)*(radius+19),by=y+Math.sin(th)*(radius+19);
+      ctx.globalAlpha=.74;ctx.strokeStyle='#e22852';ctx.lineWidth=2.3;
+      ctx.beginPath();ctx.moveTo(bx-5,by);ctx.quadraticCurveTo(bx-2,by-6,bx,by-2);ctx.quadraticCurveTo(bx+2,by-6,bx+5,by);ctx.stroke();}
+  } else if (char==='shooter'||char==='sniper'||char==='cannon'||char==='fire'||char==='spray'||char==='buffer'||char==='poison'||char==='witch'||char==='mecha') {
+    ctx.globalAlpha=.18*pulse;ctx.fillStyle=style.color;ctx.beginPath();ctx.arc(x,y,radius+15,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=.76;ctx.strokeStyle=style.color;ctx.lineWidth=2.6;
+    const arms=char==='spray'?8:(char==='cannon'?4:6);
+    for(let k=0;k<arms;k++){const th=k*Math.PI*2/arms+phase*.35;
+      ctx.beginPath();ctx.arc(x,y,radius+12,th,th+.32);ctx.stroke();}
+  }
+  ctx.restore();
+}
+function drawUltimateRecipientAuras(p,x,y,radius,nowMs) {
+  for(const ch of ['angel','flower','shield']) {
+    const key=`${ch}:${p.id}`;
+    const end=ultimateRecipientFx.get(key)||0;
+    if(end<=nowMs){if(end)ultimateRecipientFx.delete(key);continue;}
+    if(ch==='angel'&&!p.invulnerable) continue;
+    if(ch==='shield'&&!(Number(p.shield||0)>0))continue;
+    const phase=nowMs*.004, pulse=.78+.18*Math.sin(phase*3);
+    ctx.save();
+    if(ch==='angel') {
+      ctx.globalAlpha=.15*pulse;ctx.fillStyle='#ffe85c';ctx.beginPath();ctx.arc(x,y,radius+18,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=.98;ctx.strokeStyle='#ffed84';ctx.lineWidth=3.8;
+      ctx.beginPath();ctx.ellipse(x,y-radius-20,14,5,0,0,Math.PI*2);ctx.stroke();
+      for(let sign of [-1,1]){ctx.beginPath();ctx.moveTo(x+sign*radius*.65,y-1);ctx.quadraticCurveTo(x+sign*(radius+26),y-26,x+sign*(radius+29),y+9);ctx.stroke();}
+    } else if(ch==='flower'){
+      ctx.globalAlpha=.23*pulse;ctx.fillStyle='#f05494';ctx.beginPath();ctx.arc(x,y,radius+16,0,Math.PI*2);ctx.fill();
+      for(let k=0;k<6;k++){const th=phase*.32+k*Math.PI/3,rr=radius+15+5*Math.sin(phase+k);
+        ctx.globalAlpha=.9;ctx.fillStyle=k%2?'#ffb5d1':'#e95e91';ctx.beginPath();ctx.ellipse(x+Math.cos(th)*rr,y+Math.sin(th)*rr,4,6,th,0,Math.PI*2);ctx.fill();}
+    }else if(ch==='shield'){
+      ctx.globalAlpha=.13*pulse;ctx.fillStyle='#2989ed';traceRegularPolygon(x,y,radius+13,6,Math.PI/6);ctx.fill();
+      ctx.globalAlpha=.82;ctx.lineWidth=3.2;ctx.strokeStyle='#8dc4ff';traceRegularPolygon(x,y,radius+12,6,Math.PI/6);ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+// A supernatural *flat energy plane* traverses the attack fan. Odd hits travel
+// left-to-right and even hits travel right-to-left; no blade/weapon is depicted.
+// Geometry is visual-only: the authoritative hit is resolved at the attack instant.
+function bladeSlashSweepAngle(fx, q) {
+  const facing = Math.atan2(Number(fx.dy) || 0, Number(fx.dx) || 1);
+  const half = (Number(fx.angleDeg) || 60) * Math.PI / 360;
+  const direction = Number(fx.sweepDirection) === -1 ? -1 : 1;
+  const t = Math.max(0, Math.min(1, Number(q) / 0.85));
+  const eased = t * t * (3 - 2 * t);
+  return facing + direction * half * (2 * eased - 1);
+}
+
 function drawWorldFx(nowMs) {
   for (let i=worldFx.length-1;i>=0;i--) {
     const fx=worldFx[i];
@@ -4213,7 +4523,63 @@ function drawWorldFx(nowMs) {
     const a=worldToScreen(fx.x,fx.y);
     const c=fxCharacterColor(fx.character);
     ctx.save();
-    if (fx.type === 'diaExplosion') {
+    if (fx.type === 'bladeSlash') {
+      // A narrow transparent red *sheet* swings bodily through the 60° cone.
+      // There is deliberately NO stationary sector fill and NO sword-shaped object.
+      // Every attack flips direction: left -> right -> left -> right ...
+      const range = Number(fx.rangeWorld) || 4;
+      const powered = !!fx.powered;
+      const direction = Number(fx.sweepDirection) === -1 ? -1 : 1;
+      const angle = bladeSlashSweepAngle(fx, q);
+      const widthAngle = powered ? 0.11 : 0.085;
+      const innerRadius = 0.38;
+      const fade = Math.min(1, (1 - q) / 0.20);
+      const pointAt = (radius, theta) => worldToScreen(
+        fx.x + Math.cos(theta) * radius,
+        fx.y + Math.sin(theta) * radius
+      );
+      const drawSheet = (theta, alpha, widthScale = 1) => {
+        const spread = widthAngle * widthScale;
+        const innerL = pointAt(innerRadius, theta - spread);
+        const innerR = pointAt(innerRadius, theta + spread);
+        const outerL = pointAt(range, theta - spread);
+        const outerR = pointAt(range, theta + spread);
+        const outerM = pointAt(range * 1.045, theta);
+        ctx.beginPath();
+        ctx.moveTo(innerL.x, innerL.y);
+        ctx.lineTo(outerL.x, outerL.y);
+        ctx.quadraticCurveTo(outerM.x, outerM.y, outerR.x, outerR.y);
+        ctx.lineTo(innerR.x, innerR.y);
+        ctx.closePath();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = powered ? '#ba0036' : '#e84666';
+        ctx.fill();
+        ctx.globalAlpha = alpha * 0.95;
+        ctx.lineWidth = powered ? 2.8 : 2.0;
+        ctx.strokeStyle = powered ? '#fb769b' : '#af2447';
+        ctx.stroke();
+      };
+      // Translucent afterimages make travel direction legible at ordinary 60fps.
+      for (let echo = 3; echo >= 1; echo--) {
+        const echoAngle = angle - direction * echo * 0.065;
+        drawSheet(echoAngle, fade * (powered ? 0.19 : 0.085), 1 + echo * 0.20);
+      }
+      drawSheet(angle, fade * (powered ? 0.73 : 0.44));
+      // The luminous leading face moves together with the sheet, not around
+      // the entire wedge. It should read as the edge of a planar force field.
+      const frontTheta = angle + direction * widthAngle;
+      const inner = pointAt(innerRadius, frontTheta);
+      const outer = pointAt(range, frontTheta);
+      ctx.beginPath();ctx.moveTo(inner.x,inner.y);ctx.lineTo(outer.x,outer.y);
+      ctx.globalAlpha = fade * (powered ? 0.95 : 0.84);
+      ctx.strokeStyle = powered ? '#fff2fa' : '#ffd9e5';
+      ctx.lineWidth = powered ? 5.3 : 3.7;
+      ctx.stroke();
+      ctx.globalAlpha = fade * (powered ? 0.48 : 0.35);
+      ctx.strokeStyle = '#ff2458';
+      ctx.lineWidth = powered ? 10 : 7;
+      ctx.stroke();
+    } else if (fx.type === 'diaExplosion') {
       const fullRadius = (Number(fx.radiusWorld)||16) * SCALE;
       const r = fullRadius * Math.min(1, q*.95+.05);
       ctx.globalAlpha=(1-q)*.35; ctx.fillStyle='#36bfff'; ctx.beginPath();ctx.arc(a.x,a.y,r,0,Math.PI*2);ctx.fill();
@@ -4704,6 +5070,16 @@ function renderGame() {
       ctx.beginPath();ctx.arc(0,0,r,Math.PI*.4,Math.PI*1.6,false);ctx.lineTo(r*.37, -r*.29);ctx.arc(0,0,r*.44,Math.PI*1.6,Math.PI*.4,true);ctx.closePath();ctx.fill();ctx.stroke();
       ctx.restore();continue;
     }
+    if (p.ultimateProjectile && ['shooter','sniper','cannon','reactor'].includes(p.character)) {
+      // Server snapshots retain the projectile's ultimate state at launch.
+      const length=p.character==='sniper'?30:18;
+      const vx=Number(p.vx)||0,vy=Number(p.vy)||0,velocity=Math.hypot(vx,vy)||1;
+      const dx=vy/velocity,dy=vx/velocity; // screen axes are transposed vs world axes
+      ctx.save();ctx.lineCap='round';ctx.globalAlpha=.54;
+      ctx.strokeStyle=p.character==='sniper'?'#bd8be8':(p.character==='reactor'?'#ff963b':(p.character==='cannon'?'#ffbc48':'#70baff'));
+      ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-dx*length,s.y-dy*length);ctx.stroke();
+      ctx.globalAlpha=.9;ctx.strokeStyle='#fff9e5';ctx.lineWidth=1.6;ctx.stroke();ctx.restore();
+    }
     if (p.character === 'flower' && p.type !== 'heal') {
       // Thorn-shaped projectile is visual only: server collision radius remains unchanged.
       const angle=Math.atan2(Number(p.vy)||0,Number(p.vx)||1);
@@ -4808,6 +5184,15 @@ function renderGame() {
     const tokenSize = tokenImg ? Math.max(30, Math.min(58, hitRadius * 3.65 * Number(art?.renderScale || 1))) : 0;
     // `radius` below is a visual radius used by rings/labels. Server hit/collision radius remains `hitRadius`.
     const radius = tokenImg ? Math.max(hitRadius, tokenSize/2) : hitRadius;
+    // Persistent unique ultimate glows stay under the actor so chibi silhouettes remain legible.
+    drawSustainedUltimateAura(p,x,y,radius,beamFxNow);
+    const empoweredBuffer=viewState.players.find(other=>other.alive && other.character==='buffer' && other.team===p.team &&
+      other.bufferLinkActive && other.bufferTargetId===p.id && Number(other.ultimateActiveMs||0)>0);
+    if (empoweredBuffer) {
+      ctx.save();ctx.strokeStyle='#ad73f4';ctx.lineWidth=3;ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.008);
+      traceRegularPolygon(x,y,radius+14,6,beamFxNow*.001);ctx.stroke();ctx.restore();
+    }
+    drawUltimateRecipientAuras(p,x,y,radius,beamFxNow);
     // Faint body disc shows the true server hitbox footprint underneath the larger chibi art.
     ctx.save(); ctx.globalAlpha=tokenImg ? .16 : 1; ctx.fillStyle=characterFill;
     ctx.beginPath(); ctx.arc(x,y,hitRadius,0,Math.PI*2); ctx.fill(); ctx.restore();
@@ -4815,10 +5200,13 @@ function renderGame() {
       ctx.save();
       if (p.character === 'hacker' && p.stealthed && p.id === myId) ctx.globalAlpha = 0.42;
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(tokenImg, x-tokenSize/2, y-tokenSize/2, tokenSize, tokenSize);
+      const tokenRect = art.tokenRect;
+      ctx.drawImage(tokenImg, tokenRect.x, tokenRect.y, tokenRect.width, tokenRect.height,
+        x-tokenSize/2, y-tokenSize/2, tokenSize, tokenSize);
       if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
         ctx.globalAlpha=.52; ctx.filter='brightness(1.9) saturate(.35)';
-        ctx.drawImage(tokenImg, x-tokenSize/2, y-tokenSize/2, tokenSize, tokenSize);
+        ctx.drawImage(tokenImg, tokenRect.x, tokenRect.y, tokenRect.width, tokenRect.height,
+          x-tokenSize/2, y-tokenSize/2, tokenSize, tokenSize);
       }
       ctx.restore();
     } else if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {
@@ -5168,7 +5556,7 @@ function renderGame() {
     }
 
     const ability = $('abilityButton');
-    const hasAbility = ['dia','runner','wind','angel','shield','jet','magnet','flower','witch','hacker','rescue'].includes(me.character);
+    const hasAbility = ['dia','runner','wind','angel','shield','jet','magnet','flower','blade','witch','hacker','rescue'].includes(me.character);
     ability.classList.toggle('hidden', !hasAbility);
     const actionButtons = $('actionButtons');
     actionButtons.classList.toggle('hidden', !hasAbility && ultCost <= 0);
@@ -5201,6 +5589,13 @@ function renderGame() {
       if (!me.alive) { ability.textContent = '🧲 부활 대기'; ability.disabled=true; }
       else if (me.newAbilityCooldownMs > 0) { ability.textContent = `🧲 쿨 ${(me.newAbilityCooldownMs/1000).toFixed(1)}초`; ability.disabled=true; }
       else { ability.textContent = '🧲 자석 · Space'; ability.disabled=false; }
+      ability.classList.remove('active');
+    } else if (me.character === 'blade') {
+      const count=Math.max(0, Number(me.bladeDashCharges)||0);
+      const max=Number(characterPublicDef('blade')?.bladeDashMaxCharges)||2;
+      if (!me.alive) { ability.textContent = '⚡ 부활 대기'; ability.disabled = true; }
+      else if (count<=0) { ability.textContent = `⚡ 충전 0/${max} · ${((me.bladeDashRechargeMs||0)/1000).toFixed(1)}초`; ability.disabled = true; }
+      else { ability.textContent = `⚡ 돌격 · ${count}/${max}`; ability.disabled = false; }
       ability.classList.remove('active');
     } else if (me.character === 'shield') {
       const target = viewState.players.find(p => p.id === selectedTargetId && p.alive);

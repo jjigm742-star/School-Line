@@ -491,6 +491,115 @@ function buildCharacterUltimateSection(id) {
   return `<div class="character-ultimate-section"><div class="character-ultimate-title">궁극기 설명</div><div class="character-ultimate-name">⚡ ${escapeHtml(ult.name)} <span>충전 ${escapeHtml(ult.cost)}</span></div><div class="character-ultimate-description">${escapeHtml(ult.effect)}</div><div class="character-guide-control"><b>사용법</b> ${escapeHtml(ult.control)}</div></div>`;
 }
 
+// 1.13 UI hotfix: draft/lobby quick guide. All gameplay numbers and descriptions
+// come from the server-supplied public definitions used by the full guide.
+let characterQuickGuidePinned = false;
+let characterQuickGuideAnchor = null;
+function characterQuickGuideElement() {
+  let panel = document.getElementById('characterQuickGuide');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'characterQuickGuide';
+    panel.className = 'character-quick-guide hidden';
+    panel.setAttribute('role', 'tooltip');
+    document.body.appendChild(panel);
+  }
+  return panel;
+}
+function characterQuickGuideHtml(id) {
+  const meta = CHARACTER_META[id];
+  if (!meta) return '';
+  const def = characterPublicDef(id);
+  const ability = characterAbilityGuide(id);
+  const ultimate = characterUltimateGuide(id);
+  const name = escapeHtml(def?.name || meta.name);
+  const role = escapeHtml(def?.role || meta.role);
+  const attack = escapeHtml(buildCharacterMechanic(id, meta.summary));
+  const abilityHtml = ability
+    ? `<b class="quick-guide-skill-name">✦ ${escapeHtml(ability.name)}</b><p>${escapeHtml(ability.effect)}</p><small>사용: ${escapeHtml(ability.control)}</small>`
+    : `<p>별도의 일반 능력이 없습니다.</p>`;
+  const ultimateHtml = ultimate
+    ? `<b class="quick-guide-skill-name">⚡ ${escapeHtml(ultimate.name)} <span class="quick-guide-cost">충전 ${escapeHtml(ultimate.cost)}</span></b><p>${escapeHtml(ultimate.effect)}</p><small>사용: ${escapeHtml(ultimate.control)}</small>`
+    : `<p>궁극기가 없습니다.</p>`;
+  return `<div class="quick-guide-heading"><strong>${meta.icon} ${name}</strong><span>${role}</span><button class="quick-guide-close" type="button" aria-label="캐릭터 설명 닫기">✕</button></div>
+    <div class="quick-guide-mechanic">${attack}</div>
+    <section><div class="quick-guide-section-title">일반 능력</div>${abilityHtml}</section>
+    <section><div class="quick-guide-section-title">궁극기</div>${ultimateHtml}</section>`;
+}
+function placeCharacterQuickGuide(anchor) {
+  if (!anchor || !anchor.isConnected) return;
+  const panel = characterQuickGuideElement();
+  if (characterQuickGuidePinned) return;
+  const rect = anchor.getBoundingClientRect();
+  const width = Math.min(390, Math.max(280, window.innerWidth - 24));
+  panel.style.width = `${width}px`;
+  panel.style.transform = '';
+  const left = rect.right + 12 + width <= window.innerWidth - 8
+    ? rect.right + 12
+    : rect.left - 12 - width >= 8 ? rect.left - 12 - width
+    : Math.max(8, (window.innerWidth - width) / 2);
+  panel.style.left = `${left}px`;
+  // Keep the full guide readable instead of clipping it at the bottom of the draft list.
+  panel.style.top = `${Math.max(8, Math.min(rect.top, window.innerHeight - panel.offsetHeight - 8))}px`;
+}
+function hideCharacterQuickGuide(force=false) {
+  if (characterQuickGuidePinned && !force) return;
+  const panel = document.getElementById('characterQuickGuide');
+  if (panel) {
+    panel.classList.add('hidden');
+    panel.classList.remove('pinned');
+    panel.style.transform = '';
+    panel.removeAttribute('aria-modal');
+    panel.setAttribute('role', 'tooltip');
+  }
+  characterQuickGuidePinned = false;
+  characterQuickGuideAnchor = null;
+}
+function showCharacterQuickGuide(id, anchor, pinned=false) {
+  if (characterQuickGuidePinned && !pinned) return;
+  const panel = characterQuickGuideElement();
+  panel.innerHTML = characterQuickGuideHtml(id);
+  if (!panel.innerHTML) return;
+  characterQuickGuidePinned = pinned;
+  characterQuickGuideAnchor = anchor;
+  panel.classList.toggle('pinned', pinned);
+  panel.classList.remove('hidden');
+  panel.setAttribute('role', pinned ? 'dialog' : 'tooltip');
+  if (pinned) {
+    panel.setAttribute('aria-modal', 'true');
+    panel.style.width = '';
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.transform = '';
+  } else {
+    panel.removeAttribute('aria-modal');
+    placeCharacterQuickGuide(anchor);
+  }
+  panel.querySelector('.quick-guide-close').onclick = () => hideCharacterQuickGuide(true);
+}
+function wireCharacterQuickGuideHover(element, id) {
+  element.addEventListener('pointerenter', e => {
+    if (e.pointerType === 'mouse' || e.pointerType === 'pen') showCharacterQuickGuide(id, element);
+  });
+  element.addEventListener('pointerleave', () => {
+    if (characterQuickGuideAnchor === element) hideCharacterQuickGuide();
+  });
+  element.addEventListener('focusin', e => {
+    if (!characterQuickGuidePinned && e.target.classList.contains('draft-char-card')) showCharacterQuickGuide(id, element);
+  });
+  element.addEventListener('focusout', e => {
+    if (!element.contains(e.relatedTarget) && characterQuickGuideAnchor === element) hideCharacterQuickGuide();
+  });
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') hideCharacterQuickGuide(true);
+});
+document.addEventListener('pointerdown', e => {
+  const panel = document.getElementById('characterQuickGuide');
+  if (characterQuickGuidePinned && panel && !panel.contains(e.target) && !e.target.closest('.draft-char-info')) hideCharacterQuickGuide(true);
+}, true);
+window.addEventListener('resize', () => hideCharacterQuickGuide(true));
+
 function buildCharacterDetailHtml(id, {taken=false}={}) {
   const m = CHARACTER_META[id];
   if (!m) return '<p>캐릭터 정보가 없습니다.</p>';
@@ -604,6 +713,7 @@ function renderPicker(kind) {
       renderPicker(kind);
       if (kind === 'lobby') selectLobbyCharacter(id);
     };
+    wireCharacterQuickGuideHover(btn, id);
     choices.appendChild(btn);
   }
 
@@ -2114,6 +2224,7 @@ $('inGameCharacterGuideOverlay').addEventListener('click', e => {
 });
 
 function show(which) {
+  if (which !== 'draft' && which !== 'lobby') hideCharacterQuickGuide(true);
   if (which !== 'game') closeInGameCharacterGuide();
   joinScreen.classList.toggle('hidden', which !== 'join');
   lobbyScreen.classList.toggle('hidden', which !== 'lobby');
@@ -3253,6 +3364,7 @@ function draftCardState(id, comp) {
   return { locked:false, cls:'', text:'' };
 }
 function renderDraftCharacterGrid(comp) {
+  hideCharacterQuickGuide(true);
   const root = $('draftCharacterGrid');
   root.innerHTML = '';
   const me = !spectatorMode ? playerFromState(myId) : null;
@@ -3287,7 +3399,23 @@ function renderDraftCharacterGrid(comp) {
           else if (comp.phase === 'pick') ws.send(JSON.stringify({ type:'draft_pick', character:id }));
         };
       }
-      cards.appendChild(btn);
+      const cell = document.createElement('div');
+      cell.className = 'draft-char-cell';
+      cell.appendChild(btn);
+      const info = document.createElement('button');
+      info.type = 'button';
+      info.className = 'draft-char-info';
+      info.textContent = 'ⓘ';
+      info.setAttribute('aria-label', `${characterPublicDef(id)?.name || m.name} 일반 능력 및 궁극기 설명 보기`);
+      info.addEventListener('pointerdown', e => e.stopPropagation());
+      info.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        showCharacterQuickGuide(id, cell, true);
+      });
+      cell.appendChild(info);
+      wireCharacterQuickGuideHover(cell, id);
+      cards.appendChild(cell);
     }
     section.appendChild(title);
     section.appendChild(cards);
@@ -3447,13 +3575,13 @@ function renderCompetitiveDraft() {
     $('draftPhaseSubtitle').textContent = '팀원 4명이 10초 동안 투표합니다. 최다득표 캐릭터가 밴되며 동률이면 공동 1위 후보 중 무작위로 결정됩니다.';
     if (me?.team === comp.activeBanTeam) $('draftNotice').textContent = '우리 팀 밴 차례입니다. 원하는 캐릭터를 눌러 투표하세요. 제한시간 안에는 언제든 표를 바꿀 수 있습니다.';
     else $('draftNotice').textContent = `${comp.activeBanTeam}팀이 밴 투표 중입니다. 상대 팀의 실시간 표는 공개되지 않습니다.`;
-    $('draftHelp').textContent = '한 팀당 1밴, 총 2밴입니다. 표가 하나도 없으면 선택 가능한 캐릭터 중 무작위 밴됩니다.';
+    $('draftHelp').textContent = '캐릭터에 마우스를 올리거나 ⓘ를 누르면 일반 능력과 궁극기를 확인할 수 있습니다. 한 팀당 1밴, 총 2밴입니다.';
   } else {
     const picker = playerFromState(comp.currentPickerId);
     $('draftPhaseTitle').textContent = `${picker?.team === 'A' ? '🔵' : '🔴'} ${escapeHtml(picker?.name || '플레이어')}의 픽`;
     $('draftPhaseSubtitle').textContent = '스네이크 순서: 선픽 1 → 후픽 2 → 선픽 2 → 후픽 2 → 선픽 1. 밴·픽된 캐릭터는 양 팀 모두 다시 고를 수 없습니다.';
     $('draftNotice').textContent = comp.currentPickerId === myId ? '내 픽 차례입니다. 우리 팀이 확보할 캐릭터 1명을 선택하세요.' : `${escapeHtml(picker?.name || '현재 플레이어')}의 선택을 기다리는 중입니다.`;
-    $('draftHelp').textContent = '10초 안에 선택하지 않으면 현재 선택 가능한 딜러 중 1명이 자동으로 픽됩니다.';
+    $('draftHelp').textContent = '마우스를 올리거나 ⓘ를 눌러 일반 능력·궁극기를 확인하세요. 10초 안에 픽하지 않으면 딜러 1명이 자동 선택됩니다.';
   }
   renderDraftCharacterGrid(comp);
 }
@@ -5201,6 +5329,11 @@ function renderGame() {
       if (p.character === 'hacker' && p.stealthed && p.id === myId) ctx.globalAlpha = 0.42;
       ctx.imageSmoothingEnabled = true;
       const tokenRect = art.tokenRect;
+      // Clip both the artwork AND its white background to the circular token.
+      // This is visual-only: server hitbox and surrounding team/ultimate rings are unchanged.
+      ctx.beginPath();
+      ctx.arc(x, y, tokenSize/2, 0, Math.PI*2);
+      ctx.clip();
       ctx.drawImage(tokenImg, tokenRect.x, tokenRect.y, tokenRect.width, tokenRect.height,
         x-tokenSize/2, y-tokenSize/2, tokenSize, tokenSize);
       if ((playerHitFlashUntil.get(p.id)||0) > beamFxNow) {

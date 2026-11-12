@@ -775,3 +775,26 @@ body.latest-patch-open { overflow:hidden; }
   62%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1.03)} }
 @media (prefers-reduced-motion:reduce) { .local-ultimate-reveal.playing { animation:localUltimateReveal .52s linear both; }
   @keyframes localUltimateReveal { 0%{opacity:0} 15%{opacity:1} 70%{opacity:1} 100%{opacity:0} } }
+
+
+/* 1.13 UI hotfix: cursor / keyboard draft guide and touch info button. */
+.draft-char-cell { position:relative; min-width:0; }
+.draft-char-cell > .draft-char-card { width:100%; height:100%; padding-right:25px; }
+.draft-char-info { position:absolute; top:6px; right:6px; z-index:2; width:23px; height:23px; min-height:23px; padding:0; border-radius:50%; border:1px solid rgba(168,192,236,.65); background:#253b57; color:#e9f3ff; font-size:15px; font-weight:900; line-height:1; display:grid; place-items:center; cursor:pointer; }
+.draft-char-info:hover, .draft-char-info:focus-visible { background:#476a9a; outline:2px solid rgba(203,229,255,.65); }
+.character-quick-guide { position:fixed; z-index:760; width:390px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 16px); overflow-y:auto; overflow-wrap:anywhere; padding:14px 15px; border:1px solid #7896bf; border-radius:15px; background:rgba(14,23,36,.985); color:#eaf2ff; box-shadow:0 18px 48px rgba(0,0,0,.6); pointer-events:none; font-size:12px; line-height:1.48; }
+.character-quick-guide.hidden { display:none !important; }
+.quick-guide-heading { display:flex; gap:9px; align-items:center; margin-bottom:9px; }
+.quick-guide-heading strong { font-size:16px; font-weight:950; }
+.quick-guide-heading span { margin-left:auto; color:#b6c9e6; font-weight:800; white-space:nowrap; }
+.quick-guide-close { display:none; padding:1px 7px; border:1px solid #4d6483; border-radius:7px; background:#23334b; color:white; }
+.quick-guide-mechanic { padding:8px 10px; border-radius:8px; background:#16283d; color:#c7d9ed; margin-bottom:9px; }
+.character-quick-guide section { padding:8px 0; border-top:1px solid rgba(149,178,218,.25); }
+.quick-guide-section-title { font-size:11px; color:#96b6eb; font-weight:900; margin-bottom:4px; }
+.quick-guide-skill-name { font-size:13px; color:#fff4c7; }
+.quick-guide-cost { color:#f8c36a; font-size:11px; }
+.character-quick-guide p { margin:4px 0 5px; color:#eff4fa; }
+.character-quick-guide small { display:block; color:#a4bedb; font-size:11px; }
+.character-quick-guide.pinned { left:50%; top:50%; transform:translate(-50%,-50%) !important; width:min(440px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); pointer-events:auto; box-shadow:0 0 0 200vmax rgba(1,6,14,.72),0 15px 50px rgba(0,0,0,.6); }
+.character-quick-guide.pinned .quick-guide-close { display:block; cursor:pointer; }
+@media(max-width:520px) { .character-quick-guide { padding:11px 12px; font-size:11px; } .quick-guide-heading strong { font-size:14px; } .character-quick-guide p { font-size:11px; } }

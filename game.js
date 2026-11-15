@@ -37,7 +37,7 @@ const CHARACTER_META = {
   drain:   { role:'딜러', name:'드레인', icon:'🩸', summary:'공격을 적중시키며 자신을 치유하는 흡혈 딜러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.13-slim-atlas-v2';
+const VISUAL_ASSET_VERSION = '1.13-school-skins-2';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
 // 1.13 SLIM: one atlas per visual class, not 58 separately hosted files.
@@ -70,6 +70,60 @@ const CHARACTER_ART = Object.freeze(Object.fromEntries(
 ));
 const CHARACTER_PORTRAIT_ATLAS = new Image();
 const CHARACTER_TOKEN_ATLAS = new Image();
+let skinCatalog = [];
+const skinDefinitions = new Map();
+const skinPreviewSources = new Map();
+async function loadSkinCatalog() {
+  try {
+    const response=await fetch('/skins.json',{cache:'no-store'});
+    if(!response.ok) throw new Error('catalog');
+    const items=await response.json();
+    skinCatalog=Array.isArray(items)?items:[];
+    skinDefinitions.clear();skinPreviewSources.clear();
+    for(const skin of skinCatalog){
+      if(!skin?.id || !Number.isInteger(skin.tokenIndex) || skin.tokenIndex < CHARACTER_ATLAS_IDS.length) continue;
+      skinDefinitions.set(skin.id,skin);
+    }
+    if(typeof renderSchoolShop==='function') renderSchoolShop();
+    if(state?.state==='ready'){lastCompetitiveRenderKey=null;renderCompetitiveDraft();}
+  } catch(err){console.warn('[shop] catalog unavailable',err);}
+}
+// All skins reuse the existing character token atlas; no per-skin image requests.
+// Base sprites occupy indices 0-28; skin recolors start at 29.
+function skinTokenRect(skin) {
+  if (!skin || !Number.isInteger(skin.tokenIndex) || skin.tokenIndex < CHARACTER_ATLAS_IDS.length) return null;
+  const index=skin.tokenIndex;
+  if (CHARACTER_TOKEN_ATLAS.naturalHeight &&
+      (Math.floor(index / CHARACTER_ATLAS_COLUMNS)+1)*CHARACTER_TOKEN_CELL.height > CHARACTER_TOKEN_ATLAS.naturalHeight) return null;
+  return {
+    x:(index%CHARACTER_ATLAS_COLUMNS)*CHARACTER_TOKEN_CELL.width,
+    y:Math.floor(index/CHARACTER_ATLAS_COLUMNS)*CHARACTER_TOKEN_CELL.height,
+    width:CHARACTER_TOKEN_CELL.width, height:CHARACTER_TOKEN_CELL.height
+  };
+}
+function skinTokenForPlayer(player) {
+  const skin=skinDefinitions.get(player?.skinId);
+  return skin?.characterId===player?.character ? skinTokenRect(skin) : null;
+}
+function skinPreviewSource(skin) {
+  if (!CHARACTER_TOKEN_ATLAS.complete || !CHARACTER_TOKEN_ATLAS.naturalWidth) return '';
+  const rect=skinTokenRect(skin);
+  if (!rect) return '';
+  if (skinPreviewSources.has(skin.id)) return skinPreviewSources.get(skin.id);
+  const canvas=document.createElement('canvas');
+  canvas.width=rect.width; canvas.height=rect.height;
+  const draw=canvas.getContext('2d');
+  if (!draw) return '';
+  draw.drawImage(CHARACTER_TOKEN_ATLAS,rect.x,rect.y,rect.width,rect.height,0,0,rect.width,rect.height);
+  const source=canvas.toDataURL('image/webp',.9);
+  skinPreviewSources.set(skin.id,source);
+  return source;
+}
+CHARACTER_TOKEN_ATLAS.onload = () => {
+  skinPreviewSources.clear();
+  if (typeof renderSchoolShop === 'function') renderSchoolShop();
+};
+
 const CHARACTER_PORTRAIT_DATA = new Map();
 CHARACTER_PORTRAIT_ATLAS.decoding = 'async';
 CHARACTER_TOKEN_ATLAS.decoding = 'async';
@@ -108,6 +162,7 @@ CHARACTER_PORTRAIT_ATLAS.onload = () => {
 };
 CHARACTER_PORTRAIT_ATLAS.src = artPath('/assets/characters/portrait_atlas.webp');
 CHARACTER_TOKEN_ATLAS.src = artPath('/assets/characters/token_atlas.webp');
+void loadSkinCatalog();
 
 function characterPortraitHtml(id, name) {
   const art = characterArt(id);
@@ -1474,7 +1529,7 @@ function playCharacterUltimateCue(character, local=false) {
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,bladeSlash:220,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650,diaExplosion:580};
+  const durations={muzzle:90,bladeSlash:220,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,schoolHundred:1000,schoolMeow:850,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650,diaExplosion:580};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -2069,6 +2124,85 @@ function selectedAccountCredentials() {
   localStorage.setItem(PLAYER_ACCOUNT_KEY, accountId);
   return { accountId, pin };
 }
+// Account-scoped shop: server is authoritative for wallet, price and ownership.
+let shopToken=null, shopAccountId=null, shopOwned=new Set(), shopCoins=0;
+let readyOwnedSkins=new Set();
+let schoolRewardToastTimer=null;
+function showSchoolReward(coinAmount,balance) {
+  const toast=$('schoolRewardToast');if(!toast)return;
+  toast.textContent=`🪙 경쟁전 보상 +${Number(coinAmount)||0}코인! · 잔액 ${Number(balance)||0}코인`;
+  toast.classList.remove('hidden');
+  clearTimeout(schoolRewardToastTimer);
+  schoolRewardToastTimer=setTimeout(()=>toast.classList.add('hidden'),6500);
+}
+async function schoolShopApi(url,body) {
+  const response=await fetch(url,{
+    method:body?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:`Bearer ${shopToken||''}`},
+    ...(body?{body:JSON.stringify(body)}:{}),cache:'no-store'
+  });
+  const result=await response.json();
+  if(!response.ok){if(response.status===401)shopToken=null;throw new Error(result.message||result.error||'상점 요청 실패');}
+  return result;
+}
+function renderSchoolShop() {
+  const root=$('schoolShopCards');if(!root)return;
+  $('schoolShopBalance').textContent=`🪙 ${shopCoins.toLocaleString('ko-KR')}코인`;
+  root.innerHTML='';
+  for(const skin of skinCatalog){
+    const card=document.createElement('article');card.className='school-shop-card';
+    const img=document.createElement('img');img.alt=`${skin.name} 미니미`;img.loading='lazy';
+    const preview=skinPreviewSource(skin);if(preview)img.src=preview;else img.style.visibility='hidden';
+    img.onerror=()=>{img.style.display='none';};
+    const tier=document.createElement('span');tier.className='skin-tier'+(skin.tier==='특급'?' premium':'');tier.textContent=`${skin.tier==='특급'?'💚 특급 스킨':'🎀 일반 스킨'} · 🪙 ${skin.price.toLocaleString('ko-KR')}`;
+    const name=document.createElement('h3');name.textContent=skin.name;
+    const effect=document.createElement('p');effect.textContent=skin.effect;
+    const btn=document.createElement('button');btn.type='button';
+    const owned=shopOwned.has(skin.id);
+    btn.disabled=owned || shopCoins<skin.price || !shopToken;
+    btn.textContent=owned?'✅ 보유 중':shopCoins<skin.price?'코인 부족':'🪙 구매하기';
+    btn.onclick=async()=>{
+      if(!confirm(`${skin.name} 스킨을 ${skin.price}코인에 구매할까요?`))return;
+      btn.disabled=true;
+      try {
+        const result=await schoolShopApi('/shop/buy',{skinId:skin.id});
+        shopCoins=result.coins;shopOwned.add(skin.id);
+        $('schoolShopMessage').textContent=`✅ ${skin.name} 구매 완료! 경쟁전 준비 단계에서 장착할 수 있어요.`;
+      } catch(err) {
+        $('schoolShopMessage').textContent=`⚠️ ${err.message}`;
+        try{const data=await schoolShopApi('/shop/account');shopCoins=data.coins;shopOwned=new Set(data.owned);}catch(_){}
+      }
+      renderSchoolShop();
+    };
+    card.append(img,tier,name,effect,btn);root.appendChild(card);
+  }
+  if(!skinCatalog.length)root.textContent='스킨 목록을 불러오는 중…';
+}
+$('schoolShopOpen')?.addEventListener('click',async()=>{
+  if(myId || spectatorMode || randomQueueActive){$('joinError').textContent='경기 참가 전 상점을 열어주세요.';return;}
+  const selectedId=String($('accountSelect')?.value||'');
+  if(!selectedId){$('joinError').textContent='먼저 이름을 선택하세요.';return;}
+  const overlay=$('schoolShopOverlay');overlay.classList.remove('hidden');
+  $('schoolShopMessage').textContent='계정을 확인하고 있어요…';
+  try{
+    if(!shopToken || shopAccountId!==selectedId){
+      const credentials=selectedAccountCredentials();if(!credentials)throw new Error('4자리 PIN을 입력하세요.');
+      const response=await fetch('/shop/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(credentials),cache:'no-store'});
+      const auth=await response.json();if(!response.ok)throw new Error(auth.message||'상점 로그인 실패');
+      shopToken=auth.token;shopAccountId=auth.account.id;
+    }
+    const data=await schoolShopApi('/shop/account');
+    shopCoins=data.coins;shopOwned=new Set(data.owned);
+    $('schoolShopAccount').textContent=`👤 ${data.account.name}`;
+    $('schoolShopMessage').textContent='구매한 스킨은 내 계정에 영구 보관돼요.';
+  }catch(err){
+    $('schoolShopMessage').textContent=`⚠️ ${err.message}`;
+    if(!shopToken){shopCoins=0;shopOwned=new Set();}
+  }
+  renderSchoolShop();
+});
+$('schoolShopClose')?.addEventListener('click',()=> $('schoolShopOverlay')?.classList.add('hidden'));
+$('schoolShopOverlay')?.addEventListener('click',e=>{if(e.target?.id==='schoolShopOverlay')e.target.classList.add('hidden');});
+
 function createRoom(mode) {
   if(randomQueueActive) return;
   ensureAudio();
@@ -2390,7 +2524,7 @@ function expandCompactPlayerRowC5(p, meta) {
   const m = Array.isArray(meta) ? meta : [];
   const flags = Number(p[13] || 0);
   const out = {
-    id:m[0] || null, name:m[1] || '', team:m[2] === 1 ? 'B' : 'A', character:m[3] || null,
+    id:m[0] || null, name:m[1] || '', team:m[2] === 1 ? 'B' : 'A', character:m[3] || null, skinId:m[4]||null,
     x:Number(p[0] || 0), y:Number(p[1] || 0), hp:Number(p[2] || 0), maxHp:Number(p[3] || 0),
     shield:Number(p[4] || 0), maxShield:Number(p[5] || 0), alive:!!p[6],
     aimX:Number(p[7] || 0), aimY:Number(p[8] || 0),
@@ -2437,7 +2571,7 @@ function expandCompactPlayerRowC6(p, meta) {
   const m = Array.isArray(meta) ? meta : [];
   const flags = Number(p[13] || 0);
   const out = {
-    id:m[0] || null, name:m[1] || '', team:m[2] === 1 ? 'B' : 'A', character:m[3] || null,
+    id:m[0] || null, name:m[1] || '', team:m[2] === 1 ? 'B' : 'A', character:m[3] || null, skinId:m[4]||null,
     x:Number(p[0] || 0), y:Number(p[1] || 0), hp:Number(p[2] || 0), maxHp:Number(p[3] || 0),
     shield:Number(p[4] || 0), maxShield:Number(p[5] || 0), alive:!!p[6],
     aimX:Number(p[7] || 0), aimY:Number(p[8] || 0),
@@ -2510,7 +2644,7 @@ function expandWireMessage(msg) {
   if (!msg) return msg;
   if (msg.type !== 'state') return msg;
   if (msg.wireFormat === 'd1') {
-    msg.players = (msg.players || []).map(p => ({ id:p[0], name:p[1], team:p[2], character:p[3], connected:!!p[4] }));
+    msg.players = (msg.players || []).map(p => ({ id:p[0], name:p[1], team:p[2], character:p[3], connected:!!p[4], skinId:p[5]||null }));
     delete msg.wireFormat;
     return msg;
   }
@@ -2634,6 +2768,22 @@ function syncSelectedMapFromServer(msg) {
 }
 function handleMessage(msg) {
   if(onRandomQueueMessage(msg)) return;
+  if (msg.type === 'shop_reward') {showSchoolReward(msg.coins,msg.balance);return;}
+  if (msg.type === 'skin_inventory') {
+    readyOwnedSkins=new Set(msg.owned||[]);
+    lastCompetitiveRenderKey=null;
+    if(state?.state==='ready')renderCompetitiveDraft();
+    return;
+  }
+  if (msg.type === 'skin_error') {
+    const notice=$('draftNotice');if(notice)notice.textContent=`⚠️ ${msg.message||'스킨을 선택하지 못했어요.'}`;
+    return;
+  }
+  if (msg.type === 'skin_fx') {
+    if(msg.kind==='shooter_hundred')addWorldFx('schoolHundred',{x:msg.x,y:msg.y,character:'shooter',team:'A'});
+    if(msg.kind==='rescue_meow')addWorldFx('schoolMeow',{x:msg.x,y:msg.y,character:'rescue',team:'A'}, {playerId:msg.playerId});
+    return;
+  }
   if (msg.type === 'ultimate_fx') {
     if (msg.kind === 'rect') {
       addWorldFx('ultimateRectHit', { x:msg.x, y:msg.y, character:msg.character, team:msg.team }, {
@@ -2882,6 +3032,10 @@ function handleMessage(msg) {
     processCombatFeedback(previousState, msg);
     updatePlayerMotionTracks(previousState, msg);
     state = msg;
+    if(state.state==='ready' && previousState?.state!=='ready' && ws?.readyState===WebSocket.OPEN && !spectatorMode){
+      readyOwnedSkins=new Set();
+      ws.send(JSON.stringify({type:'ready_skins_request'}));
+    }
     updateBeamHum(state);
     if (state.state === 'playing') {
       closeMyCharacterStory();
@@ -3449,6 +3603,20 @@ function renderReadyAssignments(comp) {
     }
     root.appendChild(section);
   }
+  if (me?.character && state?.state==='ready') {
+    const selector=document.createElement('div');selector.className='school-skin-pick';
+    const label=document.createElement('label');label.textContent='🎀 내 스킨';label.htmlFor='readySkinSelect';
+    const select=document.createElement('select');select.id='readySkinSelect';
+    const choices=[{id:null,name:'기본 미니미'},...skinCatalog.filter(s=>s.characterId===me.character && readyOwnedSkins.has(s.id))];
+    for (const skin of choices) {
+      const option=document.createElement('option');option.value=skin.id||'';option.textContent=skin.name;
+      if((me.skinId||'')===(skin.id||''))option.selected=true;
+      select.appendChild(option);
+    }
+    select.onchange=()=>{if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ready_choose_skin',skinId:select.value||null}));};
+    const hint=document.createElement('small');hint.textContent='캐릭터를 교환하면 스킨 선택이 초기화돼요.';
+    selector.append(label,select,hint);root.appendChild(selector);
+  }
   if (comp?.outgoingReadySwap) {
     const outgoing = comp.outgoingReadySwap;
     const target = playerFromState(outgoing.targetId);
@@ -3549,7 +3717,7 @@ function renderCompetitiveDraft() {
   const structuralKey = JSON.stringify({
     state:state.state, phase:comp.phase, activeBanTeam:comp.activeBanTeam, bans:comp.bans, picks:comp.picks,
     pickIndex:comp.pickIndex, currentPickerId:comp.currentPickerId, myBanVote:comp.myBanVote, banVoteCounts:comp.banVoteCounts,
-    assignments:state.players.map(p=>[p.id,p.character,p.connected]), teamOrders:comp.teamOrders, mapId:state.mapId,
+    assignments:state.players.map(p=>[p.id,p.character,p.connected,p.skinId]), teamOrders:comp.teamOrders, mapId:state.mapId,
     incomingReadySwap:comp.incomingReadySwap, outgoingReadySwap:comp.outgoingReadySwap
   });
   if (structuralKey === lastCompetitiveRenderKey) return;
@@ -3559,8 +3727,8 @@ function renderCompetitiveDraft() {
 
   if (state.state === 'ready' || comp.phase === 'ready') {
     $('draftPhaseTitle').textContent = '준비 단계';
-    $('draftPhaseSubtitle').textContent = '20초 동안 자신의 캐릭터를 드래그해 팀원에게 교환을 요청할 수 있습니다.';
-    $('draftNotice').textContent = me ? '자신의 캐릭터 카드를 팀원에게 드래그해 요청하세요. 상대가 수락해야 교환됩니다.' : '양 팀이 최종 담당 캐릭터를 정하는 중입니다.';
+    $('draftPhaseSubtitle').textContent = '20초 동안 캐릭터 교환과 보유 스킨 장착을 완료하세요.';
+    $('draftNotice').textContent = me ? '내 카드 드래그로 교환 요청 · 아래에서 보유 스킨을 장착하세요.' : '양 팀이 최종 담당 캐릭터를 정하는 중입니다.';
     $('draftCharacterGrid').classList.add('hidden');
     $('readyAssignments').classList.remove('hidden');
     $('draftHelp').textContent = '준비시간이 끝나면 자동으로 배치가 잠기고 경쟁 경기가 시작됩니다.';
@@ -4651,7 +4819,20 @@ function drawWorldFx(nowMs) {
     const a=worldToScreen(fx.x,fx.y);
     const c=fxCharacterColor(fx.character);
     ctx.save();
-    if (fx.type === 'bladeSlash') {
+    if (fx.type==='schoolHundred') {
+      ctx.globalAlpha=(1-q)*Math.min(1,q*8);ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.font=`${Math.round(19+q*14)}px sans-serif`;
+      ctx.fillText('💯',a.x,a.y-15-q*22);
+    } else if(fx.type==='schoolMeow') {
+      const actor=state?.players?.find(p=>p.id===fx.playerId && p.alive);
+      const actorPosition=actor?renderedPlayerWorldPosition(actor,nowMs):{x:fx.x,y:fx.y};
+      const pt=worldToScreen(actorPosition.x,actorPosition.y);
+      const cx=pt.x,cy=pt.y-38-q*7;
+      ctx.globalAlpha=Math.min(1,(1-q)*3);ctx.fillStyle='#fffdfa';ctx.strokeStyle='#db9d72';ctx.lineWidth=2;
+      ctx.beginPath();ctx.roundRect(cx-29,cy-21,58,28,10);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.moveTo(cx-3,cy+7);ctx.lineTo(cx+2,cy+13);ctx.lineTo(cx+8,cy+7);ctx.fill();ctx.stroke();
+      ctx.font='bold 15px sans-serif';ctx.fillStyle='#8b5138';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('야옹',cx,cy-7);
+    } else if (fx.type === 'bladeSlash') {
       // A narrow transparent red *sheet* swings bodily through the 60° cone.
       // There is deliberately NO stationary sector fill and NO sword-shaped object.
       // Every attack flips direction: left -> right -> left -> right ...
@@ -4918,14 +5099,14 @@ function drawJetBoostTrail(player, nowMs) {
   ctx.restore();
 }
 
-function drawBufferTargetAura(target, nowMs) {
+function drawBufferTargetAura(target, nowMs, medical=false) {
   if (!target) return;
   const tw=renderedPlayerWorldPosition(target, nowMs), a=worldToScreen(tw.x,tw.y);
   const radius=characterRadiusWorld(target.character)*SCALE+8;
   const phase=nowMs*.0018;
-  ctx.save(); ctx.strokeStyle='#d9b3ff'; ctx.lineWidth=2.1; ctx.globalAlpha=.72;
+  ctx.save(); ctx.strokeStyle=medical?'#7df7af':'#d9b3ff'; ctx.lineWidth=2.1; ctx.globalAlpha=.72;
   for (let k=0;k<4;k++) { const start=phase+k*Math.PI/2; ctx.beginPath(); ctx.arc(a.x,a.y,radius,start,start+.42); ctx.stroke(); }
-  ctx.globalAlpha=.10; ctx.fillStyle='#c99cff'; ctx.beginPath(); ctx.arc(a.x,a.y,radius-2,0,Math.PI*2); ctx.fill(); ctx.restore();
+  ctx.globalAlpha=.10; ctx.fillStyle=medical?'#32dc83':'#c99cff'; ctx.beginPath(); ctx.arc(a.x,a.y,radius-2,0,Math.PI*2); ctx.fill(); ctx.restore();
 }
 
 function drawBufferOutOfRangeMarker(target, nowMs) {
@@ -4949,11 +5130,32 @@ function drawBufferThread(buffer, target, nowMs) {
   const c2 = { x:a.x+dx*.66 + nx*Math.sin(phase+1.8)*amp, y:a.y+dy*.66 + ny*Math.sin(phase+1.8)*amp };
   ctx.save();
   ctx.lineCap='round';
-  ctx.shadowColor='rgba(220,205,255,.55)'; ctx.shadowBlur=7;
-  ctx.strokeStyle='rgba(225,215,255,.82)'; ctx.lineWidth=1.6;
+  const medical=buffer.skinId==='school_nurse_buffer';
+  ctx.shadowColor=medical?'rgba(15,215,98,.68)':'rgba(220,205,255,.55)'; ctx.shadowBlur=7;
+  ctx.strokeStyle=medical?'rgba(27,221,109,.96)':'rgba(225,215,255,.82)'; ctx.lineWidth=medical?2.8:1.6;
   ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,z.x,z.y); ctx.stroke();
-  ctx.shadowBlur=0; ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=.7;
+  ctx.shadowBlur=0; ctx.strokeStyle=medical?'rgba(204,255,226,.95)':'rgba(255,255,255,.85)'; ctx.lineWidth=.7;
   ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,z.x,z.y); ctx.stroke();
+  // Bright moving doses visibly travel from Buffer to the linked teammate.
+  if(medical)for(let k=0;k<4;k++){
+    const t=((nowMs*.00044+k/4)%1+1)%1, inv=1-t;
+    const px=inv*inv*inv*a.x+3*inv*inv*t*c1.x+3*inv*t*t*c2.x+t*t*t*z.x;
+    const py=inv*inv*inv*a.y+3*inv*inv*t*c1.y+3*inv*t*t*c2.y+t*t*t*z.y;
+    ctx.fillStyle=k%2?'#dcffed':'#67ffaf';ctx.beginPath();ctx.arc(px,py,2.4,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+function drawBufferMedicalCrosses(target,nowMs){
+  const pos=renderedPlayerWorldPosition(target,nowMs),screen=worldToScreen(pos.x,pos.y);
+  const radius=characterRadiusWorld(target.character)*SCALE+18;
+  ctx.save();ctx.fillStyle='#42f0a0';
+  for(let k=0;k<5;k++){
+    const angle=k*Math.PI*2/5+nowMs*.0006;
+    const rr=radius+3*Math.sin(nowMs*.003+k);
+    const x=screen.x+Math.cos(angle)*rr,y=screen.y+Math.sin(angle)*rr;
+    ctx.globalAlpha=.34+.55*(.5+.5*Math.sin(nowMs*.007+k*1.7));
+    ctx.fillRect(x-1.5,y-5,3,10);ctx.fillRect(x-5,y-1.5,10,3);
+  }
   ctx.restore();
 }
 
@@ -5177,7 +5379,12 @@ function renderGame() {
   for (const buffer of viewState.players) {
     if (!buffer.alive || buffer.character !== 'buffer' || !buffer.bufferLinkActive || !buffer.bufferTargetId) continue;
     const target = viewState.players.find(p => p.id === buffer.bufferTargetId && p.alive);
-    if (target) { drawBufferThread(buffer, target, beamFxNow); drawBufferTargetAura(target, beamFxNow); }
+    if (target) {
+      drawBufferThread(buffer,target,beamFxNow);
+      drawBufferTargetAura(target,beamFxNow,buffer.skinId==='school_nurse_buffer');
+      if(buffer.skinId==='school_nurse_buffer' && Number(buffer.ultimateActiveMs||0)>0)
+        drawBufferMedicalCrosses(target,beamFxNow);
+    }
   }
 
   const renderProjectiles = [...(viewState.projectiles || []), ...liveNetworkProjectiles(beamFxNow)];
@@ -5216,6 +5423,23 @@ function renderGame() {
       ctx.beginPath();ctx.moveTo(r*1.75,0);ctx.lineTo(-r*.68,-r*.72);
       ctx.lineTo(-r*.34,0);ctx.lineTo(-r*.68,r*.72);ctx.closePath();ctx.fill();ctx.stroke();
       ctx.restore();continue;
+    }
+    const projectileOwner=p.ownerId?viewState.players.find(q=>q.id===p.ownerId):null;
+    if(p.character==='star' && !p.ultimateProjectile && projectileOwner?.skinId==='class_president_star'){
+      const size=Math.max(5,r*1.45);ctx.save();ctx.translate(s.x,s.y);
+      ctx.fillStyle='#ffe169';ctx.strokeStyle='#93610b';ctx.lineWidth=1.3;
+      ctx.beginPath();for(let i=0;i<10;i++){
+        const a=-Math.PI/2+i*Math.PI/5,dist=size*(i%2?.47:1);
+        if(i===0)ctx.moveTo(Math.cos(a)*dist,Math.sin(a)*dist);
+        else ctx.lineTo(Math.cos(a)*dist,Math.sin(a)*dist);
+      }ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();continue;
+    }
+    if(p.character==='iron' && !p.ultimateProjectile && projectileOwner?.skinId==='pe_teacher_iron'){
+      const size=Math.max(4.8,r*1.1);ctx.save();ctx.translate(s.x,s.y);
+      ctx.fillStyle='#ed9544';ctx.strokeStyle='#713a21';ctx.lineWidth=1.1;
+      ctx.beginPath();ctx.arc(0,0,size,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.arc(0,0,size*.60,-Math.PI*.6,Math.PI*.4);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(-size*.8,-size*.55);ctx.quadraticCurveTo(0,size*.9,size*.75,size*.55);ctx.stroke();ctx.restore();continue;
     }
     if (p.character === 'dia' && p.ultimateProjectile) {
       const angle=Math.atan2(Number(p.vy)||0,Number(p.vx)||1);
@@ -5307,7 +5531,8 @@ function renderGame() {
     const renderWorld = renderedPlayerWorldPosition(p, beamFxNow);
     const s=worldToScreen(renderWorld.x,renderWorld.y), x=s.x,y=s.y;
     const characterFill = p.character === 'dia' && p.diaForm ? '#d9fbff' : (CHARACTER_FILL_COLORS[p.character] || '#8793a3');
-    const tokenImg = characterTokenImage(p.character);
+    const customToken=skinTokenForPlayer(p);
+    const tokenImg=characterTokenImage(p.character);
     const art = characterArt(p.character);
     const tokenSize = tokenImg ? Math.max(30, Math.min(58, hitRadius * 3.65 * Number(art?.renderScale || 1))) : 0;
     // `radius` below is a visual radius used by rings/labels. Server hit/collision radius remains `hitRadius`.
@@ -5317,7 +5542,7 @@ function renderGame() {
     const empoweredBuffer=viewState.players.find(other=>other.alive && other.character==='buffer' && other.team===p.team &&
       other.bufferLinkActive && other.bufferTargetId===p.id && Number(other.ultimateActiveMs||0)>0);
     if (empoweredBuffer) {
-      ctx.save();ctx.strokeStyle='#ad73f4';ctx.lineWidth=3;ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.008);
+      ctx.save();ctx.strokeStyle=empoweredBuffer.skinId==='school_nurse_buffer'?'#4ce998':'#ad73f4';ctx.lineWidth=3;ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.008);
       traceRegularPolygon(x,y,radius+14,6,beamFxNow*.001);ctx.stroke();ctx.restore();
     }
     drawUltimateRecipientAuras(p,x,y,radius,beamFxNow);
@@ -5328,7 +5553,7 @@ function renderGame() {
       ctx.save();
       if (p.character === 'hacker' && p.stealthed && p.id === myId) ctx.globalAlpha = 0.42;
       ctx.imageSmoothingEnabled = true;
-      const tokenRect = art.tokenRect;
+      const tokenRect = customToken || art.tokenRect;
       // Clip both the artwork AND its white background to the circular token.
       // This is visual-only: server hitbox and surrounding team/ultimate rings are unchanged.
       ctx.beginPath();

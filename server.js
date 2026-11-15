@@ -101,6 +101,13 @@ const COMPETITIVE_ROSTER_VERSION = '1.13-release-roster-29';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
 const pendingCompetitiveRecords = new Map();
+// School-themed skins: public catalog is separate from the general shop rules.
+const SKIN_CATALOG = Object.freeze(require('./public/skins.json').map(s => Object.freeze(s)));
+const SKINS_BY_ID = new Map(SKIN_CATALOG.map(s => [s.id, s]));
+const SHOP_SESSIONS = new Map();
+const SHOP_AUTH_FAILURES = new Map();
+const SHOP_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
 
 
 const DEFAULT_PLAYER_ACCOUNT_NAMES = Object.freeze([
@@ -1935,6 +1942,60 @@ function handleAdminCompetitiveStatsHttp(req, res, exportMode = false) {
   });
 }
 
+// Shop sessions are memory-only short-lived bearer credentials; never persist student PINs.
+function shopAccountForRequest(req) {
+  const token = String(req.headers.authorization || '').match(/^Bearer ([a-f0-9]{64})$/i)?.[1];
+  const session = token ? SHOP_SESSIONS.get(token) : null;
+  if (!session) return null;
+  const account = playerAccountById(session.accountId);
+  if (!account || Date.now() >= session.expiresAt || session.pinHash !== hashText(account.pin)) {
+    SHOP_SESSIONS.delete(token);
+    return null;
+  }
+  return account;
+}
+function shopLogin(req, res) {
+  const ip = String(req.socket.remoteAddress || 'unknown');
+  const limit = SHOP_AUTH_FAILURES.get(ip);
+  if (limit && limit.until > Date.now() && limit.count >= 6) {
+    sendJson(res, 429, {ok:false,error:'rate_limited',message:'PIN 입력을 너무 많이 시도했어요. 잠시 후 다시 시도하세요.'});return;
+  }
+  readJsonBody(req, (err,body) => {
+    if (err || !schoolLineAccessOpen) {sendJson(res,403,{ok:false,error:'unavailable'});return;}
+    const account=authenticatePlayerAccount(body?.accountId, body?.pin);
+    if (!account) {
+      const entry = SHOP_AUTH_FAILURES.get(ip);
+      const current = entry && entry.until > Date.now() ? entry : {count:0,until:Date.now()+60000};
+      current.count++;
+      SHOP_AUTH_FAILURES.set(ip,current);
+      sendJson(res,403,{ok:false,error:'bad_login',message:'계정 또는 PIN이 올바르지 않아요.'});return;
+    }
+    SHOP_AUTH_FAILURES.delete(ip);
+    const token=crypto.randomBytes(32).toString('hex');
+    SHOP_SESSIONS.set(token,{accountId:account.id,pinHash:hashText(account.pin),expiresAt:Date.now()+SHOP_SESSION_TTL_MS});
+    sendJson(res,200,{ok:true,token,account:{id:account.id,name:account.name}});
+  });
+}
+function shopRequest(req,res,method) {
+  if (!schoolLineAccessOpen) {sendJson(res,403,{ok:false,error:'unavailable',message:'현재 상점을 이용할 수 없어요.'});return;}
+  const account=shopAccountForRequest(req);
+  if (!account) {sendJson(res,401,{ok:false,error:'not_logged_in',message:'상점에 다시 로그인하세요.'});return;}
+  if (method==='get') {
+    void durableStore.getShopAccount(account.id).then(value=>sendJson(res,200,{ok:true,...value,account:{id:account.id,name:account.name}}))
+      .catch(err=>{console.error('[shop] wallet failed:',err?.message||err);sendJson(res,503,{ok:false,error:'database_unavailable'});});
+    return;
+  }
+  readJsonBody(req,(err,body)=>{
+    if (err) {sendJson(res,400,{ok:false,error:'bad_request'});return;}
+    const skin=SKINS_BY_ID.get(String(body?.skinId||''));
+    if (!skin) {sendJson(res,404,{ok:false,error:'invalid_skin',message:'판매하지 않는 스킨이에요.'});return;}
+    void durableStore.buySkin(account.id,skin).then(result=>{
+      if (result.ok) sendJson(res,200,result);
+      else sendJson(res,409,{...result,message:result.error==='already_owned'?'이미 보유한 스킨이에요.':'코인이 부족해요.'});
+    }).catch(err=>{console.error('[shop] purchase failed:',err?.message||err);sendJson(res,503,{ok:false,error:'database_unavailable',message:'저장소 오류로 구매하지 못했습니다.'});});
+  });
+}
+
 function mimeType(file) {
   const ext = path.extname(file).toLowerCase();
   return ({ '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml' })[ext] || 'application/octet-stream';
@@ -1949,6 +2010,10 @@ const server = http.createServer((req, res) => {
     sendJson(res, 400, { ok:false, error:'invalid_url_encoding', message:'올바르지 않은 URL 인코딩입니다.' });
     return;
   }
+  // The shop does not accept unauthenticated balance or purchase requests.
+  if (urlPath === '/shop/login' && req.method === 'POST') {shopLogin(req,res);return;}
+  if (urlPath === '/shop/account' && req.method === 'GET') {shopRequest(req,res,'get');return;}
+  if (urlPath === '/shop/buy' && req.method === 'POST') {shopRequest(req,res,'buy');return;}
   if (urlPath === '/access-status.json' && req.method === 'GET') {
     sendJson(res, 200, schoolLineAccessPayload());
     return;
@@ -2582,7 +2647,7 @@ function startCompetitiveDraft(room, now = Date.now()) {
   const f = teamOrders[firstTeam], s = teamOrders[secondTeam];
   const pickSequence = [f[0], s[0], s[1], f[1], f[2], s[2], s[3], f[3]];
   for (const p of room.players.values()) {
-    p.character = null;
+    p.character = null; p.skinId = null;
     p.maxHp = 0; p.hp = 0;
     neutralizePlayerInput(p);
   }
@@ -2702,6 +2767,8 @@ function swapCompetitiveReadyAssignments(room, requester, sourcePlayerId, target
   if (!source || !target || !source.connected || !target.connected || source.team !== target.team || source.team !== pending.team || source.character !== pending.sourceCharacter || target.character !== pending.targetCharacter) return false;
   const sourceBefore = source.character, targetBefore = target.character;
   [source.character, target.character] = [target.character, source.character];
+  // Skins belong to player accounts, never to swapped characters.
+  source.skinId = null; target.skinId = null;
   comp.pendingReadySwaps.delete(pending.targetId);
   comp.readySwaps.push({ at: new Date(now).toISOString(), requesterId: requester.id, requesterName: requester.name, accepterId: acceptedBy.id, team: requester.team, sourcePlayerId: source.id, sourcePlayerName: source.name, targetPlayerId: target.id, targetPlayerName: target.name, sourceBefore, targetBefore, sourceAfter: source.character, targetAfter: target.character });
   comp.draftEvents.push({ type:'ready_swap', atSec: Math.max(0, (now - comp.draftStartedAt) / 1000), team: requester.team, sourcePlayerId: source.id, targetPlayerId: target.id, sourceBefore, targetBefore, sourceAfter: source.character, targetAfter: target.character });
@@ -2724,7 +2791,7 @@ function finalizeCompetitiveReady(room, now = Date.now()) {
   const comp = room && room.competitive;
   if (!comp || room.state !== 'ready') return false;
   comp.pendingReadySwaps?.clear();
-  comp.finalAssignments = [...room.players.values()].map(p => ({ playerId: p.id, playerName: p.name, team: p.team, character: p.character }));
+  comp.finalAssignments = [...room.players.values()].map(p => ({ playerId: p.id, playerName: p.name, team: p.team, character: p.character, skinId: p.skinId || null }));
   comp.matchStartedAt = now;
   startMatch(room, now);
   return true;
@@ -2830,8 +2897,15 @@ async function persistPendingCompetitiveRecord(matchId) {
   pending.attempts = (pending.attempts || 0) + 1;
   pending.lastAttemptAt = Date.now();
   try {
-    await durableStore.insertMatch(pending.result);
+    const saved = await durableStore.insertMatch(pending.result);
     applyPersistedMatchToMemory(pending.result);
+    // Individual wallet results are private, never part of public state snapshots.
+    const rewardRoom = pending.roomCode ? rooms.get(pending.roomCode) : null;
+    for (const award of (saved.rewards || [])) {
+      const recipient = [...(rewardRoom?.players?.values() || [])].find(p => p.accountId === award.accountId);
+      const recipientConn = recipient ? rewardRoom?.clients?.get(recipient.id) : null;
+      if (recipientConn) recipientConn.send({type:'shop_reward',coins:award.coins,balance:award.balance,outcome:award.outcome});
+    }
     pendingCompetitiveRecords.delete(key);
     const room = pending.roomCode ? rooms.get(pending.roomCode) : null;
     if (room?.competitive && String(room.competitive.matchId || '') === key) {
@@ -3081,6 +3155,32 @@ function onMessage(conn, msg) {
     if (respondCompetitiveReadySwap(room, player, msg.requestId, msg.type === 'ready_swap_accept')) broadcast(room);
     return;
   }
+  if (msg.type === 'ready_skins_request' && room.state === 'ready' && room.competitive?.phase === 'ready') {
+    void durableStore.getShopAccount(player.accountId).then(data => {
+      if (conn.playerId === player.id && room.state === 'ready')
+        conn.send({type:'skin_inventory',owned:data.owned,coins:data.coins});
+    }).catch(err => console.error('[skins] inventory failed:',err?.message||err));
+    return;
+  }
+  if (msg.type === 'ready_choose_skin' && room.state === 'ready') {
+    const matchId = room.competitive?.matchId;
+    const intendedCharacter = player.character;
+    const requested = msg.skinId == null || msg.skinId === '' ? null : String(msg.skinId);
+    const skin = requested ? SKINS_BY_ID.get(requested) : null;
+    if (!room.competitive || room.competitive.phase !== 'ready' || Date.now() >= room.competitive.readyEndAt ||
+        (requested && (!skin || skin.characterId !== intendedCharacter))) {
+      conn.send({type:'skin_error',message:'현재 캐릭터에 사용할 수 없는 스킨이에요.'});return;
+    }
+    if (!requested) {player.skinId=null;broadcast(room);return;}
+    void durableStore.ownsSkin(player.accountId, requested).then(owned => {
+      if (!owned) {conn.send({type:'skin_error',message:'구매한 스킨만 사용할 수 있어요.'});return;}
+      if (conn.playerId !== player.id || player.character !== intendedCharacter || room.competitive?.matchId !== matchId ||
+        room.state !== 'ready' || Date.now() >= room.competitive.readyEndAt) return;
+      player.skinId=requested;
+      broadcast(room);
+    }).catch(err => {console.error('[skins] selection failed:',err?.message||err);conn.send({type:'skin_error',message:'스킨 확인에 실패했어요.'});});
+    return;
+  }
   if (msg.type === 'perk_choose' && room.state === 'playing') {
     if (!PERK_SYSTEM.enabled) return;
     const chosen = choosePerk(room, player, msg.perkId, Date.now());
@@ -3266,7 +3366,7 @@ function joinRoom(conn, msg, options = {}) {
 
   const id = `P${idCounter++}`;
   const player = {
-    id, accountId: account.id, name: requestedName, team, character: null,
+    id, accountId: account.id, name: requestedName, team, character: null, skinId: null,
     resumeToken: newResumeToken(), connected: true, disconnectedAt: 0,
     x: 21, y: team === 'A' ? 5 : 63,
     hp: 0, maxHp: 0, alive: true, respawnAt: 0, invulnerableUntil: 0, respawnShieldAt: 0,
@@ -3548,7 +3648,7 @@ function startMatch(room, now = Date.now()) {
   // Starting any new game is an authoritative cancellation of a pending post-game room deletion.
   cancelPostGameRoomClose(room);
   room.matchMode = normalizeRoomMode(room.mode);
-  if (room.matchMode !== 'competitive') room.mapId = 'classroom';
+  if (room.matchMode !== 'competitive') { room.mapId = 'classroom'; for (const p of room.players.values()) p.skinId = null; }
   room.state = 'playing';
   resetRoomHealthPacks(room);
   room.scoreA = 0; room.scoreB = 0; room.winner = null; room.winnerReason = null;
@@ -3996,6 +4096,7 @@ function activateNewHeroAbility(room, player, target, now) {
     // Character overlap is allowed; target can be across any wall or distance.
     player.x = target.x; player.y = target.y;
     applyHealing(room, player, target, def.abilityHeal, now);
+    if (player.skinId === 'school_cat_rescue') emitSkinFx(room,{kind:'rescue_meow',playerId:player.id,x:player.x,y:player.y});
   } else return false;
   player.newAbilityCooldownUntil = now + def.abilityCooldown * 1000;
   // Successful activations only: failed/no-target/cooldown attempts never count.
@@ -4088,6 +4189,8 @@ function die(room, player, now) {
     }
   }
   if (killer && killer.character === 'blade') grantBladeDashCharge(killer, now);
+  if (killer && killer.character === 'shooter' && killer.skinId === 'honor_shooter')
+    emitSkinFx(room,{kind:'shooter_hundred',playerId:killer.id,x:player.x,y:player.y});
   appendCompetitiveMatchEvent(room, 'death', {
     victimId: player.id, victimName: player.name, victimTeam: player.team, victimCharacter: player.character,
     killerId: killer ? killer.id : null, killerName: killer ? killer.name : null, killerTeam: killer ? killer.team : null, killerCharacter: killer ? killer.character : null,
@@ -4371,6 +4474,12 @@ function ultimateRectContains(x, y, dx, dy, length, width, target) {
   const forward = rx * dx + ry * dy;
   const side = rx * -dy + ry * dx;
   return forward >= -1e-9 && forward <= length + 1e-9 && Math.abs(side) <= width / 2 + 1e-9;
+}
+function emitSkinFx(room,payload) {
+  if (!room || room.state !== 'playing') return;
+  const msg={type:'skin_fx',...payload};
+  for (const conn of room.clients.values()) conn.send(msg,'skin_fx');
+  for (const conn of room.spectators.values()) conn.send(msg,'skin_fx');
 }
 function emitPrototypeUltimateFx(room, payload) {
   const message = { type: 'ultimate_fx', ...payload };
@@ -4995,7 +5104,7 @@ function projectileWireRow(p) {
     p.reactorFxBand == null ? null : p.reactorFxBand,
     p.ultimateProjectile ? 1 : 0,
     p.diaUltimateVolleyId || null,
-    ...(p.magnetHook ? [p.ownerId] : [])
+    p.ownerId || null
   ];
 }
 
@@ -5585,7 +5694,7 @@ function competitivePhaseWireSnapshot(room, viewerId = null, spectator = false, 
   return {
     type: 'state', wireFormat: 'd1', state: room.state, mode: normalizeRoomMode(room.mode), matchMode: room.matchMode, matchmakingMode:room.matchmakingMode, room: roomDisplayName(room), roomNumber: room.displayNumber,
     scoreA: roundWireNumber(room.scoreA, 3), scoreB: roundWireNumber(room.scoreB, 3), timeLeft: 0, mapId:room.mapId,
-    players: [...room.players.values()].map(p => [p.id, p.name, p.team, p.character || null, p.connected === false ? 0 : 1]),
+    players: [...room.players.values()].map(p => [p.id, p.name, p.team, p.character || null, p.connected === false ? 0 : 1, p.skinId || null]),
     projectiles: [], beams: [],
     competitive: competitiveSnapshot(room, viewer, spectator, now),
     hostId: room.hostId
@@ -5611,7 +5720,7 @@ function snapshot(room, viewerId = null, spectator = false) {
       const burnStatus = getStatus(p, 'burn', now);
       const radiationStatus = getStatus(p, 'radiation', now);
       const row = {
-        id: p.id, name: p.name, team: p.team, character: hideCharacter ? null : p.character,
+        id: p.id, name: p.name, team: p.team, character: hideCharacter ? null : p.character, skinId: hideCharacter ? null : (p.skinId || null),
         x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp,
         shield: Math.max(0, p.shield || 0), maxShield: Math.max(0, p.maxShield || 0),
         alive: p.alive,
@@ -5949,7 +6058,7 @@ function compactPlayingSnapshotForWire(state, room = null, now = Date.now(), for
     else if (beam.didDamage) prev.didDamage = true;
   }
 
-  const playerMeta = (state.players || []).map(p => [p.id, p.name, p.team === 'B' ? 1 : 0, p.character || null]);
+  const playerMeta = (state.players || []).map(p => [p.id, p.name, p.team === 'B' ? 1 : 0, p.character || null, p.skinId || null]);
   const playerMetaSignature = JSON.stringify(playerMeta);
   const includePlayerMeta = forceProjectileSync || !room || room.lastPlayerNetMetaSignature !== playerMetaSignature;
   if (room && includePlayerMeta) room.lastPlayerNetMetaSignature = playerMetaSignature;

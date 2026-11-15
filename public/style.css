@@ -798,3 +798,35 @@ body.latest-patch-open { overflow:hidden; }
 .character-quick-guide.pinned { left:50%; top:50%; transform:translate(-50%,-50%) !important; width:min(440px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); pointer-events:auto; box-shadow:0 0 0 200vmax rgba(1,6,14,.72),0 15px 50px rgba(0,0,0,.6); }
 .character-quick-guide.pinned .quick-guide-close { display:block; cursor:pointer; }
 @media(max-width:520px) { .character-quick-guide { padding:11px 12px; font-size:11px; } .quick-guide-heading strong { font-size:14px; } .character-quick-guide p { font-size:11px; } }
+
+/* === 1.13 Schoolline coin shop and ready-stage skin picker === */
+.school-shop-open{display:block;width:100%;margin:10px 0;padding:12px 16px;background:linear-gradient(120deg,#8d5de0,#e85fb9);color:white;border:0;border-radius:14px;font-weight:800;font-size:1.05rem;cursor:pointer;box-shadow:0 4px 16px rgba(119,79,196,.24)}
+.school-shop-open span{display:block;font-size:.77rem;opacity:.94;font-weight:500}
+.school-shop-overlay{position:fixed;inset:0;background:rgba(13,15,31,.82);z-index:10060;display:flex;align-items:center;justify-content:center;padding:12px}
+.school-shop-overlay.hidden{display:none!important}
+.school-shop-panel{background:#faf8ff;color:#202337;width:min(850px,100%);max-height:93vh;overflow:auto;border-radius:20px;padding:18px;box-shadow:0 16px 50px rgba(0,0,0,.45)}
+.school-shop-head,.school-shop-wallet{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.school-shop-head h2{margin:2px 0 10px;font-size:1.7rem;color:#37234c}
+.school-shop-head small{font-weight:800;letter-spacing:.08em;color:#8c54bf}
+.school-shop-head button{font-size:1.1rem;color:#34223f;background:#ede6f5;border:0;border-radius:10px;padding:7px 13px}
+.school-shop-wallet{background:#f0e8fb;border-radius:12px;padding:12px 14px;margin:5px 0}
+.school-shop-wallet strong{font-size:1.25rem;color:#693eb0}
+.school-shop-message{font-size:.88rem;min-height:1.5em;color:#665477}
+.school-shop-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.school-shop-card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px;background:white;border:1px solid #e8ddf3;border-radius:13px;padding:14px 12px;box-shadow:0 2px 8px rgba(42,32,59,.06)}
+.school-shop-card img{width:110px;height:110px;object-fit:contain;border-radius:50%;background:#faf6ff}
+.school-shop-card h3{margin:0;color:#2b2440;font-size:1.05rem}
+.school-shop-card p{margin:0;color:#6a6174;line-height:1.45;font-size:.8rem;min-height:35px}
+.school-shop-card .skin-tier{font-size:.76rem;font-weight:800;color:#8660a6}
+.school-shop-card .skin-tier.premium{color:#177c50}
+.school-shop-card button{width:100%;border-radius:9px;background:#7051bc;color:white;border:0;padding:10px;cursor:pointer;font-weight:800}
+.school-shop-card button:disabled{opacity:.65;cursor:default;background:#afa2bf}
+.school-shop-card .skin-owned{color:#237e50;font-weight:800}
+.school-shop-foot{font-size:.75rem;color:#6c6372;line-height:1.5}
+.school-skin-pick{margin:12px 0;padding:12px;border-radius:11px;background:rgba(95,62,163,.16);border:1px solid rgba(138,95,200,.38);display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.school-skin-pick label{font-weight:800}
+.school-skin-pick select{max-width:230px;min-height:40px;border-radius:8px;padding:8px 10px;color:#1c1d2e;background:white}
+.school-skin-pick small{opacity:.85;font-size:.77rem}
+.school-reward-toast{position:fixed;z-index:10020;top:10%;left:50%;transform:translateX(-50%);max-width:min(90vw,380px);background:#fff8de;border:2px solid #f0bb40;border-radius:13px;padding:12px 20px;color:#624400;box-shadow:0 4px 19px rgba(0,0,0,.27);font-weight:900;text-align:center}
+.school-reward-toast.hidden{display:none!important}
+@media(max-width:540px){.school-shop-panel{padding:12px}.school-shop-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.school-shop-card{padding:10px 6px}.school-shop-card img{width:76px;height:76px}.school-shop-card h3{font-size:.89rem}.school-shop-card p{font-size:.72rem}}

@@ -127,3 +127,162 @@ assert.match(client,/function drawUltimateRecipientAuras/);
 assert.match(client,/function bladeSlashSweepAngle/);
 assert.ok(notes.sections.some(section=>section.heading.includes('궁극기 시각효과')));
 console.log('PASS: authoritative delayed star/iron burst, Angel/Flower recipients, Rescue paw, failed cast, 29-char client FX');
+
+
+// School-themed cosmetics and shop regression tests (merged to keep SLIM file count low).
+const {DurableStore} = require('./durable_store');
+const game=s;
+// Independent simulated SQL adapter. Does not replace the live PostgreSQL acceptance test.
+function fakeDatabase(){
+  const data={matches:new Set(),rewards:new Map(),wallets:new Map(),skins:new Map(),ledger:new Map()};
+  let snapshot=null;
+  const clone=()=>({
+    matches:new Set(data.matches),rewards:new Map(data.rewards),wallets:new Map(data.wallets),
+    skins:new Map([...data.skins].map(([k,v])=>[k,new Set(v)])),ledger:new Map(data.ledger)
+  });
+  const restore=old=>{for(const key of Object.keys(data))data[key]=old[key]};
+  const query=async(sql,p=[])=>{
+    const q=String(sql).replace(/\s+/g,' ').trim().toLowerCase();
+    if(q==='begin'){snapshot=clone();return {rows:[],rowCount:0}}
+    if(q==='commit'){snapshot=null;return {rows:[],rowCount:0}}
+    if(q==='rollback'){if(snapshot)restore(snapshot);snapshot=null;return {rows:[],rowCount:0}}
+    if(q.startsWith('insert into school_line_matches')){
+      if(data.matches.has(p[0]))return {rows:[],rowCount:0};
+      data.matches.add(p[0]);return {rows:[{match_id:p[0]}],rowCount:1};
+    }
+    if(q.startsWith('insert into school_line_match_rewards')){
+      const key=p[0]+':'+p[1];if(data.rewards.has(key))return {rows:[],rowCount:0};
+      data.rewards.set(key,{coins:p[2],outcome:p[3]});return {rows:[{account_id:p[1]}],rowCount:1};
+    }
+    if(q.startsWith('insert into school_line_wallets')){
+      if(!data.wallets.has(p[0]))data.wallets.set(p[0],0);
+      return {rows:[],rowCount:1};
+    }
+    if(q.startsWith('update school_line_wallets set coins=coins+')){
+      const balance=(data.wallets.get(p[0])||0)+p[1];data.wallets.set(p[0],balance);
+      return {rows:[{coins:balance}],rowCount:1};
+    }
+    if(q.startsWith('update school_line_wallets set coins=coins-')){
+      const balance=(data.wallets.get(p[0])||0)-p[1];data.wallets.set(p[0],balance);
+      return {rows:[{coins:balance}],rowCount:1};
+    }
+    if(q.startsWith('select coins from school_line_wallets where account_id=$1')){
+      return data.wallets.has(p[0])?{rows:[{coins:data.wallets.get(p[0])}],rowCount:1}:{rows:[],rowCount:0};
+    }
+    if(q.startsWith('insert into school_line_coin_ledger')){
+      assert.ok(!data.ledger.has(p[0]),'ledger writes must be unique');data.ledger.set(p[0],p);
+      return {rows:[],rowCount:1};
+    }
+    if(q.startsWith('select skin_id from school_line_owned_skins')){
+      const rows=[...(data.skins.get(p[0])||new Set())].map(skin_id=>({skin_id}));
+      return {rows,rowCount:rows.length};
+    }
+    if(q.startsWith('select 1 from school_line_owned_skins')){
+      const yes=data.skins.get(p[0])?.has(p[1]);return {rows:yes?[{'?column?':1}]:[],rowCount:yes?1:0};
+    }
+    if(q.startsWith('insert into school_line_owned_skins')){
+      if(!data.skins.has(p[0]))data.skins.set(p[0],new Set());
+      assert.ok(!data.skins.get(p[0]).has(p[1]));data.skins.get(p[0]).add(p[1]);
+      return {rows:[],rowCount:1};
+    }
+    throw new Error('Unexpected fake SQL '+q.slice(0,140));
+  };
+  return {data,pool:{query,connect:async()=>({query,release(){}})}};
+}
+const skinCatalog=JSON.parse(fs.readFileSync(path.join(__dirname,'public/skins.json'),'utf8'));
+assert.equal(skinCatalog.length,5,'only five launched skins');
+assert.equal(skinCatalog.filter(s=>s.tier==='일반'&&s.price===500).length,4);
+assert.equal(skinCatalog.filter(s=>s.tier==='특급'&&s.price===1000).length,1);
+assert.ok(!skinCatalog.some(s=>s.characterId==='flower'),'Flower postponed to v1.14');
+const atlasFile=path.join(__dirname,'public/assets/characters/token_atlas.webp');
+assert.ok(fs.statSync(atlasFile).size>100000,'shared token atlas');
+assert.equal(fs.existsSync(path.join(__dirname,'public/assets/skins')),false,'no per-skin assets');
+const indices=new Set();
+for(const skin of skinCatalog){
+  assert.ok(Number.isInteger(skin.tokenIndex) && skin.tokenIndex>=29,'atlas slot '+skin.id);
+  assert.ok(skin.tokenIndex<36,'within 6x6 atlas '+skin.id);
+  assert.ok(!indices.has(skin.tokenIndex),'unique atlas slot '+skin.id);
+  assert.ok(!skin.token,'no separate image URL '+skin.id);
+  indices.add(skin.tokenIndex);
+  assert.ok(skin.id&&skin.characterId&&skin.effectId);
+}
+
+(async()=>{
+  const fake=fakeDatabase();const store=new DurableStore();store.pool=fake.pool;
+  const makeMatch=(matchId,mode='competitive',seconds=180)=>({
+    matchId,matchMode:mode,durationSec:seconds,winner:'A',players:[
+      {accountId:'student-a',team:'A',connectedAtEnd:true},
+      {accountId:'student-b',team:'B',connectedAtEnd:true},
+      {accountId:'student-c',team:'B',connectedAtEnd:false},
+      {accountId:'student-a',team:'A',connectedAtEnd:true}
+    ]
+  });
+  const first=await store.insertMatch(makeMatch('match-1'));
+  assert.deepEqual(first.rewards.map(a=>a.coins),[120,100]);
+  assert.equal((await store.insertMatch(makeMatch('match-1'))).rewards.length,0,'retry cannot pay twice');
+  assert.equal(fake.data.wallets.get('student-a'),120);
+  assert.equal(fake.data.wallets.get('student-b'),100);
+  assert.ok(!fake.data.wallets.has('student-c'),'disconnected end gets no reward');
+  assert.equal((await store.insertMatch(makeMatch('casual-1','casual'))).rewards.length,0);
+  assert.equal((await store.insertMatch(makeMatch('short-1','competitive',100))).rewards.length,0);
+  const regular=skinCatalog.find(s=>s.id==='honor_shooter');
+  const premium=skinCatalog.find(s=>s.id==='school_nurse_buffer');
+  assert.equal((await store.buySkin('student-a',regular)).error,'not_enough_coins');
+  for(let i=2;i<=5;i++)await store.insertMatch(makeMatch('match-'+i));
+  assert.equal(fake.data.wallets.get('student-a'),600);
+  assert.deepEqual(await store.buySkin('student-a',regular),{ok:true,skinId:regular.id,coins:100});
+  assert.equal((await store.buySkin('student-a',regular)).error,'already_owned');
+  assert.equal((await store.buySkin('student-a',premium)).error,'not_enough_coins');
+  assert.deepEqual(await store.getShopAccount('student-a'),{coins:100,owned:[regular.id]});
+  assert.equal(await store.ownsSkin('student-a',regular.id),true);
+  assert.equal(await store.ownsSkin('student-b',regular.id),false);
+  assert.equal(fake.data.rewards.size,10,'each of five full matches awards once per connected account');
+  console.log('PASS: 5-skin catalog, wallet payouts, duplicate prevention, costs, purchase/inventory (simulated SQL)');
+
+  const now=1800000000000;
+  const makePlayer=(id,character,team='A',x=9,y=9)=>({
+    id,character,name:id,team,x,y,aimX:x+5,aimY:y,alive:true,connected:true,
+    hp:game.CHARACTERS[character].hp,maxHp:game.CHARACTERS[character].hp,shield:0,maxShield:0,
+    stats:game.makeMatchStats(character),statuses:Object.create(null),
+    damageContributors:Object.create(null),supportContributors:Object.create(null),input:{fire:false}
+  });
+  const makeRoom=()=>{
+    const room=game.newRoom('SKINS',{displayNumber:1,mode:'casual'});room.state='playing';room.matchMode='casual';
+    const messages=[];room.clients.set('observer',{send:m=>messages.push(m)});return {room,messages};
+  };
+  {
+    const {room,messages}=makeRoom();const rescue=makePlayer('cat','rescue'),ally=makePlayer('ally','shooter','A',18,18);
+    rescue.skinId='school_cat_rescue';room.players.set(rescue.id,rescue);room.players.set(ally.id,ally);
+    assert.equal(game.activateNewHeroAbility(room,rescue,null,now),false);
+    assert.equal(messages.some(m=>m.type==='skin_fx'),false,'invalid rescue cast no cosmetic');
+    ally.hp-=50;
+    assert.equal(game.activateNewHeroAbility(room,rescue,ally,now),true);
+    assert.equal(rescue.x,18);assert.equal(rescue.y,18);
+    assert.equal(messages.filter(m=>m.kind==='rescue_meow').length,1);
+    assert.equal(game.activateNewHeroAbility(room,rescue,ally,now+1),false,'cooldown prevents spam');
+    assert.equal(messages.filter(m=>m.kind==='rescue_meow').length,1);
+  }
+  {
+    const {room,messages}=makeRoom();const shooter=makePlayer('shooter','shooter'),victim=makePlayer('victim','iron','B',16,13);
+    shooter.skinId='honor_shooter';victim.lastDamageAttackerId=shooter.id;victim.lastDamageAt=now;
+    room.players.set(shooter.id,shooter);room.players.set(victim.id,victim);
+    game.die(room,victim,now);
+    assert.equal(messages.filter(m=>m.kind==='shooter_hundred').length,1);
+    assert.equal(messages.find(m=>m.kind==='shooter_hundred').x,16);
+    assert.equal(messages.find(m=>m.kind==='shooter_hundred').y,13);
+  }
+  {
+    const {room}=makeRoom();room.state='ready';room.matchMode='competitive';
+    const a=makePlayer('a','star'),b=makePlayer('b','rescue');
+    a.skinId='class_president_star';b.skinId='school_cat_rescue';
+    room.players.set(a.id,a);room.players.set(b.id,b);
+    room.competitive={phase:'ready',readyEndAt:now+20000,draftStartedAt:now-20000,
+      pendingReadySwaps:new Map([['b',{requestId:'swap1',sourceId:'a',targetId:'b',team:'A',
+        sourceCharacter:'star',targetCharacter:'rescue',expiresAt:now+10000}]]),
+      readySwaps:[],draftEvents:[]};
+    assert.equal(game.swapCompetitiveReadyAssignments(room,a,'a','b',b,now),true);
+    assert.equal(a.character,'rescue');assert.equal(b.character,'star');
+    assert.equal(a.skinId,null);assert.equal(b.skinId,null,'skin ownership cannot be swapped');
+  }
+  console.log('PASS: server-confirmed kill/teleport FX, failure/cooldown suppression, no skin transfer on swaps');
+})().catch(err=>{console.error(err);process.exitCode=1});

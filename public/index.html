@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#10141b" />
   <title>School Line Mobile</title>
-  <link rel="stylesheet" href="/style.css?v=1.13-ui-quickguide-roundtoken-v1" />
+  <link rel="stylesheet" href="/style.css?v=1.13-school-skins-2" />
 </head>
 <body class="access-checking access-locked">
   <div id="accessLockScreen" class="access-lock-screen" role="status" aria-live="polite">
@@ -42,6 +42,17 @@
     </article>
   </div>
 
+  <div id="schoolShopOverlay" class="school-shop-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="schoolShopTitle">
+    <section class="school-shop-panel">
+      <header class="school-shop-head"><div><small>🏫 SCHOOL LINE</small><h2 id="schoolShopTitle">🎀 스킨 상점</h2></div><button id="schoolShopClose" type="button" aria-label="상점 닫기">✕</button></header>
+      <div class="school-shop-wallet"><span id="schoolShopAccount">계정 로그인 필요</span><strong id="schoolShopBalance">🪙 0</strong></div>
+      <p id="schoolShopMessage" class="school-shop-message">계정과 PIN을 입력하고 상점을 열어주세요.</p>
+      <div id="schoolShopCards" class="school-shop-cards"></div>
+      <p class="school-shop-foot">경쟁전 정상 완료 +100코인 · 승리 시 +20코인 · 구매한 스킨은 내 계정에 영구 저장됩니다. 능력치·성능 변화는 없습니다.</p>
+    </section>
+  </div>
+  <div id="schoolRewardToast" class="school-reward-toast hidden" aria-live="polite"></div>
+
   <main id="app">
     <section id="joinScreen" class="panel join-panel">
       <h1>School Line</h1>
@@ -51,6 +62,7 @@
         <label>4자리 PIN<input id="accountPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" autocomplete="off" /></label>
       </div>
       <p class="account-login-help">이름은 고정 계정으로 사용됩니다. 한 번 선택한 이름은 이 기기에서 기억합니다.</p>
+      <button id="schoolShopOpen" type="button" class="school-shop-open">🎀 스킨 상점 <span>경쟁전 완료 +100 · 승리 +20</span></button>
 
       <button id="resumeButton" type="button" class="resume-game-button hidden">↩️ 진행 중인 게임으로 돌아가기</button>
       <div id="resumeHint" class="resume-game-hint hidden"></div>
@@ -418,6 +430,6 @@
       </article>
     </div>
   </main>
-  <script src="/game.js?v=1.13-ui-quickguide-roundtoken-v1"></script>
+  <script src="/game.js?v=1.13-school-skins-2"></script>
 </body>
 </html>

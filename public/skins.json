@@ -1,0 +1,52 @@
+[
+  {
+    "id": "honor_shooter",
+    "characterId": "shooter",
+    "name": "모범생 슈터",
+    "tier": "일반",
+    "price": 500,
+    "effect": "적 처치 위치에 💯 이펙트",
+    "effectId": "shooter_hundred",
+    "tokenIndex": 29
+  },
+  {
+    "id": "class_president_star",
+    "characterId": "star",
+    "name": "반장 스타",
+    "tier": "일반",
+    "price": 500,
+    "effect": "일반 투사체를 별 모양으로 변경",
+    "effectId": "star_projectile",
+    "tokenIndex": 30
+  },
+  {
+    "id": "school_cat_rescue",
+    "characterId": "rescue",
+    "name": "학교냥이 레스큐",
+    "tier": "일반",
+    "price": 500,
+    "effect": "긴급출동 시 작은 야옹 말풍선",
+    "effectId": "rescue_meow",
+    "tokenIndex": 31
+  },
+  {
+    "id": "pe_teacher_iron",
+    "characterId": "iron",
+    "name": "체육교사 아이언",
+    "tier": "일반",
+    "price": 500,
+    "effect": "기본 공격 투사체가 피구공 모양",
+    "effectId": "iron_dodgeball",
+    "tokenIndex": 32
+  },
+  {
+    "id": "school_nurse_buffer",
+    "characterId": "buffer",
+    "name": "보건교사 버퍼",
+    "tier": "특급",
+    "price": 1000,
+    "effect": "초록색 주입 링크 + 궁극기 십자가 입자",
+    "effectId": "buffer_medical",
+    "tokenIndex": 33
+  }
+]

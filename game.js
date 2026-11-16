@@ -19,7 +19,7 @@ const CHARACTER_META = {
   sniper:  { role:'딜러', name:'스나이퍼', icon:'🔭', summary:'36m까지 일정한 화력으로 공격하는 초장거리 딜러' },
   cannon:  { role:'딜러', name:'캐논', icon:'💥', summary:'기동성을 버리고 화력을 얻은 중화기 딜러' },
   fire:    { role:'딜러', name:'파이어', icon:'🔥', summary:'빠르게 움직이며 지속 피해를 남기는 딜러' },
-  poison:  { role:'딜러', name:'포이즌', icon:'☠️', summary:'외부 치유를 약화시키는 안티힐 광선 딜러' },
+  poison:  { role:'딜러', name:'포이즌', icon:'☠️', summary:'치유를 약화시키는 안티힐 광선 딜러' },
   reactor: { role:'딜러', name:'리액터', icon:'☢️', summary:'공격을 이어갈수록 출력 에너지가 상승하는 성장형 딜러' },
   spray:   { role:'딜러', name:'스프레이', icon:'🔫', summary:'세 갈래 고정 화망을 뿌리는 포킹 딜러' },
   laser:   { role:'딜러', name:'레이저', icon:'🔴', summary:'체력이 높은 적일수록 더 아픈 광선 딜러' },
@@ -300,16 +300,6 @@ function fmtNumber(value, digits=1) {
   return Number.isInteger(n) ? String(n) : n.toFixed(digits).replace(/\.0$/, '');
 }
 
-function speedLabel(speed) {
-  const n = Number(speed);
-  if (n <= 4.01) return '매우 느림';
-  if (n <= 5.01) return '느림';
-  if (n <= 6.01) return '보통';
-  if (n <= 7.01) return '빠름';
-  if (n <= 8.01) return '매우 빠름';
-  return '초고속';
-}
-
 function sizeLabel(radius) {
   const r = Number(radius);
   if (r <= .66) return '작음';
@@ -401,7 +391,7 @@ function buildCharacterStats(id) {
     ['사거리', range],
     [throughputLabel, throughput],
     [rateLabel, rate],
-    ['이동속도', `${speedLabel(c.speed)} · ${fmtNumber(c.speed)} m/s`],
+    ['이동속도', `${fmtNumber(c.speed)} m/s`],
     ['크기', sizeLabel(c.radius)]
   ];
   if (Number(c.ultimateCost || 0) > 0) rows.push(['궁극기 충전', fmtNumber(c.ultimateCost)]);
@@ -411,7 +401,7 @@ function buildCharacterStats(id) {
 function buildCharacterMini(id, meta) {
   const c = characterPublicDef(id);
   if (!c) return meta.summary || '';
-  const move = speedLabel(c.speed);
+  const move = `${fmtNumber(c.speed)} m/s`;
   if (c.role === '탱커') return `${fmtNumber(c.hp)} HP · ${move}`;
   if (id === 'blade') return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
   if (id === 'buffer') return `${fmtNumber(c.linkHealHps)} HPS + 행동속도 ${fmtNumber(Number(c.actionSpeedBoost||0)*100)}% · ${move}`;
@@ -448,9 +438,9 @@ function characterAbilityGuide(id) {
     case 'jet': return {name:'부스터', effect:`쿨타임 ${n(c.boostCooldown)}초. ${n(c.boostDuration)}초에 걸쳐 최대 ${n(c.boostDistance)}m 돌진하고 ${n(c.boostShieldDuration)}초 보호막 ${n(c.boostShield)} 획득. 벽은 통과할 수 없습니다.`, control:'이동할 방향을 조준한 뒤 Space 키 (모바일: 능력 버튼)'};
     case 'dia': return {name:'폼체인지', effect:`쿨타임 ${n(c.formCooldown)}초. ${n(c.formDuration)}초 동안 다이아폼(최대 HP ${n(c.formHp)}, 속도 ${n(c.formSpeed)}m/s, ${n(c.formRange)}m 광선 ${n(c.formBeamDps)} DPS)으로 변신. 적 처치 시 남은 쿨타임 ${n(c.formKillCooldownReduction)}초 감소.`,control:direct};
     case 'shield': return {name:'보호막', effect:`보호막 ${n(c.shieldAmount)}, ${n(c.shieldDuration)}초 지속. 아군에게 반경 ${n(c.shieldAbilityRange)}m 이내에서 사용 가능(시야 제한 없음). 최대 ${n(c.shieldMaxCharges)}회 충전, ${n(c.shieldRecharge)}초마다 1회 재충전.`,control:'자신 또는 아군을 클릭(터치)해 선택한 뒤 Space 키 (모바일: 능력 버튼)'};
-    case 'runner': return {name:'질주',effect:`쿨타임 ${n(c.sprintCooldown)}초. ${n(c.sprintDuration)}초 동안 이동속도 +1단계.`,control:direct};
-    case 'wind': return {name:'순풍',effect:`쿨타임 ${n(c.tailwindCooldown)}초. ${n(c.tailwindDuration)}초 동안 아군 전체 이동속도 +${n(c.tailwindTierDelta)}단계.`,control:direct};
-    case 'flower': return {name:'가시꽃',effect:`쿨타임 ${n(c.flowerThornsCooldown)}초. ${n(c.flowerThornsDuration)}초간 치유탄이 공격 전용 가시탄으로 바뀝니다. 치유는 중단되고 공격은 ${shotDps(c.flowerThornsDamage)} DPS(발당 ${n(c.flowerThornsDamage)})가 됩니다. 사거리·속도·크기는 유지.`,control:direct};
+    case 'runner': return {name:'질주',effect:`쿨타임 ${n(c.sprintCooldown)}초. ${n(c.sprintDuration)}초 동안 이동속도 +${n(c.sprintSpeedBonus)}m/s.`,control:direct};
+    case 'wind': return {name:'순풍',effect:`쿨타임 ${n(c.tailwindCooldown)}초. ${n(c.tailwindDuration)}초 동안 아군 전체 이동속도 +${n(c.tailwindSpeedBonus)}m/s.`,control:direct};
+    case 'flower': return {name:'가시꽃',effect:`쿨타임 ${n(c.flowerThornsCooldown)}초. 가시 2발을 즉시·${n(c.flowerThornsVolleyInterval)}초 후 연속 발사(발당 ${n(c.flowerThornsDamage)} 피해). 사거리 ${n(c.flowerThornsRange)}m, 투사체 속도 ${n(c.flowerThornsProjectileSpeed)}m/s. 적중하면 ${n(c.flowerThornsHealReductionDuration)}초간 치유 ${percent(c.flowerThornsHealReduction)}% 감소(재적중 시 갱신, 다른 종류와 합산 최대 80%). 기본 치유 공격은 계속 가능합니다.`,control:direct};
     case 'angel': return {name:'축복',effect:`쿨타임 ${n(c.abilityCooldown)}초. 거리·시야 제한 없이 선택한 자신 또는 아군 ${n(c.abilityHeal)} HP 치유.`,control:ally};
     case 'buffer': return {name:'링크',effect:`최대 ${n(c.range)}m 거리 내 선택 아군을 지속 치유 ${n(c.linkHealHps)} HPS하고 행동속도를 ${percent(c.actionSpeedBoost)}% 증가시킵니다.`,control:'아군을 클릭(터치)하여 연결. Space 키 사용 불필요.'};
     case 'witch': return {name:'저주',effect:`쿨타임 ${n(c.abilityCooldown)}초. 선택한 적에게 ${n(c.curseDuration)}초 동안 받는 피해 +${percent(c.curseDamageTakenBonus)}% 저주를 부여합니다. 거리·시야 제한 없음.`,control:enemy};
@@ -482,23 +472,23 @@ function characterUltimateGuide(id) {
     case 'shield': effect=`자신 및 모든 아군에게 ${n(c.ultimateShieldDuration)}초간 보호막 ${n(c.ultimateShield)} 부여.`; break;
     case 'runner': effect=`선택한 적에게 폭탄 부착. ${n(c.ultimateDelay)}초 후 ${n(c.ultimateDamage)} 피해.`; break;
     case 'blade': effect=`${n(c.ultimateDuration)}초 동안 전방 ${n(c.ultimateRange)}m·${n(c.ultimateMeleeFanAngleDeg)}° 부채꼴 범위 내 모든 적에게 공격당 ${n(c.ultimateDamage)} 피해(초당 ${n(c.fireRate)}회). 사용 시 돌격 충전 +1.`; break;
-    case 'shooter': effect=`${n(c.ultimateDuration)}초간 공격 ${n(c.ultimateDamage * c.fireRate)} DPS, 사거리 ${n(c.ultimateRange)}m, 이동속도 +${n(c.ultimateSpeedTierDelta)}단계.`; break;
+    case 'shooter': effect=`${n(c.ultimateDuration)}초간 공격 ${n(c.ultimateDamage * c.fireRate)} DPS, 사거리 ${n(c.ultimateRange)}m, 이동속도 +${n(c.ultimateSpeedBonus)}m/s.`; break;
     case 'sniper': effect=`${n(c.ultimateDuration)}초간 ${n(c.ultimateDamage * c.fireRate)} DPS(발당 ${n(c.ultimateDamage)}), 투사체 크기 증가.`; break;
     case 'cannon': effect=`${n(c.ultimateDuration)}초 동안 이동 불가, 기본 공격 ${n(c.ultimateDamage * c.fireRate)} DPS.`; break;
     case 'fire': effect=`${n(c.ultimateVolleyInterval)}초 간격으로 총 ${n(c.ultimateVolleyCount)}회, 전방 ${n(c.ultimateFanAngleDeg)}° 범위에 ${n(c.ultimateProjectileCount)}발 발사. 회차당 대상 최대 ${n(c.ultimateDamage)} 피해.`; break;
     case 'poison': effect=`반경 ${n(c.ultimateRadius)}m 적에게 ${n(c.ultimateDamage)} 피해와 ${n(c.ultimatePoisonDuration)}초 동안 치유 완전 차단.`; break;
-    case 'reactor': effect=`${n(c.ultimateDuration)}초 동안 이동속도 +${n(c.ultimateSpeedTierDelta)}단계, 출력 에너지 감소 중단.`; break;
+    case 'reactor': effect=`${n(c.ultimateDuration)}초 동안 이동속도 +${n(c.ultimateSpeedBonus)}m/s, 출력 에너지 감소 중단.`; break;
     case 'spray': effect=`${n(c.ultimateVolleyInterval)}초 간격 총 ${n(c.ultimateVolleyCount)}회, ${n(c.ultimateProjectileCount)}방향 방사탄. 회차당 대상 최대 ${n(c.ultimateDamage)} 피해.`; break;
     case 'laser': effect=`전방 ${n(c.ultimateRange)}×${n(c.ultimateWidth)}m 범위 적에게 ${n(c.ultimateDamage)} + 대상 최대 HP의 ${pct(c.ultimateMaxHpDamageRatio)}% 피해. 실효 피해만큼 ${n(c.ultimateShieldDuration)}초 보호막.`; break;
     case 'ice': effect=`${n(c.ultimateDelay)}초 예고 후 반경 ${n(c.ultimateRadius)}m 적을 ${n(c.ultimateStunDuration)}초 기절, 자신은 ${n(c.ultimateHeal)} HP 회복.`; break;
     case 'water': effect=`반경 ${n(c.ultimateRadius)}m 아군 ${n(c.ultimateHeal)} 회복, 적 ${n(c.ultimateDamage)} 피해와 ${n(c.ultimateStunDuration)}초 기절.`; break;
     case 'wind': effect=`${n(c.ultimateDuration)}초 동안 반경 ${n(c.ultimateRadius)}m 내 자신 및 아군을 ${n(c.ultimateHealHps)} HPS 회복.`; break;
     case 'star': effect=`${n(c.ultimateDelay)}초 후 반경 ${n(c.ultimateRadius)}m 아군 ${n(c.ultimateHeal)} 회복, 적 ${n(c.ultimateDamage)} 피해.`; break;
-    case 'flower': effect=`맵 전체에서 선택한 자신 또는 아군 1명에게 즉시 ${n(c.ultimateHeal)} HP 회복. 초과량을 ${n(c.ultimateShieldDuration)}초 보호막으로 전환. ${n(c.ultimateDuration)}초 동안 이동속도 +${n(c.ultimateSpeedTierDelta)}단계, 공격속도 +${pct(c.ultimateAttackSpeedBoost)}%. 사용자 궁극기 재충전 ${n(c.ultimateDuration)}초 잠금.`; break;
+    case 'flower': effect=`맵 전체에서 선택한 자신 또는 아군 1명에게 즉시 ${n(c.ultimateHeal)} HP 회복. 초과량을 ${n(c.ultimateShieldDuration)}초 보호막으로 전환. ${n(c.ultimateDuration)}초 동안 이동속도 +${n(c.ultimateSpeedBonus)}m/s, 공격속도 +${pct(c.ultimateAttackSpeedBoost)}%. 사용자 궁극기 재충전 ${n(c.ultimateDuration)}초 잠금.`; break;
     case 'angel': effect=`선택한 자신 또는 아군을 ${n(c.ultimateDuration)}초간 무적으로 만듭니다.`; break;
-    case 'buffer': effect=`${n(c.ultimateDuration)}초 동안 링크 대상 치유량이 ${n(c.ultimateLinkHealHps)} HPS로 증가하고 이동속도 +${n(c.ultimateLinkedSpeedTierDelta)}단계.`; break;
+    case 'buffer': effect=`${n(c.ultimateDuration)}초 동안 링크 대상 치유량이 ${n(c.ultimateLinkHealHps)} HPS로 증가하고 이동속도 +${n(c.ultimateLinkedSpeedBonus)}m/s.`; break;
     case 'light': effect=`전방 ${n(c.ultimateRange)}×${n(c.ultimateWidth)}m 범위 적 ${n(c.ultimateDamage)} 피해, 아군 ${n(c.ultimateHeal)} 회복, 자신도 ${n(c.ultimateSelfHeal)} 회복.`; break;
-    case 'witch': effect=`즉시 전장 전체의 살아 있는 적에게 ${n(c.ultimateEffectDuration)}초간 저주(받는 피해 +25%)와 이동속도 ${n(Math.abs(c.ultimateSpeedTierDelta))}단계 감소. 무적 대상 제외.`; break;
+    case 'witch': effect=`즉시 전장 전체의 살아 있는 적에게 ${n(c.ultimateEffectDuration)}초간 저주(받는 피해 +25%)와 이동속도 ${n(c.ultimateSpeedDelta)}m/s. 무적 대상 제외.`; break;
     case 'hacker': effect=`반경 ${n(c.ultimateRadius)}m 적의 개인 보호막을 제거하고 ${n(c.ultimateStunDuration)}초 기절시킵니다. HP 피해 없음.`; break;
     case 'rescue': effect=`반경 ${n(c.ultimateRadius)}m 아군 및 자신 ${n(c.ultimateHeal)} 회복, 초과 치유량은 ${n(c.ultimateShieldDuration)}초 보호막으로 전환.`; break;
     case 'drain': effect=`자신을 즉시 ${n(c.ultimateHeal)} 회복하고 ${n(c.ultimateDuration)}초 동안 공격속도 +${pct(c.ultimateAttackSpeedBoost)}%. 공격 적중당 흡혈 ${n(c.lifestealOnHit)} HP도 유지.`; break;
@@ -519,12 +509,12 @@ function buildCharacterMechanic(id, fallback='') {
     shooter:'빠른 기본 투사체를 중심으로 싸웁니다.',
     sniper:`${n(c.range)}m 사거리에서 일정한 기본 피해를 주며 본인에게만 조준 점선이 표시됩니다.`,
     cannon:'높은 연사 화력을 지닌 대신 이동속도가 느립니다.',
-    fire:`기본 공격 적중 시 ${n(c.burnDuration)}초 동안 ${n(c.burnDps)} DPS 화상, 화상 중 외부 치유량 ${n(c.burnHealReduction*100)}% 감소.`,
-    poison:`광선 적중 시 ${n(c.poisonDuration)}초간 외부 치유량 ${n(c.poisonHealReduction*100)}% 감소.`,
+    fire:`기본 공격 적중 시 ${n(c.burnDuration)}초 동안 ${n(c.burnDps)} DPS 화상, 화상 중 치유량 ${n(c.burnHealReduction*100)}% 감소.`,
+    poison:`광선 적중 시 ${n(c.poisonDuration)}초간 모든 치유량 ${n(c.poisonHealReduction*100)}% 감소.`,
     reactor:`실제 HP 피해·처치로 출력이 상승하며, 고출력 시 이동속도 ${n(c.reactorHighSpeed)}m/s가 됩니다.`,
     spray:`중앙 ${dps(c.damage)} DPS, 양옆 각각 ${dps(c.spraySideDamage)} DPS의 3갈래 탄환을 발사합니다.`,
     laser:`기본 광선 ${n(c.beamDps)} DPS + 적 최대 HP의 ${n(c.maxHpDpsRatio*100)}%/초 피해.`,
-    ice:`광선 적중 시 ${n(c.slowDuration)}초간 이동속도 ${n(c.slowTierDelta)}단계.`,
+    ice:`광선 적중 시 ${n(c.slowDuration)}초간 이동속도 ${n(c.slowSpeedDelta)}m/s.`,
     solar:`${n(c.beamDps)} DPS 광선과 ${dps(c.solarProjectileDamage)} DPS 태양탄을 병행. 태양탄이 실제 HP에 명중하면 ${n(c.solarSelfHeal)} 회복.`,
     water:'한 종류의 투사체로 아군을 치유하고 적을 공격합니다.',
     star:'빠른 장거리 투사체로 아군을 치유하면서 적도 공격합니다.',
@@ -948,7 +938,7 @@ const healerLowHpAttention = new Set();
 const CHARACTER_INTRO_TIPS = Object.freeze({
   iron: { role:'tank', text:'혼자 깊게 들어가기보다 팀과 함께 뭉쳐서 움직이세요. 속도가 느리니 방어에 집중하세요.' },
   mecha: { role:'tank', text:'빠른 속도로 적의 시선을 끌고 싸움을 흔드세요. 위험하면 도망쳐서 우리 팀 힐러에게 치유받거나, 4초 동안 구석에서 공격받지 않으면 체력이 차오릅니다.' },
-  flower: { role:'healer', text:'가시꽃 도중에는 아군을 치료할 수 없습니다. 만개는 자신 또는 살아 있는 아군을 클릭해 선택한 뒤 R을 눌러야 발동합니다.' },
+  flower: { role:'healer', text:'가시꽃은 일반 치유 공격을 멈추지 않고 발사됩니다. 두 번째 가시는 0.5초 후의 조준 방향을 따라갑니다. 만개는 자신 또는 아군을 선택한 뒤 R로 사용합니다.' },
   blade: { role:'dealer', text:'4m까지 다가가야 참격할 수 있습니다. 돌격은 최대 2회 저장되며 적 처치 관여 시 1회 충전됩니다. 용검을 쓰면 돌격도 1회 충전됩니다.' },
   magnet: { role:'tank', text:'적의 위치를 바꾸는 자석은 공격이 아니라 제어 기술입니다. 홈가드를 거점에서 끌어내거나 팀원의 공격 범위로 적을 당겨보세요.' },
   jet: { role:'tank', text:'부스터로 빠르게 진입해 연약한 적을 공격하세요. 아군이 따라올 수 없는 곳까지 혼자 들어가면 위험해요.' },
@@ -3366,7 +3356,7 @@ function contributionSpecialLine(character, stats) {
   if (character === 'angel') return `축복으로 회복한 체력 ${formatContributionNumber(stats.angelBlessingHealing)}`;
   if (character === 'dia') return `다이아폼 킬 ${formatContributionNumber(stats.diaFormKills)}회`;
   if (character === 'magnet') return `자석 적중 ${formatContributionNumber(stats.magnetHookHits)}회`;
-  if (character === 'flower') return `가시꽃 피해량 ${formatContributionNumber(stats.flowerThornsDamage)}`;
+  if (character === 'flower') return `가시꽃 스킬로 입힌 피해량 ${formatContributionNumber(stats.flowerThornsDamage)}`;
   if (character === 'witch') return `저주로 증폭된 피해량 ${formatContributionNumber(stats.witchCurseBonusDamage)}`;
   if (character === 'hacker') return `은신 사용 ${formatContributionNumber(stats.hackerStealthUses)}회`;
   if (character === 'drain') return `흡혈로 회복한 치유량 ${formatContributionNumber(stats.drainLifestealHealing)}`;
@@ -5415,13 +5405,14 @@ function renderGame() {
       ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-dx*length,s.y-dy*length);ctx.stroke();
       ctx.globalAlpha=.9;ctx.strokeStyle='#fff9e5';ctx.lineWidth=1.6;ctx.stroke();ctx.restore();
     }
-    if (p.character === 'flower' && p.type !== 'heal') {
+    if (p.character === 'flower_thorns') {
       // Thorn-shaped projectile is visual only: server collision radius remains unchanged.
-      const angle=Math.atan2(Number(p.vy)||0,Number(p.vx)||1);
+      const angle=Math.atan2(Number(p.vx)||0,Number(p.vy)||1);
       ctx.save();ctx.translate(s.x,s.y);ctx.rotate(angle);
-      ctx.fillStyle='#c42e55';ctx.strokeStyle='#642038';ctx.lineWidth=1.5;
-      ctx.beginPath();ctx.moveTo(r*1.75,0);ctx.lineTo(-r*.68,-r*.72);
-      ctx.lineTo(-r*.34,0);ctx.lineTo(-r*.68,r*.72);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.fillStyle='#cb356b';ctx.strokeStyle='#712544';ctx.lineWidth=1.5;
+      // An isosceles point facing actual projectile travel, hitbox remains circular.
+      ctx.beginPath();ctx.moveTo(r*1.8,0);ctx.lineTo(-r*1.2,-r*.85);
+      ctx.lineTo(-r*1.2,r*.85);ctx.closePath();ctx.fill();ctx.stroke();
       ctx.restore();continue;
     }
     const projectileOwner=p.ownerId?viewState.players.find(q=>q.id===p.ownerId):null;
@@ -5504,6 +5495,22 @@ function renderGame() {
         ctx.lineTo(to.x, to.y);
         ctx.stroke();
         ctx.restore();
+      }
+    }
+
+    // Flower: 36 m directional guide visible only to its owner while ready.
+    const flowerGuide = viewState.players.find(p => p.id === myId && p.alive && p.character === 'flower' && !(Number(p.newAbilityCooldownMs) > 0));
+    if (flowerGuide) {
+      const range = Number(characterPublicDef('flower')?.flowerThornsRange) || 36;
+      const origin = renderedPlayerWorldPosition(flowerGuide, beamFxNow);
+      const dx = rightStick.active ? lastAimDir.x : Number(flowerGuide.aimX) - Number(flowerGuide.x);
+      const dy = rightStick.active ? lastAimDir.y : Number(flowerGuide.aimY) - Number(flowerGuide.y);
+      const length = Math.hypot(dx,dy);
+      if (length > 1e-6) {
+        const from = worldToScreen(origin.x,origin.y);
+        const to = worldToScreen(origin.x + dx/length*range, origin.y + dy/length*range);
+        ctx.save();ctx.globalAlpha=.42;ctx.strokeStyle='#e75b94';ctx.lineWidth=1.5;ctx.setLineDash([5,7]);
+        ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke();ctx.restore();
       }
     }
 

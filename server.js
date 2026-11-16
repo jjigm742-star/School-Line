@@ -50,10 +50,11 @@ const COMPETITIVE_DATA_DIR = path.join(__dirname, 'data'); // seed/static data o
 const ARCHIVED_110_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.10.json');
 const ARCHIVED_111_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.11.json');
 const ARCHIVED_112_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.12.json');
+const ARCHIVED_113_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.13.json');
 const CURRENT_PATCH_FILE = path.join(PUBLIC_DIR, 'latest-patch.json');
 function bundledCompetitivePatchNotes() {
   const notes = {};
-  for (const file of [ARCHIVED_110_PATCH_FILE, ARCHIVED_111_PATCH_FILE, ARCHIVED_112_PATCH_FILE, CURRENT_PATCH_FILE]) {
+  for (const file of [ARCHIVED_110_PATCH_FILE, ARCHIVED_111_PATCH_FILE, ARCHIVED_112_PATCH_FILE, ARCHIVED_113_PATCH_FILE, CURRENT_PATCH_FILE]) {
     const note = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (!note || !/^\d+\.\d+$/.test(note.version) || !Array.isArray(note.sections)) {
       throw new Error(`Invalid packaged patch notes: ${file}`);
@@ -82,8 +83,8 @@ const ADMIN_STATS_LOCK_MS = 30000;
 const ACCESS_ADMIN_PIN_HASH = LEGACY_ADMIN_PIN_HASH; // Preserve existing classroom access PIN.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.13';
-const GAME_VERSION = '1.13';
+const BALANCE_VERSION = '1.14';
+const GAME_VERSION = '1.14';
 const COMPETITIVE_STATS_SCHEMA_VERSION = 7;
 // Stats series reset: historical 1.6 data is intentionally NOT imported. This build starts at 1.7.
 // From gameplay 1.7 onward the series follows major.minor automatically, so 1.7.x / 1.8.x split without hard-coded lists.
@@ -96,8 +97,8 @@ function statsSeriesForBalanceVersion(balanceVersion) {
 }
 // Official builds use their major.minor stats series; prerelease tags remain isolated.
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION.includes('-pre') ? BALANCE_VERSION : statsSeriesForBalanceVersion(BALANCE_VERSION);
-const COMPETITIVE_BUILD_ID = '1.13-blade-roster29';
-const COMPETITIVE_ROSTER_VERSION = '1.13-release-roster-29';
+const COMPETITIVE_BUILD_ID = '1.14-system-heal-speed';
+const COMPETITIVE_ROSTER_VERSION = '1.14-system-only-roster-29';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
 const pendingCompetitiveRecords = new Map();
@@ -211,9 +212,11 @@ function findAccountReservation(accountId) {
 
 
 const WORLD = { width: 42, height: 68, aZoneEnd: 18, bZoneStart: 50 };
-const SPEED_TIERS = [4.0, 5.0, 6.0, 7.0, 8.0, 9.2];
+// 1.14: speed is a numeric m/s value; buffs/debuffs add without tier snapping or upper cap.
+// Existing character base speeds are preserved; future values may use 0.5 m/s increments.
+const MIN_FINAL_MOVEMENT_SPEED = 2.0;
 const GLOBAL_SHIELD_CAP = 500;
-const MAX_EXTERNAL_HEAL_REDUCTION = 0.80;
+const MAX_HEAL_REDUCTION = 0.80;
 const HEALER_ALLY_SELF_HEAL_RATIO = 0.25;
 // Healing feedback reuses the existing healHitSeq/lastHealTargetId wire slots.
 // Throttle at the authority layer so beam/link healing cannot generate audio events every 50 Hz tick.
@@ -233,8 +236,12 @@ const TARGET_RELATION = Object.freeze({ SELF: 'SELF', ALLY: 'ALLY', ENEMY: 'ENEM
 const STATUS_DEFS = Object.freeze({
   burn:     { kind: 'harmful', clearOnDeath: true },
   poison:   { kind: 'harmful', clearOnDeath: true },
+  // Separate three-second ultimate heal block; basic Poison beam cannot extend it.
+  poison_full_block: { kind: 'harmful', clearOnDeath: true },
   radiation:{ kind: 'harmful', clearOnDeath: true },
-  slow:     { kind: 'harmful', clearOnDeath: true },
+  flower_thorns_antiheal:{ kind: 'harmful', clearOnDeath: true },
+  freeze:   { kind: 'harmful', clearOnDeath: true }, // Ice's slowdown, distinct from Witch's curse slowdown.
+  witch_slow: { kind: 'harmful', clearOnDeath: true },
   stun:     { kind: 'harmful', clearOnDeath: true },
   // Curse: ability-specific duration, additive +25 percentage points to damage taken.
   curse:    { kind: 'harmful', clearOnDeath: true, damageTakenBonus: 0.25 },
@@ -306,7 +313,7 @@ const CHARACTERS = {
     name: '마그넷', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
     fireRate: 2, range: 16, projectileSpeed: 14, projectileRadius: 0.70,
     projectileType: 'attack', damage: 40, abilityId: 'magnet',
-    magnetRange: 20, magnetCooldown: 12, magnetProjectileSpeed: 42, magnetProjectileRadius: 0.70,
+    magnetRange: 20, magnetCooldown: 9, magnetProjectileSpeed: 42, magnetProjectileRadius: 0.70,
     magnetPullDuration: 0.3, magnetPullOffset: 0.5, magnetHookDamage: 30,
     ultimateName: '과충전', ultimateCost: 800,
     ultimateDescription: '자석 쿨타임을 즉시 초기화한다. 8초간 자석의 쿨타임이 4초가 되고 초당 10 HP를 회복한다.',
@@ -340,11 +347,11 @@ const CHARACTERS = {
     name: '러너', role: '딜러', hp: 175, speed: 8.0, radius: 0.65,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 14,
-    sprintDuration: 4, sprintCooldown: 8, abilityId: 'sprint',
-    ultimateName: '부착 폭탄', ultimateCost: 700, ultimateDescription: '6m 이내 선택한 적에게 폭탄을 부착하고 3초 후 225 피해를 준다. 적을 선택해야 사용 가능.', ultimateRange: 6, ultimateDamage: 225, ultimateDelay: 3, ultimateTargeting: { relations: [TARGET_RELATION.ENEMY], range: 6, requireLos: false }
+    sprintDuration: 4, sprintCooldown: 8, sprintSpeedBonus: 1.0, abilityId: 'sprint',
+    ultimateName: '부착 폭탄', ultimateCost: 700, ultimateDescription: '6m 이내 선택한 적에게 폭탄을 부착하고 3초 후 250 피해를 준다. 적을 선택해야 사용 가능.', ultimateRange: 6, ultimateDamage: 250, ultimateDelay: 3, ultimateTargeting: { relations: [TARGET_RELATION.ENEMY], range: 6, requireLos: false }
   },
   blade: {
-    name: '블레이드', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
+    name: '블레이드', role: '딜러', hp: 250, speed: 6.5, radius: 0.80,
     attackType: 'melee', fireRate: 2, range: 4, damage: 60, meleeFanAngleDeg: 60, meleeTargetMode: 'nearest',
     abilityId: 'blade_dash', abilityCooldown: 10, bladeDashDistance: 8, bladeDashDuration: 0.3,
     bladeDashMaxCharges: 2, bladeDashRecharge: 10,
@@ -356,12 +363,12 @@ const CHARACTERS = {
     name: '슈터', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 42, projectileRadius: 0.20,
     projectileType: 'attack', damage: 20,
-    ultimateName: '자신감', ultimateCost: 700, ultimateDescription: '8초간 이동속도가 2단계 증가하고 150 DPS, 사거리 32m가 된다.', ultimateDuration: 8, ultimateDamage: 30, ultimateRange: 32, ultimateSpeedTierDelta: 2
+    ultimateName: '자신감', ultimateCost: 700, ultimateDescription: '8초간 이동속도 +2.0m/s, 175 DPS, 사거리 32m가 된다.', ultimateDuration: 8, ultimateDamage: 35, ultimateRange: 32, ultimateSpeedBonus: 2.0
   },
   sniper: {
     name: '스나이퍼', role: '딜러', hp: 150, speed: 4.0, radius: 0.65,
     fireRate: 2, range: 36, projectileSpeed: 42, projectileRadius: 0.20,
-    projectileType: 'attack', damage: 50,
+    projectileType: 'attack', damage: 45,
     ultimateName: '정밀사격', ultimateCost: 800, ultimateDescription: '8초간 거리에 관계없이 150 DPS(발당 75 피해)로 공격하고 투사체 크기가 증가한다.', ultimateDuration: 8, ultimateDamage: 75, ultimateProjectileRadius: 0.32
   },
   cannon: {
@@ -397,7 +404,7 @@ const CHARACTERS = {
     reactorDamagePerOutput: 5, reactorKillOutputGain: 10, reactorDecayDelay: 4, reactorDecayPerSecond: 20,
     reactorHighThreshold: 66, reactorHighSpeed: 7.0,
     radiationHealReduction: 0.25, radiationDuration: 1.5,
-    ultimateName: '원자로 폭주', ultimateCost: 1000, ultimateDescription: '8초간 이동속도가 1단계 증가하고 출력 감소가 멈춘다.', ultimateDuration: 8, ultimateSpeedTierDelta: 1
+    ultimateName: '원자로 폭주', ultimateCost: 1000, ultimateDescription: '8초간 이동속도 +1.0m/s, 출력 감소가 멈춘다.', ultimateDuration: 8, ultimateSpeedBonus: 1.0
   },
   spray: {
     name: '스프레이', role: '딜러', hp: 250, speed: 5.0, radius: 0.80,
@@ -410,7 +417,7 @@ const CHARACTERS = {
   water: {
     name: '워터', role: '힐러', hp: 250, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
-    projectileType: 'heal', heal: 16, damage: 10,
+    projectileType: 'heal', heal: 15, damage: 10,
     ultimateName: '범람', ultimateCost: 1200, ultimateDescription: '반경 16m의 아군을 125 회복하고, 적에게 25 피해와 1초 기절을 즉시 부여한다.',
     ultimateRadius: 16, ultimateHeal: 125, ultimateDamage: 25, ultimateStunDuration: 1
   },
@@ -418,7 +425,7 @@ const CHARACTERS = {
     name: '윈드', role: '힐러', hp: 175, speed: 8.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
     projectileType: 'heal', heal: 12, damage: 10,
-    tailwindDuration: 4, tailwindCooldown: 15, tailwindTierDelta: 1, abilityId: 'tailwind',
+    tailwindDuration: 4, tailwindCooldown: 15, tailwindSpeedBonus: 1.0, abilityId: 'tailwind',
     ultimateName: '계절풍', ultimateCost: 1200, ultimateDescription: '8초간 반경 12m 자신과 아군을 초당 30 회복한다.', ultimateDuration: 8, ultimateRadius: 12, ultimateHealHps: 30
   },
   star: {
@@ -431,11 +438,13 @@ const CHARACTERS = {
     name: '플라워', role: '힐러', hp: 250, speed: 5.0, radius: 0.80,
     fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
     projectileType: 'heal', heal: 14, damage: 10,
-    abilityId: 'flower_thorns', flowerThornsCooldown: 10, flowerThornsDuration: 5, flowerThornsDamage: 18,
+    abilityId: 'flower_thorns', flowerThornsCooldown: 5, flowerThornsDamage: 25,
+    flowerThornsRange: 36, flowerThornsProjectileSpeed: 42, flowerThornsProjectileRadius: 0.32,
+    flowerThornsVolleyInterval: 0.5, flowerThornsHealReduction: 0.40, flowerThornsHealReductionDuration: 2,
     ultimateName: '만개', ultimateCost: 1000,
-    ultimateDescription: '자신 또는 선택한 아군 1명을 즉시 100 회복하고 초과 치유량을 3초 보호막으로 전환한다. 8초간 이동속도 +2단계, 공격속도 +25%. 만개 사용자의 궁극기 재충전 8초 잠금.',
+    ultimateDescription: '자신 또는 선택한 아군 1명을 즉시 100 회복하고 초과 치유량을 3초 보호막으로 전환한다. 8초간 이동속도 +2.0m/s, 공격속도 +25%. 만개 사용자의 궁극기 재충전 8초 잠금.',
     ultimateHeal: 100, ultimateShieldDuration: 3,
-    ultimateSpeedTierDelta: 2, ultimateDuration: 8, ultimateAttackSpeedBoost: 0.25,
+    ultimateSpeedBonus: 2.0, ultimateDuration: 8, ultimateAttackSpeedBoost: 0.25,
     ultimateTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
   },
   angel: {
@@ -451,7 +460,7 @@ const CHARACTERS = {
     range: 16, noBasicAttack: true,
     linkHealHps: 40, actionSpeedBoost: 0.25,
     linkTargeting: { relations: [TARGET_RELATION.ALLY], range: 16, requireLos: false },
-    ultimateName: '업그레이드', ultimateCost: 1000, ultimateDescription: '8초간 링크 치유량이 초당 65로 증가하고 대상 이동속도가 1단계 증가한다.', ultimateDuration: 8, ultimateLinkHealHps: 65, ultimateLinkedSpeedTierDelta: 1
+    ultimateName: '업그레이드', ultimateCost: 1000, ultimateDescription: '8초간 링크 치유량이 초당 65로 증가하고 대상 이동속도 +1.0m/s.', ultimateDuration: 8, ultimateLinkHealHps: 65, ultimateLinkedSpeedBonus: 1.0
   },
   light: {
     name: '라이트', role: '힐러', hp: 275, speed: 6.0, radius: 0.65,
@@ -467,7 +476,7 @@ const CHARACTERS = {
   ice: {
     name: '아이스', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
     attackType: 'beam', range: 16, beamDps: 85,
-    slowTierDelta: -1, slowDuration: 1.5,
+    slowSpeedDelta: -1.5, slowDuration: 1.5,
     ultimateName: '절대영도', ultimateCost: 1000, ultimateDescription: '반경 16m 적을 1초 기절시키고 자신은 300 회복한다.', ultimateRadius: 16, ultimateStunDuration: 1, ultimateHeal: 300, ultimateDelay: 2
   },
   dia: {
@@ -483,8 +492,8 @@ const CHARACTERS = {
     attackType: 'beam', range: 16, beamDps: 70,
     abilityId: 'curse', abilityCooldown: 10, curseDuration: 5,
     abilityTargeting: { relations: [TARGET_RELATION.ENEMY], requireLos: false },
-    ultimateName: '마법약', ultimateCost: 1400, ultimateDescription: '사용 즉시 전장 전체의 살아 있는 적에게 5초간 저주(받는 피해 +25%)와 이동속도 1단계 감소를 부여한다. 무적 상태의 적은 제외한다.',
-    ultimateDuration: 5, ultimateEffectDuration: 5, ultimateSpeedTierDelta: -1
+    ultimateName: '마법약', ultimateCost: 1400, ultimateDescription: '사용 즉시 전장 전체의 살아 있는 적에게 5초간 저주(받는 피해 +25%)와 이동속도 -1.0m/s를 부여한다. 무적 상태의 적은 제외한다.',
+    ultimateDuration: 5, ultimateEffectDuration: 5, ultimateSpeedDelta: -1.0
   },
   hacker: {
     name: '해커', role: '딜러', hp: 225, speed: 7.0, radius: 0.80,
@@ -497,8 +506,8 @@ const CHARACTERS = {
   rescue: {
     name: '레스큐', role: '힐러', hp: 200, speed: 6.0, radius: 0.65,
     fireRate: 5, range: 16, projectileSpeed: 20, projectileRadius: 0.52,
-    projectileType: 'heal', heal: 12, damage: 10,
-    abilityId: 'rescue', abilityCooldown: 12, abilityHeal: 30,
+    projectileType: 'heal', heal: 13, damage: 10,
+    abilityId: 'rescue', abilityCooldown: 10, abilityHeal: 30,
     abilityTargeting: { relations: [TARGET_RELATION.ALLY], requireLos: false },
     ultimateName: '골골대기', ultimateCost: 1000, ultimateDescription: '반경 12m 자신과 아군을 100 회복하고 초과량을 3초 개인 보호막으로 전환한다.',
     ultimateRadius: 12, ultimateHeal: 100, ultimateShieldDuration: 3, ultimateDuration: 3
@@ -1400,12 +1409,10 @@ function noteAccessAdminAuthFailure(remoteAddress, now = Date.now()) {
 }
 function clearAccessAdminAuthFailure(remoteAddress) { accessAdminAuthFailures.delete(remoteAddress); }
 function validCharacter(value) { return CHARACTERS[value] ? value : 'shooter'; }
-function speedWithTierDelta(speed, delta) {
-  let best = 0;
-  for (let i = 1; i < SPEED_TIERS.length; i++) {
-    if (Math.abs(SPEED_TIERS[i] - speed) < Math.abs(SPEED_TIERS[best] - speed)) best = i;
-  }
-  return SPEED_TIERS[clamp(best + delta, 0, SPEED_TIERS.length - 1)];
+function additiveMovementSpeed(speed, speedDelta = 0) {
+  // Numerical movement modifiers stack additively. Avoid an upper limit, but keep
+  // a final 2.0 m/s floor (including all active slows).
+  return Math.max(MIN_FINAL_MOVEMENT_SPEED, (Number(speed) || 0) + (Number(speedDelta) || 0));
 }
 
 function isDiaForm(player, now) {
@@ -1438,9 +1445,6 @@ function isUltimateActive(player, now = Date.now()) {
 
 function currentAttackDef(player, now) {
   const def = CHARACTERS[player.character];
-  if (player.character === 'flower' && (player.flowerThornsUntil || 0) > now) {
-    return { ...def, projectileType: 'attack', heal: 0, damage: def.flowerThornsDamage };
-  }
   if (isDiaForm(player, now)) {
     return { attackType: 'beam', range: def.formRange, beamDps: def.formBeamDps, maxHpDpsRatio: 0 };
   }
@@ -1475,19 +1479,21 @@ function currentBaseSpeed(player, now) {
 
 function effectiveSpeed(player, now, room = null) {
   let delta = 0;
-  if (player.character === 'runner' && player.sprintUntil > now) delta += 1;
-  if (player.character === 'shooter' && isUltimateActive(player, now)) delta += Number(CHARACTERS.shooter.ultimateSpeedTierDelta) || 0;
-  if (player.character === 'reactor' && isUltimateActive(player, now)) delta += Number(CHARACTERS.reactor.ultimateSpeedTierDelta) || 0;
+  if (player.character === 'runner' && player.sprintUntil > now) delta += CHARACTERS.runner.sprintSpeedBonus;
+  if (player.character === 'shooter' && isUltimateActive(player, now)) delta += Number(CHARACTERS.shooter.ultimateSpeedBonus) || 0;
+  if (player.character === 'reactor' && isUltimateActive(player, now)) delta += Number(CHARACTERS.reactor.ultimateSpeedBonus) || 0;
   delta += linkedBufferUltimateSpeedDelta(room, player, now);
   const bloom = getStatus(player, 'flower_bloom', now);
-  if (bloom) delta += Number(bloom.data?.tierDelta) || 2;
+  if (bloom) delta += Number(bloom.data?.speedDelta) || 0;
   const tailwind = getStatus(player, 'tailwind', now);
-  const slow = getStatus(player, 'slow', now);
-  if (tailwind) delta += Number(tailwind.data && tailwind.data.tierDelta) || 1;
-  if (slow) delta += Number(slow.data && slow.data.tierDelta) || -1;
-  return speedWithTierDelta(currentBaseSpeed(player, now), delta);
+  if (tailwind) delta += Number(tailwind.data?.speedDelta) || 0;
+  // Ice and Witch slows use their own independently configured numerical values.
+  const iceSlow = getStatus(player, 'freeze', now);
+  if (iceSlow) delta += Number(iceSlow.data?.speedDelta) || 0;
+  const witchSlow = getStatus(player, 'witch_slow', now);
+  if (witchSlow) delta += Number(witchSlow.data?.speedDelta) || 0;
+  return additiveMovementSpeed(currentBaseSpeed(player, now), delta);
 }
-
 
 function resolveBufferTarget(room, buffer) {
   if (!room || !buffer || buffer.character !== 'buffer' || !buffer.bufferTargetId) return null;
@@ -1525,7 +1531,7 @@ function linkedBufferUltimateSpeedDelta(room, player, now = Date.now()) {
   for (const buffer of room.players.values()) {
     if (buffer.character !== 'buffer' || buffer.team !== player.team || !isUltimateActive(buffer, now)) continue;
     const state = bufferLinkState(room, buffer, now);
-    if (state.active && state.target && state.target.id === player.id) return Number(CHARACTERS.buffer.ultimateLinkedSpeedTierDelta) || 0;
+    if (state.active && state.target && state.target.id === player.id) return Number(CHARACTERS.buffer.ultimateLinkedSpeedBonus) || 0;
   }
   return 0;
 }
@@ -3061,6 +3067,8 @@ function onMessage(conn, msg) {
     const previousCharacter = player.character;
     if (previousCharacter && isCharacterTakenOnTeam(room, nextTeam, previousCharacter, player.id)) {
       player.character = null;
+      player.skinId = null;
+      player.skinSelectionSeq = (player.skinSelectionSeq || 0) + 1;
       player.hp = 0;
       player.maxHp = 0;
       characterReset = true;
@@ -3098,11 +3106,15 @@ function onMessage(conn, msg) {
       broadcast(room);
       return;
     }
+    if (requested !== player.character) {
+      player.skinId = null;
+      player.skinSelectionSeq = (player.skinSelectionSeq || 0) + 1;
+    }
     player.character = requested;
     player.respawnShieldAt = 0;
     const def = CHARACTERS[player.character];
     player.maxHp = def.hp; player.hp = Math.min(player.hp, def.hp);
-    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.bladeDashUntil = 0; player.bladeDashStartAt = 0; player.bladeDashStartX = 0; player.bladeDashStartY = 0; player.bladeDashEndX = 0; player.bladeDashEndY = 0; player.bladeDashDistance = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.pendingUltimateId = null; player.pendingUltimateAt = 0; player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0; player.patternUltimateRemaining = 0; player.patternUltimateNextAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.newAbilityCooldownUntil = 0; player.magnetPull = null; player.flowerThornsUntil = 0; player.stealthUntil = 0; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0; player.bladeDashCharges = player.character === 'blade' ? CHARACTERS.blade.bladeDashMaxCharges : 0; player.bladeDashRechargeAt = 0;
+    clearAllStatuses(player); clearShield(player); player.diaFormUntil = 0; player.diaCooldownUntil = 0; player.sprintUntil = 0; player.sprintCooldownUntil = 0; player.windTailwindCooldownUntil = 0; player.angelBlessCooldownUntil = 0; player.jetBoostUntil = 0; player.jetBoostCooldownUntil = 0; player.jetBoostStartAt = 0; player.jetBoostStartX = 0; player.jetBoostStartY = 0; player.jetBoostEndX = 0; player.jetBoostEndY = 0; player.jetShieldUntil = 0; player.bladeDashUntil = 0; player.bladeDashStartAt = 0; player.bladeDashStartX = 0; player.bladeDashStartY = 0; player.bladeDashEndX = 0; player.bladeDashEndY = 0; player.bladeDashDistance = 0; player.reactorOutput = 0; player.reactorLastDamageAt = 0; player.ultimateCharge = 0; player.ultimateUntil = 0; player.ultimateUseSeq = 0; player.mechaSelfDestructAt = 0; player.pendingUltimateId = null; player.pendingUltimateAt = 0; player.diaUltimateBurstsRemaining = 0; player.diaUltimateNextBurstAt = 0; player.diaUltimateVolleySeq = 0; player.patternUltimateRemaining = 0; player.patternUltimateNextAt = 0; player.bufferTargetId = null; player.lastPeriodicActionAt = 0; player.lastAbilityTargetId = null; player.newAbilityCooldownUntil = 0; player.magnetPull = null; player.flowerThornsSecondAt = 0; player.stealthUntil = 0; player.jetBoostDistance = 0; player.shieldUntil = 0; player.shieldAbilityCharges = player.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0; player.shieldRechargeAt = 0; player.bladeDashCharges = player.character === 'blade' ? CHARACTERS.blade.bladeDashMaxCharges : 0; player.bladeDashRechargeAt = 0;
     resetPerkState(player);
     broadcast(room);
     return;
@@ -3155,27 +3167,35 @@ function onMessage(conn, msg) {
     if (respondCompetitiveReadySwap(room, player, msg.requestId, msg.type === 'ready_swap_accept')) broadcast(room);
     return;
   }
-  if (msg.type === 'ready_skins_request' && room.state === 'ready' && room.competitive?.phase === 'ready') {
+  if (msg.type === 'ready_skins_request' &&
+      ((room.state === 'ready' && room.competitive?.phase === 'ready') || room.state === 'lobby')) {
     void durableStore.getShopAccount(player.accountId).then(data => {
-      if (conn.playerId === player.id && room.state === 'ready')
+      if (conn.playerId === player.id && (room.state === 'ready' || room.state === 'lobby'))
         conn.send({type:'skin_inventory',owned:data.owned,coins:data.coins});
     }).catch(err => console.error('[skins] inventory failed:',err?.message||err));
     return;
   }
-  if (msg.type === 'ready_choose_skin' && room.state === 'ready') {
+  if (msg.type === 'ready_choose_skin' && (room.state === 'ready' || room.state === 'lobby')) {
+    // Competitive players equip at ready; casual players equip in the lobby after picking.
+    const competitiveReady = room.state === 'ready' && room.competitive?.phase === 'ready' && Date.now() < room.competitive.readyEndAt;
+    const casualLobby = room.state === 'lobby' && normalizeRoomMode(room.mode) === 'casual';
     const matchId = room.competitive?.matchId;
     const intendedCharacter = player.character;
     const requested = msg.skinId == null || msg.skinId === '' ? null : String(msg.skinId);
     const skin = requested ? SKINS_BY_ID.get(requested) : null;
-    if (!room.competitive || room.competitive.phase !== 'ready' || Date.now() >= room.competitive.readyEndAt ||
+    if (!(competitiveReady || casualLobby) || !intendedCharacter ||
         (requested && (!skin || skin.characterId !== intendedCharacter))) {
       conn.send({type:'skin_error',message:'현재 캐릭터에 사용할 수 없는 스킨이에요.'});return;
     }
+    // Discard an older async ownership response if a player changed the skin again.
+    const selectionSeq = player.skinSelectionSeq = (player.skinSelectionSeq || 0) + 1;
     if (!requested) {player.skinId=null;broadcast(room);return;}
     void durableStore.ownsSkin(player.accountId, requested).then(owned => {
+      if (conn.playerId !== player.id || player.character !== intendedCharacter || player.skinSelectionSeq !== selectionSeq) return;
+      const stillReady = competitiveReady && room.state === 'ready' && room.competitive?.matchId === matchId && Date.now() < room.competitive.readyEndAt;
+      const stillCasual = casualLobby && room.state === 'lobby' && normalizeRoomMode(room.mode) === 'casual';
+      if (!(stillReady || stillCasual)) return;
       if (!owned) {conn.send({type:'skin_error',message:'구매한 스킨만 사용할 수 있어요.'});return;}
-      if (conn.playerId !== player.id || player.character !== intendedCharacter || room.competitive?.matchId !== matchId ||
-        room.state !== 'ready' || Date.now() >= room.competitive.readyEndAt) return;
       player.skinId=requested;
       broadcast(room);
     }).catch(err => {console.error('[skins] selection failed:',err?.message||err);conn.send({type:'skin_error',message:'스킨 확인에 실패했어요.'});});
@@ -3199,14 +3219,17 @@ function onMessage(conn, msg) {
     }
     let activated = false;
     if (msg.ability === 'form') activated = activateDiaForm(player, now);
-    if (msg.ability === 'sprint') activated = activateRunnerSprint(player, now);
+    if (msg.ability === 'sprint') {
+      activated = activateRunnerSprint(player, now);
+      if (activated && player.skinId === 'track_runner') emitSkinFx(room, { kind:'runner_go', playerId:player.id, x:player.x, y:player.y });
+    }
     if (msg.ability === 'tailwind') activated = activateWindTailwind(room, player, now);
     if (msg.ability === 'blessing') activated = activateAngelBlessing(room, player, abilityTarget, now);
     if (msg.ability === 'shield') activated = activateShieldAbility(room, player, abilityTarget, now);
     if (msg.ability === 'boost') activated = activateJetBoost(room, player, now);
     if (msg.ability === 'blade_dash') activated = activateBladeDash(room, player, now);
     if (msg.ability === 'magnet') activated = activateMagnetHook(room, player, now);
-    if (msg.ability === 'flower_thorns') activated = activateFlowerThorns(player, now);
+    if (msg.ability === 'flower_thorns') activated = activateFlowerThorns(room, player, now);
     if (['curse', 'stealth', 'rescue'].includes(msg.ability)) activated = activateNewHeroAbility(room, player, abilityTarget, now);
     if (activated) {
       player.abilityUseSeq = (player.abilityUseSeq || 0) + 1;
@@ -3381,7 +3404,7 @@ function joinRoom(conn, msg, options = {}) {
     diaFormUntil: 0, diaCooldownUntil: 0,
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
-    jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0, magnetPull: null, flowerThornsUntil: 0,
+    jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0, magnetPull: null, flowerThornsSecondAt: 0,
     reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), patternUltimateRemaining: 0, patternUltimateNextAt: 0,
     perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
     shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
@@ -3557,19 +3580,19 @@ function publicCharacterDefs() {
     'range', 'fireRate', 'projectileType', 'attackType', 'damage', 'heal',
     'projectileSpeed', 'projectileRadius', 'beamDps', 'healHps', 'beamAllyHitPadding', 'beamEnemyHitPadding', 'maxHpDpsRatio',
     'burnDps', 'burnDuration', 'burnHealReduction', 'poisonHealReduction', 'poisonDuration', 'radiationHealReduction', 'radiationDuration',
-    'slowTierDelta', 'slowDuration', 'tailwindDuration', 'tailwindCooldown', 'tailwindTierDelta',
+    'slowSpeedDelta', 'slowDuration', 'tailwindDuration', 'tailwindCooldown', 'tailwindSpeedBonus',
     'solarFireRate', 'solarProjectileRange', 'solarProjectileSpeed',
     'solarProjectileRadius', 'solarProjectileDamage', 'solarSelfHeal',
-    'sprintDuration', 'sprintCooldown', 'abilityCooldown', 'abilityHeal',
+    'sprintDuration', 'sprintCooldown', 'sprintSpeedBonus', 'abilityCooldown', 'abilityHeal',
     'boostDistance', 'boostDuration', 'boostCooldown', 'boostShield', 'boostShieldDuration', 'bladeDashDistance', 'bladeDashDuration', 'bladeDashMaxCharges', 'bladeDashRecharge', 'meleeFanAngleDeg', 'meleeTargetMode',
     'magnetRange', 'magnetCooldown', 'magnetProjectileSpeed', 'magnetProjectileRadius', 'magnetPullDuration', 'magnetPullOffset', 'magnetHookDamage', 'ultimateMagnetCooldown', 'ultimateMeleeTargetMode', 'ultimateMeleeFanAngleDeg',
-    'flowerThornsCooldown', 'flowerThornsDuration', 'flowerThornsDamage', 'ultimateSpeedTierDelta',
+    'flowerThornsCooldown', 'flowerThornsDamage', 'flowerThornsRange', 'flowerThornsProjectileSpeed', 'flowerThornsProjectileRadius', 'flowerThornsVolleyInterval', 'flowerThornsHealReduction', 'flowerThornsHealReductionDuration', 'ultimateSpeedBonus',
     'shieldAmount', 'shieldDuration', 'shieldCap', 'shieldMaxCharges', 'shieldRecharge', 'shieldAbilityRange',
     'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
     'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction',
     'curseDuration', 'curseDamageTakenBonus', 'stealthDuration', 'lifestealOnHit', 'ultimateAttackSpeedBoost', 'ultimateEffectDuration',
-    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateHealPerHit', 'ultimateProjectileSpeed', 'ultimateProjectileRange', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedTierDelta', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedTierDelta', 'ultimateProjectileCount', 'ultimateVolleyCount', 'ultimateVolleyInterval', 'ultimateFanAngleDeg', 'ultimateRotationDeg', 'ultimateWidth', 'ultimateMaxHpDamageRatio', 'ultimateSelfHeal'
+    'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateHealPerHit', 'ultimateProjectileSpeed', 'ultimateProjectileRange', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedBonus', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedBonus', 'ultimateSpeedDelta', 'ultimateProjectileCount', 'ultimateVolleyCount', 'ultimateVolleyInterval', 'ultimateFanAngleDeg', 'ultimateRotationDeg', 'ultimateWidth', 'ultimateMaxHpDamageRatio', 'ultimateSelfHeal'
   ];
   for (const [id, c] of Object.entries(CHARACTERS)) {
     const def = {
@@ -3648,7 +3671,7 @@ function startMatch(room, now = Date.now()) {
   // Starting any new game is an authoritative cancellation of a pending post-game room deletion.
   cancelPostGameRoomClose(room);
   room.matchMode = normalizeRoomMode(room.mode);
-  if (room.matchMode !== 'competitive') { room.mapId = 'classroom'; for (const p of room.players.values()) p.skinId = null; }
+  if (room.matchMode !== 'competitive') room.mapId = 'classroom'; // Preserve verified casual-lobby skin selections.
   room.state = 'playing';
   resetRoomHealthPacks(room);
   room.scoreA = 0; room.scoreB = 0; room.winner = null; room.winnerReason = null;
@@ -3670,7 +3693,7 @@ function startMatch(room, now = Date.now()) {
       shieldAbilityCharges: p.character === 'shield' ? CHARACTERS.shield.shieldMaxCharges : 0, shieldRechargeAt: 0,
       bladeDashCharges: p.character === 'blade' ? CHARACTERS.blade.bladeDashMaxCharges : 0, bladeDashRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
-      jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0, magnetPull: null, flowerThornsUntil: 0, newAbilityCooldownUntil: 0,
+      jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0, magnetPull: null, flowerThornsSecondAt: 0, newAbilityCooldownUntil: 0,
       reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, bladeDashUntil: 0, bladeDashStartAt: 0, bladeDashStartX: 0, bladeDashStartY: 0, bladeDashEndX: 0, bladeDashEndY: 0, bladeDashDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), patternUltimateRemaining: 0, patternUltimateNextAt: 0, lastCombatAt: now, damageContributors: Object.create(null), supportContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
@@ -3694,8 +3717,7 @@ function currentBufferLinkHealHps(player, now = Date.now()) {
 }
 
 function isHealingFullyBlocked(player, now = Date.now()) {
-  const poison = getStatus(player, 'poison', now);
-  return !!(poison && poison.data && poison.data.fullBlock);
+  return hasStatus(player, 'poison_full_block', now);
 }
 
 function activateDiaForm(player, now) {
@@ -3726,7 +3748,7 @@ function activateWindTailwind(room, player, now) {
   let applications = 0;
   for (const target of room.players.values()) {
     if (!target.alive || target.team !== player.team) continue;
-    if (applyStatus(room, player, target, 'tailwind', def.tailwindDuration * 1000, now, { tierDelta: def.tailwindTierDelta })) applications += 1;
+    if (applyStatus(room, player, target, 'tailwind', def.tailwindDuration * 1000, now, { speedDelta: def.tailwindSpeedBonus })) applications += 1;
   }
   ensureMatchStats(player).tailwindApplications += applications;
   return true;
@@ -3827,11 +3849,25 @@ function updateJetBoostPosition(player, now) {
 }
 
 // Magnet: the hook is a normal server-authoritative projectile; no target click is required.
-function activateFlowerThorns(player, now = Date.now()) {
-  if (!player || !player.alive || player.character !== 'flower' || (player.newAbilityCooldownUntil || 0) > now) return false;
+// Independent two-shot ability: normal healing attacks continue uninterrupted.
+function fireFlowerThorn(room, player, now) {
   const def = CHARACTERS.flower;
-  player.flowerThornsUntil = now + def.flowerThornsDuration * 1000;
+  const dx = player.aimX - player.x, dy = player.aimY - player.y;
+  const length = Math.hypot(dx, dy);
+  if (!Number.isFinite(length) || length < 0.001) return false;
+  return !!spawnProjectileFromDirection(room, player, def, now, dx / length, dy / length, {
+    projectileType: 'attack', damage: def.flowerThornsDamage, heal: 0,
+    projectileRange: def.flowerThornsRange, projectileSpeed: def.flowerThornsProjectileSpeed,
+    projectileRadius: def.flowerThornsProjectileRadius, flowerThorns: true
+  });
+}
+function activateFlowerThorns(room, player, now = Date.now()) {
+  if (!room || !player || !player.alive || player.character !== 'flower'
+    || isStunned(player, now) || (player.newAbilityCooldownUntil || 0) > now) return false;
+  if (!fireFlowerThorn(room, player, now)) return false;
+  const def = CHARACTERS.flower;
   player.newAbilityCooldownUntil = now + def.flowerThornsCooldown * 1000;
+  player.flowerThornsSecondAt = now + def.flowerThornsVolleyInterval * 1000;
   return true;
 }
 
@@ -4191,6 +4227,8 @@ function die(room, player, now) {
   if (killer && killer.character === 'blade') grantBladeDashCharge(killer, now);
   if (killer && killer.character === 'shooter' && killer.skinId === 'honor_shooter')
     emitSkinFx(room,{kind:'shooter_hundred',playerId:killer.id,x:player.x,y:player.y});
+  if (killer && killer.character === 'blade' && killer.skinId === 'rebel_blade')
+    emitSkinFx(room,{kind:'blade_blue_burst',playerId:killer.id,x:player.x,y:player.y});
   appendCompetitiveMatchEvent(room, 'death', {
     victimId: player.id, victimName: player.name, victimTeam: player.team, victimCharacter: player.character,
     killerId: killer ? killer.id : null, killerName: killer ? killer.name : null, killerTeam: killer ? killer.team : null, killerCharacter: killer ? killer.character : null,
@@ -4199,7 +4237,7 @@ function die(room, player, now) {
   player.damageContributors = Object.create(null); player.supportContributors = Object.create(null); player.lastDamageAttackerId = null; player.lastDamageAt = 0;
   player.hp = 0;
   player.magnetPull = null;
-  player.flowerThornsUntil = 0;
+  player.flowerThornsSecondAt = 0;
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
   player.invulnerableUntil = 0;
@@ -4233,7 +4271,7 @@ function respawn(room, player, now) {
   clearAllStatuses(player); clearShield(player);
   player.stealthUntil = 0;
   player.magnetPull = null;
-  player.flowerThornsUntil = 0;
+  player.flowerThornsSecondAt = 0;
   player.newAbilityCooldownUntil = 0;
   if (player.character === 'blade') { player.bladeDashCharges = CHARACTERS.blade.bladeDashMaxCharges; player.bladeDashRechargeAt = 0; player.bladeDashUntil = 0; }
   player.lastCombatAt = now;
@@ -4267,10 +4305,15 @@ function collidesWall(x, y, r, room = null) {
 }
 
 function movePlayer(player, dx, dy, radius, room = null) {
-  let nx = clamp(player.x + dx, radius, WORLD.width - radius);
-  if (!collidesWall(nx, player.y, radius, room)) player.x = nx;
-  let ny = clamp(player.y + dy, radius, WORLD.height - radius);
-  if (!collidesWall(player.x, ny, radius, room)) player.y = ny;
+  // Avoid skipping narrow walls when several numeric speed buffs are stacked.
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 0.25));
+  const sx = dx / steps, sy = dy / steps;
+  for (let i = 0; i < steps; i++) {
+    const nx = clamp(player.x + sx, radius, WORLD.width - radius);
+    if (!collidesWall(nx, player.y, radius, room)) player.x = nx;
+    const ny = clamp(player.y + sy, radius, WORLD.height - radius);
+    if (!collidesWall(player.x, ny, radius, room)) player.y = ny;
+  }
 }
 
 function segmentCircleT(x1, y1, x2, y2, cx, cy, r) {
@@ -4582,13 +4625,13 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
   } else if (player.character === 'witch') {
     // Global, instant Curse: only enemies who are alive at the cast moment.
     // applyStatus enforces the existing immunity rule for invulnerable targets.
-    // Existing non-stacking status rules still govern refreshes and slow tiers.
+    // Each slow refreshes its own duration; Ice and Witch slow values add.
     const effectMs = def.ultimateEffectDuration * 1000;
     for (const target of room.players.values()) {
       if (!target.alive || target.team === player.team) continue;
       applyStatus(room, player, target, 'curse', effectMs, now);
-      applyStatus(room, player, target, 'slow', effectMs, now,
-        { tierDelta: def.ultimateSpeedTierDelta });
+      applyStatus(room, player, target, 'witch_slow', effectMs, now,
+        { speedDelta: def.ultimateSpeedDelta });
     }
     // Preserve the established 5-second ultimate charge lock during the effect.
     player.ultimateUntil = now + def.ultimateDuration * 1000;
@@ -4682,7 +4725,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
       }
     }
     applyStatus(room, player, target, 'flower_bloom', def.ultimateDuration * 1000, now,
-      { tierDelta: def.ultimateSpeedTierDelta, attackSpeedBoost: def.ultimateAttackSpeedBoost });
+      { speedDelta: def.ultimateSpeedBonus, attackSpeedBoost: def.ultimateAttackSpeedBoost });
     emitPrototypeUltimateFx(room, { kind:'recipient', character:'flower', team:player.team, targetId:target.id, durationMs:def.ultimateDuration * 1000 });
     // Bloom's owner is locked from charging again throughout the complete 8-second buff.
     player.ultimateUntil = now + def.ultimateDuration * 1000;
@@ -4713,7 +4756,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
       if (!target.alive || target.team === player.team || target.id === player.id) continue;
       if (distance(player.x, player.y, target.x, target.y) > radius + 1e-9) continue;
       const result = dealDamageDetailed(room, player.id, target, Number(def.ultimateDamage) || 50, now, { countsForUltimate: false });
-      if (result.total > 0) applyStatus(room, player, target, 'poison', (Number(def.ultimatePoisonDuration) || 3) * 1000, now, { healReduction: 1, fullBlock: true });
+      if (result.total > 0) applyStatus(room, player, target, 'poison_full_block', (Number(def.ultimatePoisonDuration) || 3) * 1000, now);
       if (target.hp <= 0) {
         registerDirectKill(room, player.id, now);
         die(room, target, now);
@@ -4847,8 +4890,8 @@ function applyHealing(room, healer, target, amount, now, options = null) {
   const missing = Math.max(0, target.maxHp - before);
   if (missing <= 0) return 0;
 
-  const fullBlock = getStatus(target, 'poison', now);
-  if (fullBlock && fullBlock.data && fullBlock.data.fullBlock) {
+  const fullBlock = getStatus(target, 'poison_full_block', now);
+  if (fullBlock) {
     const prevented = Math.min(missing, raw);
     if (prevented > 0 && room && room.players) {
       const source = room.players.get(fullBlock.sourceId);
@@ -4858,17 +4901,19 @@ function applyHealing(room, healer, target, amount, now, options = null) {
   }
 
   let effectiveRaw = raw;
-  // Harmful anti-heal effects use simple additive reduction. Natural noncombat regen
-  // and self-healing do not use this external-healing reduction path.
+  // Harmful reductions apply to all active HP restoration, including self-healing,
+  // lifesteal, healer self-sustain, and health packs. Natural noncombat regen is separate.
   const burn = getStatus(target, 'burn', now);
   const poison = getStatus(target, 'poison', now);
   const radiation = getStatus(target, 'radiation', now);
-  if (healer && healer.id !== target.id && (burn || poison || radiation)) {
+  const flowerThorns = getStatus(target, 'flower_thorns_antiheal', now);
+  if (burn || poison || radiation || flowerThorns) {
     const burnReduction = burn ? clamp(Number(burn.data && burn.data.healReduction) || CHARACTERS.fire.burnHealReduction, 0, 1) : 0;
     const poisonReduction = poison ? clamp(Number(poison.data && poison.data.healReduction) || CHARACTERS.poison.poisonHealReduction, 0, 1) : 0;
     const radiationReduction = radiation ? clamp(Number(radiation.data && radiation.data.healReduction) || CHARACTERS.reactor.radiationHealReduction, 0, 1) : 0;
-    const nominalReduction = Math.max(0, burnReduction + poisonReduction + radiationReduction);
-    const totalReduction = Math.min(MAX_EXTERNAL_HEAL_REDUCTION, nominalReduction);
+    const thornsReduction = flowerThorns ? clamp(Number(flowerThorns.data?.healReduction ?? CHARACTERS.flower.flowerThornsHealReduction), 0, 1) : 0;
+    const nominalReduction = Math.max(0, burnReduction + poisonReduction + radiationReduction + thornsReduction);
+    const totalReduction = Math.min(MAX_HEAL_REDUCTION, nominalReduction);
     effectiveRaw = raw * (1 - totalReduction);
 
     // Credit prevented healing proportionally to each additive source. The actual
@@ -4879,7 +4924,7 @@ function applyHealing(room, healer, target, amount, now, options = null) {
     const prevented = Math.max(0, withoutReduction - withReduction);
     if (prevented > 0 && nominalReduction > 0) {
       if (poison && poisonReduction > 0) {
-        const source = room.players.get(poison.sourceId);
+        const source = room?.players?.get(poison.sourceId);
         if (source && source.character === 'poison') ensureMatchStats(source).healingPrevented += prevented * (poisonReduction / nominalReduction);
       }
     }
@@ -4919,8 +4964,7 @@ function applyHealing(room, healer, target, amount, now, options = null) {
     // Generic healer-role sustain rule: when a healer restores actual HP to a different
     // living ally, the healer restores 25% of that effective healing to themselves.
     // Overhealing does not count because `actual` is already capped by the ally's missing HP.
-    // Calling applyHealing on self is safe: self-healing bypasses external anti-heal and the
-    // target===healer guard below prevents recursive self-heal generation.
+    // target===healer prevents recursive self-healing; self restores also take anti-heal.
     const suppressHealerSelfHeal = !!(options && options.suppressHealerSelfHeal);
     if (!suppressHealerSelfHeal && healer.alive && healerDef?.role === '힐러' && isOtherAlly && HEALER_ALLY_SELF_HEAL_RATIO > 0) {
       applyHealing(room, healer, healer, actual * HEALER_ALLY_SELF_HEAL_RATIO, now, options);
@@ -4970,7 +5014,7 @@ function traceBeam(room, player, def, dt, now) {
     if (target.invulnerableUntil <= now) {
       const dps = def.beamDps + target.maxHp * (def.maxHpDpsRatio || 0);
       didDamage = dealDamage(room, player.id, target, dps * dt, now) > 0;
-      if (def.slowTierDelta < 0) applyStatus(room, player, target, 'slow', def.slowDuration * 1000, now, { tierDelta: def.slowTierDelta });
+      if (def.slowSpeedDelta < 0) applyStatus(room, player, target, 'freeze', def.slowDuration * 1000, now, { speedDelta: def.slowSpeedDelta, cosmeticSkinId: player.skinId === 'cold_ice' ? 'cold_ice' : null });
       if (def.poisonHealReduction > 0) applyStatus(room, player, target, 'poison', def.poisonDuration * 1000, now, { healReduction: def.poisonHealReduction });
       if (target.hp <= 0) {
         registerDirectKill(room, player.id, now);
@@ -5100,7 +5144,7 @@ function projectileWireRow(p) {
     roundWireNumber(p.radius, 3),
     p.type === 'heal' ? 1 : 0,
     p.team === 'B' ? 1 : 0,
-    p.magnetHook ? 'magnet_hook' : (p.character || null),
+    p.magnetHook ? 'magnet_hook' : (p.flowerThorns ? 'flower_thorns' : (p.character || null)),
     p.reactorFxBand == null ? null : p.reactorFxBand,
     p.ultimateProjectile ? 1 : 0,
     p.diaUltimateVolleyId || null,
@@ -5137,8 +5181,7 @@ function spawnProjectileFromDirection(room, player, def, now, dx, dy, options = 
     magnetHook: !!options.magnetHook,
     // Snapshot the shot's mode on creation: in-flight thorns still count after
     // the five-second buff expires, but ordinary hybrid shots never count.
-    flowerThorns: player.character === 'flower' && def.projectileType === 'attack'
-      && (player.flowerThornsUntil || 0) > now
+    flowerThorns: !!options.flowerThorns
   });
   if (options.sprayLane) room.projectiles.get(id).sprayLane = options.sprayLane;
   if (options.sprayVolleyId) room.projectiles.get(id).sprayVolleyId = options.sprayVolleyId;
@@ -5310,6 +5353,14 @@ function updateProjectiles(room, dt, now) {
                   ensureMatchStats(owner).flowerThornsDamage += damageResult.total;
                 }
               }
+            }
+            // Each hit refreshes one Flower-originated anti-heal status; it never stacks
+            // with itself, while other reduction types remain additive up to 80%.
+            if (p.flowerThorns && damageResult.total > 0 && t.alive && t.hp > 0) {
+              const flowerOwner = room.players.get(p.ownerId);
+              applyStatus(room, flowerOwner, t, 'flower_thorns_antiheal',
+                CHARACTERS.flower.flowerThornsHealReductionDuration * 1000, now,
+                { healReduction: CHARACTERS.flower.flowerThornsHealReduction });
             }
             const reactorOwner = room.players.get(p.ownerId);
             if (damageResult.hp > 0 && reactorOwner && reactorOwner.alive && reactorOwner.character === 'reactor') {
@@ -5486,6 +5537,10 @@ function updateRoom(room, dt, now) {
       continue;
     }
     applyRespawnPostShield(room, player, now);
+    if (player.character === 'flower' && player.flowerThornsSecondAt > 0 && now >= player.flowerThornsSecondAt) {
+      player.flowerThornsSecondAt = 0; // consumed even if interrupted; no delayed retry
+      if (!isStunned(player, now)) fireFlowerThorn(room, player, now);
+    }
     if (player.character === 'dia' && player.diaFormUntil > 0 && now >= player.diaFormUntil) endDiaForm(player);
     if (player.character === 'reactor') {
       const reactorDef = CHARACTERS.reactor;
@@ -5738,10 +5793,12 @@ function snapshot(room, viewerId = null, spectator = false) {
       }
 
       if (burnStatus) { row.burning = true; row.burnSourceId = burnStatus.sourceId || null; }
-      if (hasStatus(p, 'poison', now)) row.poisoned = true;
+      if (hasStatus(p, 'poison', now) || hasStatus(p, 'poison_full_block', now)) row.poisoned = true;
       if (radiationStatus) { row.radiated = true; row.radiationSourceId = radiationStatus.sourceId || null; }
       if (hasStatus(p, 'tailwind', now)) row.tailwind = true;
-      if (hasStatus(p, 'slow', now)) row.frozen = true;
+      const iceFreeze = getStatus(p, 'freeze', now);
+      if (iceFreeze) { row.frozen = true; if (iceFreeze.data?.cosmeticSkinId === 'cold_ice') row.iceSkinFreeze = true; }
+      if (hasStatus(p, 'witch_slow', now)) row.witchSlowed = true;
       if (hasStatus(p, 'stun', now)) row.stunned = true;
       if (hasStatus(p, 'curse', now)) row.cursed = true;
       if (p.character === 'hacker' && p.alive && p.stealthUntil > now) row.stealthed = true;
@@ -5837,7 +5894,7 @@ function snapshot(room, viewerId = null, spectator = false) {
       return row;
     }),
     projectiles: [...room.projectiles.values()].map(p => {
-      const row = { id: p.id, x: p.x, y: p.y, radius: p.radius, type: p.type, team: p.team, character: p.character };
+      const row = { id: p.id, x: p.x, y: p.y, radius: p.radius, type: p.type, team: p.team, character: p.flowerThorns ? 'flower_thorns' : p.character };
       if (p.ownerId) row.ownerId = p.ownerId;
       if (p.vx) row.vx = p.vx;
       if (p.vy) row.vy = p.vy;
@@ -5888,6 +5945,8 @@ function compactPlayerWireRow(p) {
   if (p.radiated) flags |= 1 << 2;
   if (p.tailwind) flags |= 1 << 3;
   if (p.frozen) flags |= 1 << 4;
+  if (p.witchSlowed) flags |= 1 << 15;
+  if (p.iceSkinFreeze) flags |= 1 << 16;
   if (p.stunned) flags |= 1 << 5;
   if (p.invulnerable) flags |= 1 << 6;
   if (p.diaForm) flags |= 1 << 7;
@@ -5926,6 +5985,8 @@ function compactPlayerWireRowV5(p, beamActive = false, beamDidDamage = false) {
   if (p.radiated) flags |= 1 << 2;
   if (p.tailwind) flags |= 1 << 3;
   if (p.frozen) flags |= 1 << 4;
+  if (p.witchSlowed) flags |= 1 << 15;
+  if (p.iceSkinFreeze) flags |= 1 << 16;
   if (p.stunned) flags |= 1 << 5;
   if (p.invulnerable) flags |= 1 << 6;
   if (p.diaForm) flags |= 1 << 7;
@@ -5967,6 +6028,8 @@ function compactPlayerWireRowV6(p, beamActive = false, beamDidDamage = false) {
   if (p.radiated) flags |= 1 << 2;
   if (p.tailwind) flags |= 1 << 3;
   if (p.frozen) flags |= 1 << 4;
+  if (p.witchSlowed) flags |= 1 << 15;
+  if (p.iceSkinFreeze) flags |= 1 << 16;
   if (p.stunned) flags |= 1 << 5;
   if (p.invulnerable) flags |= 1 << 6;
   if (p.diaForm) flags |= 1 << 7;
@@ -6255,7 +6318,7 @@ module.exports = {
   ultimateCostForPlayer, grantUltimateCharge, ultimateChargePercent, isUltimateActive, activateUltimate, scheduleDelayedUltimate, resolveDelayedUltimate, spawnPatternUltimateVolley, resolveRunnerBombs, ultimateRectContains,
   reactorStageForOutput, reactorDamageForOutput, currentAttackDef,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
-  POST_GAME_ROOM_CLOSE_MS, MAX_ROOMS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, speedWithTierDelta, hasLineOfSight,
+  POST_GAME_ROOM_CLOSE_MS, MAX_ROOMS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, additiveMovementSpeed, movePlayer, hasLineOfSight,
   makeMatchStats, newRoom, makeWsConnection, recordConnectionClose, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateFlowerThorns, activateMagnetHook, beginMagnetPull, updateMagnetPull, magnetPullEndpoint, magnetHookCooldownSeconds, activateNewHeroAbility, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, activateBladeDash, finishBladeDash, updateBladeDashPosition, updateBladeDashCharges, grantBladeDashCharge, performMeleeAttack, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
@@ -6267,6 +6330,10 @@ module.exports = {
 };
 
 if (process.env.NODE_ENV === 'test') module.exports.__test191 = {
+  onMessage,
+  setAccessOpenForTest(open) { schoolLineAccessOpen=!!open; },
+  setSkinOwnershipForTest(fn) { durableStore.ownsSkin=fn; },
+  setSkinInventoryForTest(fn) { durableStore.getShopAccount=fn; },
   parseWsData, // test-only access to validate the incomplete-frame buffer safety limit
   setAccounts(accounts) { playerAccounts = accounts.map(a => ({...a})); },
   setDurableReady(ready) { durableStore.ready=!!ready; },

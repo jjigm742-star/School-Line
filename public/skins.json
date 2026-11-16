@@ -48,5 +48,45 @@
     "effect": "초록색 주입 링크 + 궁극기 십자가 입자",
     "effectId": "buffer_medical",
     "tokenIndex": 33
+  },
+  {
+    "id": "rebel_blade",
+    "characterId": "blade",
+    "name": "반항아 블레이드",
+    "tier": "특급",
+    "price": 600,
+    "effect": "푸른 참격·처치 쨍 소리/폭발·용검 푸른 불꽃",
+    "effectId": "blade_bluefire",
+    "tokenIndex": 34
+  },
+  {
+    "id": "cold_ice",
+    "characterId": "ice",
+    "name": "냉혈한 아이스",
+    "tier": "일반",
+    "price": 300,
+    "effect": "빙결된 적 주변에 작은 눈송이",
+    "effectId": "ice_snowflakes",
+    "tokenIndex": 35
+  },
+  {
+    "id": "track_runner",
+    "characterId": "runner",
+    "name": "육상부원 러너",
+    "tier": "일반",
+    "price": 300,
+    "effect": "질주 발동 시 달려! 말풍선",
+    "effectId": "runner_go",
+    "tokenIndex": 36
+  },
+  {
+    "id": "queen_flower",
+    "characterId": "flower",
+    "name": "퀸카 플라워",
+    "tier": "일반",
+    "price": 300,
+    "effect": "가시꽃 투사체를 핑크 하트로 변경",
+    "effectId": "flower_heart",
+    "tokenIndex": 37
   }
 ]

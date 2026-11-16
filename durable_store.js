@@ -270,6 +270,47 @@ class DurableStore {
     } finally { client.release(); }
   }
 
+  // Single-use, account-scoped teacher grant; the unique ledger ID makes it idempotent.
+  async grantOneTimeCoins(accountId, amount, grantId) {
+    if (!this.pool) throw new Error('database_not_initialized');
+    if (!/^S\d{3}$/.test(String(accountId)) || !Number.isSafeInteger(amount) || amount <= 0 || amount > 1000000 || !/^teacher_gift_[a-z0-9_]+$/.test(String(grantId))) {
+      throw new Error('invalid_one_time_grant');
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // The ledger and the wallet update commit atomically. Repeated deploys cannot repeat this gift.
+      const inserted = await client.query(
+        `INSERT INTO school_line_coin_ledger(id,account_id,delta,reason)
+         VALUES($1,$2,$3,'teacher_launch_gift')
+         ON CONFLICT (id) DO NOTHING RETURNING id`,
+        [grantId, accountId, amount]
+      );
+      if (inserted.rowCount === 0) {
+        await client.query('COMMIT');
+        this.noteSuccess('read');
+        return { granted:false };
+      }
+      await client.query(
+        `INSERT INTO school_line_wallets(account_id,coins) VALUES($1,0) ON CONFLICT DO NOTHING`,
+        [accountId]
+      );
+      await client.query(
+        `UPDATE school_line_wallets SET coins=coins+$2,updated_at=NOW() WHERE account_id=$1 RETURNING coins`,
+        [accountId, amount]
+      );
+      await client.query('COMMIT');
+      this.noteSuccess('write');
+      return { granted:true };
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      this.noteError(err);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async getShopAccount(accountId) {
     if (!this.pool) throw new Error('database_not_initialized');
     const [wallet, skins] = await Promise.all([

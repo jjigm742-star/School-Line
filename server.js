@@ -6154,6 +6154,11 @@ async function startSchoolLineServer() {
   console.log('[startup] initializing durable PostgreSQL persistence...');
   await durableStore.init();
   await initializePlayerAccountsFromDatabase();
+  // One-time teacher gift for S010 only. Reuse the original gift ID if a previous build was deployed.
+  if (playerAccountById(TEACHER_ACCOUNT_ID)?.role === 'teacher') {
+    const gift = await durableStore.grantOneTimeCoins(TEACHER_ACCOUNT_ID, 500000, 'teacher_gift_500k_school_skins_113');
+    if (gift.granted) console.log('[shop] teacher account received one-time 500,000-coin gift');
+  }
   await refreshCompetitiveStatsFromDatabase();
   console.log(`[startup] durable persistence ready · ${competitiveStats.totalMatches} persisted competitive matches · stats series ${COMPETITIVE_STATS_VERSION}`);
 

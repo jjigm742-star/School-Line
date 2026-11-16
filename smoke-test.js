@@ -170,8 +170,12 @@ function fakeDatabase(){
       return data.wallets.has(p[0])?{rows:[{coins:data.wallets.get(p[0])}],rowCount:1}:{rows:[],rowCount:0};
     }
     if(q.startsWith('insert into school_line_coin_ledger')){
-      assert.ok(!data.ledger.has(p[0]),'ledger writes must be unique');data.ledger.set(p[0],p);
-      return {rows:[],rowCount:1};
+      if(data.ledger.has(p[0])){
+        if(q.includes('on conflict (id) do nothing'))return {rows:[],rowCount:0};
+        assert.fail('ledger writes must be unique');
+      }
+      data.ledger.set(p[0],p);
+      return {rows:q.includes('returning id')?[{id:p[0]}]:[],rowCount:1};
     }
     if(q.startsWith('select skin_id from school_line_owned_skins')){
       const rows=[...(data.skins.get(p[0])||new Set())].map(skin_id=>({skin_id}));
@@ -191,8 +195,8 @@ function fakeDatabase(){
 }
 const skinCatalog=JSON.parse(fs.readFileSync(path.join(__dirname,'public/skins.json'),'utf8'));
 assert.equal(skinCatalog.length,5,'only five launched skins');
-assert.equal(skinCatalog.filter(s=>s.tier==='일반'&&s.price===500).length,4);
-assert.equal(skinCatalog.filter(s=>s.tier==='특급'&&s.price===1000).length,1);
+assert.equal(skinCatalog.filter(s=>s.tier==='일반'&&s.price===300).length,4);
+assert.equal(skinCatalog.filter(s=>s.tier==='특급'&&s.price===600).length,1);
 assert.ok(!skinCatalog.some(s=>s.characterId==='flower'),'Flower postponed to v1.14');
 const atlasFile=path.join(__dirname,'public/assets/characters/token_atlas.webp');
 assert.ok(fs.statSync(atlasFile).size>100000,'shared token atlas');
@@ -209,6 +213,16 @@ for(const skin of skinCatalog){
 
 (async()=>{
   const fake=fakeDatabase();const store=new DurableStore();store.pool=fake.pool;
+  // Teacher gift is deliberately restricted to S010 at call site, and unique per ledger ID.
+  fake.data.wallets.set('S010',500); // Pre-existing balance is preserved, not replaced.
+  const teacherGiftId='teacher_gift_500k_school_skins_113';
+  assert.deepEqual(await store.grantOneTimeCoins('S010',500000,teacherGiftId),{granted:true});
+  assert.equal(fake.data.wallets.get('S010'),500500,'teacher receives 500k plus existing balance');
+  assert.deepEqual(await store.grantOneTimeCoins('S010',500000,teacherGiftId),{granted:false},'redeploy cannot repeat gift');
+  assert.equal(fake.data.wallets.get('S010'),500500,'grant is one-time');
+  assert.ok(!fake.data.wallets.has('S009'),'student account unaffected');
+  assert.equal(fake.data.ledger.get(teacherGiftId)[1],'S010','gift is recorded for teacher');
+  console.log('PASS: teacher S010 one-time +500,000 coins, persistent idempotency and other account isolation');
   const makeMatch=(matchId,mode='competitive',seconds=180)=>({
     matchId,matchMode:mode,durationSec:seconds,winner:'A',players:[
       {accountId:'student-a',team:'A',connectedAtEnd:true},
@@ -228,15 +242,25 @@ for(const skin of skinCatalog){
   const regular=skinCatalog.find(s=>s.id==='honor_shooter');
   const premium=skinCatalog.find(s=>s.id==='school_nurse_buffer');
   assert.equal((await store.buySkin('student-a',regular)).error,'not_enough_coins');
-  for(let i=2;i<=5;i++)await store.insertMatch(makeMatch('match-'+i));
-  assert.equal(fake.data.wallets.get('student-a'),600);
-  assert.deepEqual(await store.buySkin('student-a',regular),{ok:true,skinId:regular.id,coins:100});
+  assert.equal((await store.buySkin('student-a',premium)).error,'not_enough_coins');
+  await store.insertMatch(makeMatch('match-2'));
+  assert.equal(fake.data.wallets.get('student-a'),240);
+  assert.equal((await store.buySkin('student-a',regular)).error,'not_enough_coins','2 wins insufficient for regular');
+  await store.insertMatch(makeMatch('match-3'));
+  assert.equal(fake.data.wallets.get('student-a'),360);
+  assert.deepEqual(await store.buySkin('student-a',regular),{ok:true,skinId:regular.id,coins:60},'regular costs 300');
   assert.equal((await store.buySkin('student-a',regular)).error,'already_owned');
   assert.equal((await store.buySkin('student-a',premium)).error,'not_enough_coins');
-  assert.deepEqual(await store.getShopAccount('student-a'),{coins:100,owned:[regular.id]});
+  for(let i=4;i<=8;i++)await store.insertMatch(makeMatch('match-'+i));
+  assert.equal(fake.data.wallets.get('student-a'),660);
+  assert.deepEqual(await store.buySkin('student-a',premium),{ok:true,skinId:premium.id,coins:60},'premium costs 600');
+  assert.equal((await store.buySkin('student-a',premium)).error,'already_owned');
+  assert.deepEqual(await store.getShopAccount('student-a'),{coins:60,owned:[regular.id,premium.id]});
   assert.equal(await store.ownsSkin('student-a',regular.id),true);
+  assert.equal(await store.ownsSkin('student-a',premium.id),true);
   assert.equal(await store.ownsSkin('student-b',regular.id),false);
-  assert.equal(fake.data.rewards.size,10,'each of five full matches awards once per connected account');
+  assert.equal(fake.data.rewards.size,16,'each of eight full matches awards once per connected account');
+  assert.equal(fake.data.wallets.get('S010'),500500,'other match and purchase transactions do not alter the gift');
   console.log('PASS: 5-skin catalog, wallet payouts, duplicate prevention, costs, purchase/inventory (simulated SQL)');
 
   const now=1800000000000;

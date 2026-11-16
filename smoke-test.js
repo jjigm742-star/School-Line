@@ -550,3 +550,16 @@ console.log('PASS: competitive reward toast never blocks exit or captures taps')
   assert.equal(s.snapshot(room,p.id).players[0].skinId,'rebel_blade','casual skin is broadcast to participants');
   console.log('PASS: casual skin picker, DB ownership gate, mode-safe equip, match-start skin preservation');
 }
+
+// 1.14 final editorial patch note, four cosmetic skins, and unchanged atlas regression.
+assert.ok(typeof notes.markdown === 'string' && notes.markdown.startsWith('# 🎮 《스쿨라인》 1.14 패치노트'));
+assert.equal(notes.sections.length,5);
+assert.ok(notes.markdown.includes('## 🎀 5. 신규 학교 컨셉 스킨 4종 출시!'));
+assert.ok(notes.markdown.includes('**총 9종의 스킨**'));
+assert.ok(notes.markdown.includes('경쟁전과 일반전 모두에서 사용'));
+assert.ok(notes.markdown.includes('### 🐉 반항아 블레이드 — 특급 스킨'));
+assert.ok(notes.markdown.includes('### ❄️ 냉혈한 아이스'));
+assert.ok(notes.markdown.includes('### 🏃 육상부원 러너'));
+assert.ok(notes.markdown.includes('### 💗 퀸카 플라워'));
+assert.match(client,/className = 'latest-patch-markdown'/);
+console.log('PASS: 1.14 final Korean patch notes rendered, four new skins listed');

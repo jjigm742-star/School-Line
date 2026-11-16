@@ -37,7 +37,7 @@ const CHARACTER_META = {
   drain:   { role:'딜러', name:'드레인', icon:'🩸', summary:'공격을 적중시키며 자신을 치유하는 흡혈 딜러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.14-skins-2';
+const VISUAL_ASSET_VERSION = '1.14-skins-2-ice-clean-1';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
 // 1.13 SLIM: one atlas per visual class, not 58 separately hosted files.
@@ -3160,6 +3160,50 @@ function renderLatestPatchNotes(notes) {
   const content = $('latestPatchBody');
   content.replaceChildren();
   $('latestPatchTitle').textContent = String(notes.title || `스쿨라인 ${notes.version} 변경점`);
+  // Preserve user-authored patch notes verbatim; render only safe text nodes (no HTML injection).
+  if (typeof notes.markdown === 'string' && notes.markdown.trim()) {
+    const prose = document.createElement('div');
+    prose.className = 'latest-patch-markdown';
+    let currentList = null;
+    for (const rawLine of notes.markdown.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line) { currentList = null; continue; }
+      if (line.startsWith('# ')) { // The modal header already displays the document title.
+        currentList = null;
+        continue;
+      }
+      if (line === '---') {
+        currentList = null;
+        prose.appendChild(document.createElement('hr'));
+        continue;
+      }
+      const headingMatch = /^(#{2,3})\s+(.+)$/.exec(line);
+      if (headingMatch) {
+        currentList = null;
+        const h = document.createElement(headingMatch[1].length === 2 ? 'h3' : 'h4');
+        h.textContent = headingMatch[2];
+        prose.appendChild(h);
+        continue;
+      }
+      if (line.startsWith('- ')) {
+        if (!currentList) {
+          currentList = document.createElement('ul');
+          prose.appendChild(currentList);
+        }
+        const li = document.createElement('li');
+        appendPatchFormattedText(li, line.slice(2));
+        currentList.appendChild(li);
+        continue;
+      }
+      currentList = null;
+      const paragraph = document.createElement('p');
+      appendPatchFormattedText(paragraph, line);
+      prose.appendChild(paragraph);
+    }
+    content.appendChild(prose);
+    content.scrollTop = 0;
+    return;
+  }
   // textContent prevents HTML contained in future editorial patch notes from being executed.
   for (const section of notes.sections) {
     const sectionElement = document.createElement('section');

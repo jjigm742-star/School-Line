@@ -724,6 +724,13 @@ body.post-game-sequence .mobile-character-guide-button { display:none !important
 .latest-patch-group ul { list-style:disc; padding-left:23px; margin:5px 0 9px; }
 .latest-patch-group li { margin:7px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; white-space:pre-line; }
 .latest-patch-group li strong { color:#fff; }
+.latest-patch-markdown h3 { margin:16px 0 9px; font-size:16px; color:#f4f8ff; }
+.latest-patch-markdown h4 { margin:13px 0 6px; font-size:14px; color:#bfe8f6; }
+.latest-patch-markdown p { margin:9px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; }
+.latest-patch-markdown ul { list-style:disc; padding-left:23px; margin:7px 0 12px; }
+.latest-patch-markdown li { margin:6px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; }
+.latest-patch-markdown strong { color:#fff; }
+.latest-patch-markdown hr { border:0; border-top:1px solid #344962; margin:15px 0; }
 .latest-patch-close { flex:0 0 auto; margin-top:12px; width:100%; min-height:44px; font-weight:900; }
 body.latest-patch-open { overflow:hidden; }
 @media(max-width:640px) {

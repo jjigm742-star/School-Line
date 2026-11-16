@@ -2126,6 +2126,12 @@ function selectedAccountCredentials() {
 }
 // Account-scoped shop: server is authoritative for wallet, price and ownership.
 let shopToken=null, shopAccountId=null, shopOwned=new Set(), shopCoins=0;
+function resetSchoolShopSession() {
+  // A different account (or a failed login) must never inherit the last user's wallet or purchase authority.
+  shopToken=null;shopAccountId=null;shopOwned=new Set();shopCoins=0;
+  const accountLabel=$('schoolShopAccount');
+  if(accountLabel)accountLabel.textContent='계정 로그인 필요';
+}
 let readyOwnedSkins=new Set();
 let schoolRewardToastTimer=null;
 function showSchoolReward(coinAmount,balance) {
@@ -2141,7 +2147,7 @@ async function schoolShopApi(url,body) {
     ...(body?{body:JSON.stringify(body)}:{}),cache:'no-store'
   });
   const result=await response.json();
-  if(!response.ok){if(response.status===401)shopToken=null;throw new Error(result.message||result.error||'상점 요청 실패');}
+  if(!response.ok){if(response.status===401)resetSchoolShopSession();throw new Error(result.message||result.error||'상점 요청 실패');}
   return result;
 }
 function renderSchoolShop() {
@@ -2159,7 +2165,7 @@ function renderSchoolShop() {
     const btn=document.createElement('button');btn.type='button';
     const owned=shopOwned.has(skin.id);
     btn.disabled=owned || shopCoins<skin.price || !shopToken;
-    btn.textContent=owned?'✅ 보유 중':shopCoins<skin.price?'코인 부족':'🪙 구매하기';
+    btn.textContent=!shopToken?'로그인 후 구매':owned?'✅ 보유 중':shopCoins<skin.price?`${(skin.price-shopCoins).toLocaleString('ko-KR')}코인 부족`:'🪙 구매하기';
     btn.onclick=async()=>{
       if(!confirm(`${skin.name} 스킨을 ${skin.price}코인에 구매할까요?`))return;
       btn.disabled=true;
@@ -2185,6 +2191,9 @@ $('schoolShopOpen')?.addEventListener('click',async()=>{
   $('schoolShopMessage').textContent='계정을 확인하고 있어요…';
   try{
     if(!shopToken || shopAccountId!==selectedId){
+      // Clear the previous user's credentials and balance *before* reauth, including when the new PIN is wrong.
+      resetSchoolShopSession();
+      renderSchoolShop();
       const credentials=selectedAccountCredentials();if(!credentials)throw new Error('4자리 PIN을 입력하세요.');
       const response=await fetch('/shop/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(credentials),cache:'no-store'});
       const auth=await response.json();if(!response.ok)throw new Error(auth.message||'상점 로그인 실패');
@@ -2196,7 +2205,7 @@ $('schoolShopOpen')?.addEventListener('click',async()=>{
     $('schoolShopMessage').textContent='구매한 스킨은 내 계정에 영구 보관돼요.';
   }catch(err){
     $('schoolShopMessage').textContent=`⚠️ ${err.message}`;
-    if(!shopToken){shopCoins=0;shopOwned=new Set();}
+    if(!shopToken)resetSchoolShopSession();
   }
   renderSchoolShop();
 });

@@ -55,7 +55,43 @@ const HUD_HEALING_CHARACTERS = new Set([
   'water', 'wind', 'star', 'flower', 'angel', 'buffer', 'light', 'rescue'
 ]);
 let personalCombatStats = null;
-function clearPersonalCombatStats() { personalCombatStats = null; }
+let teamUltimateMembers = [];
+let teamUltimateToastTimer = null;
+let teamUltimateToastQueue = [];
+function resetTeamUltimateUi() {
+  teamUltimateMembers = [];
+  teamUltimateToastQueue = [];
+  if (teamUltimateToastTimer) clearTimeout(teamUltimateToastTimer);
+  teamUltimateToastTimer = null;
+  const toast = document.getElementById('teamUltimateToast');
+  if (toast) { toast.classList.add('hidden'); toast.textContent=''; }
+}
+function teamUltimateStatusHtml() {
+  if (!teamUltimateMembers.length || spectatorMode) return '';
+  const cards = teamUltimateMembers.map(p=>{
+    const m = CHARACTER_META[p.character] || {};
+    const label = escapeHtml(String(p.name || m.name || p.character).slice(0,12));
+    const status = !p.connected ? '이탈' : !p.alive ? (p.ready?'부활 대기':'사망') : p.ready ? '준비!' : '충전 중';
+    return `<span class="my-team-ult-member${p.ready?' ready':''}${!p.alive?' dead':''}"><span>${m.icon||'⚡'} ${label}</span><b>${status}</b></span>`;
+  }).join('');
+  return `<div class="my-team-ult"><span class="my-team-ult-title">⚡ 우리 팀 궁극기</span><span class="my-team-ult-grid">${cards}</span></div>`;
+}
+function nextTeamUltimateToast() {
+  const toast = document.getElementById('teamUltimateToast');
+  if (!toast) return;
+  if (!teamUltimateToastQueue.length) { toast.classList.add('hidden'); toast.textContent=''; teamUltimateToastTimer=null; return; }
+  const msg = teamUltimateToastQueue.shift();
+  const label = CHARACTER_META[msg.character]?.name || msg.character || '아군';
+  toast.textContent = `⚡ ${msg.name || label} · ${label} 궁극기 준비 완료!`;
+  toast.classList.remove('hidden');
+  teamUltimateToastTimer = setTimeout(nextTeamUltimateToast, 2350);
+}
+function queueTeamUltimateToast(msg) {
+  if (!msg || spectatorMode || !myId || state?.state !== 'playing') return;
+  teamUltimateToastQueue.push(msg);
+  if (!teamUltimateToastTimer) nextTeamUltimateToast();
+}
+function clearPersonalCombatStats() { personalCombatStats = null; resetTeamUltimateUi(); }
 function personalStatNumber(value) {
   return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('ko-KR');
 }
@@ -2933,6 +2969,15 @@ function handleMessage(msg) {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
     return;
   }
+  if (msg.type === 'team_ultimates') {
+    if (state?.state === 'playing' && myId && !spectatorMode)
+      teamUltimateMembers = Array.isArray(msg.members) ? msg.members.filter(p=>p && typeof p.character==='string').slice(0,4) : [];
+    return;
+  }
+  if (msg.type === 'team_ultimate_ready') {
+    queueTeamUltimateToast(msg);
+    return;
+  }
   if (msg.type === 'personal_stats') {
     // Private server-authoritative counters, never a local hit estimate.
     if (state?.state === 'playing' && myId && !spectatorMode) {
@@ -3472,15 +3517,15 @@ function formatContributionNumber(value) {
 function contributionSpecialLine(character, stats) {
   if (character === 'shield') return `보호막으로 막은 피해량 ${formatContributionNumber(stats.shieldDamageBlocked)}`;
   if (character === 'buffer') return `연결 시간 ${formatContributionNumber(stats.bufferLinkSeconds)}초`;
-  if (character === 'fire') return `화상 피해량 ${formatContributionNumber(stats.burnDamage)}`;
+  if (character === 'fire') return `화상 피해량 ${formatContributionNumber(stats.burnDamage)} · 감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
   if (character === 'wind') return `순풍으로 가속된 팀원 ${formatContributionNumber(stats.tailwindApplications)}명`;
   if (character === 'poison') return `감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
-  if (character === 'reactor') return `출력 에너지 3단계 유지 시간 ${formatContributionNumber(stats.reactorStage3Seconds)}초`;
+  if (character === 'reactor') return `출력 에너지 3단계 유지 시간 ${formatContributionNumber(stats.reactorStage3Seconds)}초 · 감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
   if (character === 'solar') return `태양탄으로 회복한 체력 ${formatContributionNumber(stats.solarProjectileHealing)}`;
   if (character === 'angel') return `축복으로 회복한 체력 ${formatContributionNumber(stats.angelBlessingHealing)}`;
   if (character === 'dia') return `다이아폼 킬 ${formatContributionNumber(stats.diaFormKills)}회`;
   if (character === 'magnet') return `자석 적중 ${formatContributionNumber(stats.magnetHookHits)}회`;
-  if (character === 'flower') return `가시꽃 스킬로 입힌 피해량 ${formatContributionNumber(stats.flowerThornsDamage)}`;
+  if (character === 'flower') return `가시꽃 스킬로 입힌 피해량 ${formatContributionNumber(stats.flowerThornsDamage)} · 감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
   if (character === 'witch') return `저주로 증폭된 피해량 ${formatContributionNumber(stats.witchCurseBonusDamage)}`;
   if (character === 'hacker') return `은신 사용 ${formatContributionNumber(stats.hackerStealthUses)}회`;
   if (character === 'drain') return `흡혈로 회복한 치유량 ${formatContributionNumber(stats.drainLifestealHealing)}`;
@@ -3999,6 +4044,20 @@ function renderCompetitiveStats(data) {
     }
   }
 
+  // Purchases are all-time durable ledger data; not filtered by selected match version.
+  const skinSales = data.skinSales;
+  const salesSummary = $('competitiveSkinSalesSummary');
+  const salesBody = $('competitiveSkinSalesBody');
+  const recentBody = $('competitiveSkinRecentBody');
+  if (skinSales && salesSummary && salesBody && recentBody) {
+    salesSummary.textContent = `총 ${Number(skinSales.totalPurchases||0).toLocaleString('ko-KR')}건 판매 · ${Number(skinSales.totalCoinsSpent||0).toLocaleString('ko-KR')}코인 소비 · 구매 계정 ${Number(skinSales.uniqueBuyers||0)}명`;
+    const skins = [...(skinSales.skins||[])].sort((a,b)=>Number(b.purchases||0)-Number(a.purchases||0)||String(a.name).localeCompare(String(b.name),'ko'));
+    salesBody.innerHTML = skins.map(s=>`<tr><td>${escapeHtml(s.name||s.id)}</td><td>${Number(s.price||0).toLocaleString('ko-KR')}</td><td><strong>${Number(s.purchases||0)}</strong></td><td>${Number(s.uniqueBuyers||0)}</td><td>${Number(s.coinsSpent||0).toLocaleString('ko-KR')}</td><td>${s.lastPurchasedAt?escapeHtml(new Date(s.lastPurchasedAt).toLocaleString('ko-KR')):'—'}</td></tr>`).join('') || '<tr><td colspan="6">스킨 카탈로그 없음</td></tr>';
+    recentBody.innerHTML = (skinSales.recentPurchases||[]).map(row=>`<tr><td>${escapeHtml(new Date(row.purchasedAt).toLocaleString('ko-KR'))}</td><td>${escapeHtml(row.buyerName||row.accountId||'—')}</td><td>${escapeHtml(row.skinName||row.skinId||'—')}</td><td>${Number(row.coinsSpent||0).toLocaleString('ko-KR')}</td></tr>`).join('') || '<tr><td colspan="4">아직 구매 내역이 없어.</td></tr>';
+  } else if (salesSummary) {
+    salesSummary.textContent = '스킨 판매 통계는 관리자 인증 HTTP 화면에서 확인할 수 있어.';
+    if(salesBody)salesBody.innerHTML=''; if(recentBody)recentBody.innerHTML='';
+  }
   const adv = data.advanced || {};
   const quality = $('competitiveStatsDataQuality');
   if (quality) {
@@ -6105,7 +6164,7 @@ function renderGame() {
         ultInfoLine = `<span class="my-info-ultimate">⚡ ${ultName} ${ultPct}% · ${Math.floor(ultCharge)}/${Math.floor(ultCost)}</span>`;
       }
     }
-    const infoHtml = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}${personalStatsHudHtml(me.character)}`;
+    const infoHtml = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}${personalStatsHudHtml(me.character)}${teamUltimateStatusHtml()}`;
     if ($('myInfo').innerHTML !== infoHtml) $('myInfo').innerHTML = infoHtml;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 

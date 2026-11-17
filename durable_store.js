@@ -321,6 +321,45 @@ class DurableStore {
     return {coins:Number(wallet.rows[0]?.coins || 0),owned:skins.rows.map(x=>String(x.skin_id))};
   }
 
+  // Authoritative, previously persisted purchases. Read only on PIN-authenticated admin requests.
+  // Ledger entries are inserted in the same transaction as wallet deduction / ownership.
+  async getSkinSalesStats() {
+    if (!this.pool) throw new Error('database_not_initialized');
+    try {
+      const result = await this.pool.query(`
+        SELECT l.skin_id, l.account_id, a.name AS buyer_name,
+               (-l.delta)::int AS spent_coins, l.created_at
+        FROM school_line_coin_ledger l
+        LEFT JOIN school_line_player_accounts a ON a.account_id = l.account_id
+        WHERE l.reason = 'skin_purchase' AND l.skin_id IS NOT NULL AND l.delta < 0
+        ORDER BY l.created_at DESC, l.id DESC
+      `);
+      const sales = new Map();
+      const allBuyers = new Set();
+      const recentPurchases = [];
+      let totalPurchases = 0, totalCoinsSpent = 0;
+      for (const row of result.rows) {
+        const id = String(row.skin_id);
+        const accountId = String(row.account_id);
+        const coins = Math.max(0, Number(row.spent_coins) || 0);
+        const at = row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || '');
+        let summary = sales.get(id);
+        if (!summary) { summary = { skinId:id, purchases:0, coinsSpent:0, uniqueBuyers:0, lastPurchasedAt:at, buyers:new Set() }; sales.set(id, summary); }
+        summary.purchases += 1;
+        summary.coinsSpent += coins;
+        summary.buyers.add(accountId);
+        totalPurchases += 1; totalCoinsSpent += coins; allBuyers.add(accountId);
+        if (recentPurchases.length < 25) recentPurchases.push({skinId:id,accountId,buyerName:String(row.buyer_name || accountId),coinsSpent:coins,purchasedAt:at});
+      }
+      this.noteSuccess('read');
+      return {
+        totalPurchases, totalCoinsSpent, uniqueBuyers:allBuyers.size,
+        bySkin:[...sales.values()].map(({buyers,...summary})=>({...summary,uniqueBuyers:buyers.size})),
+        recentPurchases
+      };
+    } catch (err) { this.noteError(err); throw err; }
+  }
+
   async ownsSkin(accountId, skinId) {
     if (!this.pool) throw new Error('database_not_initialized');
     const result = await this.pool.query('SELECT 1 FROM school_line_owned_skins WHERE account_id=$1 AND skin_id=$2',[accountId,skinId]);

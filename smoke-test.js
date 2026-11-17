@@ -43,18 +43,55 @@ assert.match(client, /drawImage\(tokenImg, tokenRect\.x/);
 assert.match(client, /bladeSlashSweepAngle/);
 console.log('PASS: 1.13 slim atlas packaging, game balance, UI asset integrations, archive preservation');
 
+// Classroom shortcut guard is intentionally best-effort: browsers may handle
+// developer-tools keys before page-level JavaScript receives the events.
+{
+  const vm = require('node:vm');
+  const html = fs.readFileSync(path.join(__dirname, 'public/index.html'), 'utf8');
+  assert.ok(html.indexOf('/devtools-shortcut-guard.js') < html.indexOf('/game.js?'),
+    'classroom shortcut guard should load before the game controls');
+  const guard = fs.readFileSync(path.join(__dirname, 'public/devtools-shortcut-guard.js'), 'utf8');
+  let listener = null;
+  let capture = false;
+  vm.runInNewContext(guard, {window:{addEventListener(type, fn, options){
+    assert.equal(type,'keydown'); listener = fn; capture=options;
+  }}, Set});
+  assert.equal(capture,true);
+  const dispatch = (key, mods={}) => {
+    let prevented=false, stopped=false;
+    listener({key, code:key, ...mods,
+      preventDefault(){ prevented=true; },
+      stopImmediatePropagation(){ stopped=true; }
+    });
+    return [prevented, stopped];
+  };
+  for (const [key,mods] of [
+    ['F12',{}], ['i',{ctrlKey:true,shiftKey:true}],
+    ['j',{ctrlKey:true,shiftKey:true}], ['c',{ctrlKey:true,shiftKey:true}],
+    ['k',{ctrlKey:true,shiftKey:true}], ['e',{ctrlKey:true,shiftKey:true}],
+    ['u',{ctrlKey:true}], ['i',{metaKey:true,altKey:true}]
+  ]) assert.deepEqual(dispatch(key,mods), [true,true], 'block developer-tool shortcut '+key);
+  for (const [key,mods] of [
+    ['w',{}], ['ArrowUp',{}], [' ',{}], ['r',{}],
+    ['1',{}], ['i',{ctrlKey:true}], ['c',{ctrlKey:true}], ['u',{}],
+    ['i',{shiftKey:true}]
+  ]) assert.deepEqual(dispatch(key,mods), [false,false], 'normal game controls remain usable');
+  console.log('PASS: F12/DevTools shortcuts intercepted, normal game controls unaffected');
+}
+
+
 // 1.14 personal in-match HUD regression: server owns counters; 1 Hz private
 // messages must not expose other players' stats or appear for spectators.
 {
   const st = s.makeMatchStats('water');
   Object.assign(st, {kills:3,deaths:2,assists:7,damage:123.45,healing:456.75});
-  const player={id:'hud-water',character:'water',connected:true,stats:st};
+  const player={id:'hud-water',character:'water',team:'A',connected:true,stats:st};
   const payload=s.personalStatsPayload(player);
   assert.deepEqual(payload,{type:'personal_stats',k:3,d:2,a:7,damage:123.5,healing:456.8});
   const room=s.newRoom('HUD-TEST',{displayNumber:1,mode:'casual'});
   room.state='playing';
   room.players.set('hud-water',player);
-  const other={id:'hud-buffer',character:'buffer',connected:true,stats:s.makeMatchStats('buffer')};
+  const other={id:'hud-buffer',character:'buffer',team:'A',connected:true,stats:s.makeMatchStats('buffer')};
   other.stats.healing=999;
   room.players.set(other.id,other);
   const sentWater=[],sentBuffer=[],sentSpectator=[];
@@ -62,7 +99,13 @@ console.log('PASS: 1.13 slim atlas packaging, game balance, UI asset integration
   room.clients.set('hud-buffer',{playerId:'hud-buffer',send:(msg,kind)=>{sentBuffer.push({msg,kind});return true;}});
   room.spectators.set('observer',{send:msg=>{sentSpectator.push(msg);return true;}});
   assert.equal(s.broadcastPersonalStats(room),2);
-  assert.deepEqual(sentWater,[{msg:payload,kind:'personal_stats'}]);
+  assert.deepEqual(sentWater[0],{msg:payload,kind:'personal_stats'});
+  assert.equal(sentWater[1]?.kind,'team_ultimates','team-only readiness sent separately');
+  assert.equal(sentWater[1]?.msg.members.length,2,'the same team sees both players');
+  assert.equal(s.broadcastChangedTeamUltimateStatuses(room),0,'unchanged team status is not resent');
+  other.ultimateCharge=c.buffer.ultimateCost;
+  assert.equal(s.broadcastChangedTeamUltimateStatuses(room),2,'changed readiness is sent to same team');
+  assert.equal(sentSpectator.length,0,'the team status never reaches spectator');
   assert.equal(sentBuffer[0]?.msg.healing,999);
   assert.equal(sentWater[0]?.msg.healing,456.8,'other player healing is never included');
   assert.equal(sentSpectator.length,0,'spectators cannot receive private match counters');
@@ -97,6 +140,89 @@ personalCombatStats={k:3,d:2,a:7,damage:123.5,healing:456.8};
   console.log('PASS: personal HUD private 1 Hz counters, 29-char role display, postgame cleanup, no spectators');
 }
 
+
+// 1.14 team ultimate coordination and skin sales admin regression.
+{
+  const room=s.newRoom('ULT-TEAM-TEST',{displayNumber:1,mode:'casual'});
+  room.state='playing';
+  const teamA=[],teamA2=[],teamB=[],observer=[];
+  const owner={id:'A1',name:'친구1',team:'A',character:'light',alive:false,connected:true,ultimateCharge:0,stats:s.makeMatchStats('light')};
+  const ally={id:'A2',name:'친구2',team:'A',character:'iron',alive:true,connected:true,ultimateCharge:0,stats:s.makeMatchStats('iron')};
+  const opponent={id:'B1',name:'적팀',team:'B',character:'water',alive:true,connected:true,ultimateCharge:0,stats:s.makeMatchStats('water')};
+  for (const p of [owner,ally,opponent]) room.players.set(p.id,p);
+  room.clients.set('A1',{playerId:'A1',send:(msg,kind)=>{teamA.push({msg,kind});return true;}});
+  room.clients.set('A2',{playerId:'A2',send:(msg,kind)=>{teamA2.push({msg,kind});return true;}});
+  room.clients.set('B1',{playerId:'B1',send:(msg,kind)=>{teamB.push({msg,kind});return true;}});
+  room.spectators.set('obs',{send:msg=>{observer.push(msg);return true;}});
+  assert.equal(s.checkTeamUltimateReadyNotifications(room),0);
+  // Automatic ultimate charge continues while dead, but notification waits for respawn.
+  owner.ultimateCharge=c.light.ultimateCost;
+  assert.equal(s.checkTeamUltimateReadyNotifications(room),0,'do not notify dead caster');
+  assert.equal(teamA.length,0);
+  owner.alive=true;
+  assert.equal(s.checkTeamUltimateReadyNotifications(room),2,'caster and ally notified on respawn');
+  assert.equal(teamA[0].msg.type,'team_ultimate_ready');
+  assert.equal(teamA2[0].msg.playerId,owner.id);
+  assert.equal(teamB.length,0,'enemy never receives team ready event');
+  assert.equal(observer.length,0,'spectators never receive team ready event');
+  assert.equal(s.checkTeamUltimateReadyNotifications(room),0,'exactly once per charge cycle');
+  owner.alive=false;
+  owner.alive=true;
+  assert.equal(s.checkTeamUltimateReadyNotifications(room),0,'death and respawn cannot re-announce an existing charge');
+  owner.ultimateCharge=0;
+  assert.equal(s.checkTeamUltimateReadyNotifications(room),0,'new charge cycle is armed');
+  owner.ultimateCharge=c.light.ultimateCost;
+  assert.equal(s.checkTeamUltimateReadyNotifications(room),2,'second full charge notifies both teammates');
+  const aStatus=s.teamUltimateStatusPayload(room,'A');
+  const bStatus=s.teamUltimateStatusPayload(room,'B');
+  assert.deepEqual(aStatus.members.map(m=>m.id),['A1','A2']);
+  assert.deepEqual(bStatus.members.map(m=>m.id),['B1']);
+  assert.ok(aStatus.members[0].ready);
+  assert.ok(!aStatus.members[1].ready);
+  console.log('PASS: team-only ultimate readiness, once-per-charge, dead-to-respawn and opponent isolation');
+}
+{
+  const {DurableStore}=require('./durable_store');
+  const store=new DurableStore();
+  const now='2026-11-17T10:00:00.000Z';
+  let queryCount=0;
+  store.pool={query:async sql=>{
+    assert.match(sql,/school_line_coin_ledger/);
+    assert.match(sql,/skin_purchase/);
+    queryCount++;
+    return {rows:[
+      {skin_id:'rebel_blade',account_id:'S001',buyer_name:'가',spent_coins:600,created_at:now},
+      {skin_id:'rebel_blade',account_id:'S002',buyer_name:'나',spent_coins:600,created_at:now},
+      {skin_id:'cold_ice',account_id:'S001',buyer_name:'가',spent_coins:300,created_at:now}
+    ]};
+  }};
+  // keep async test compatible with the existing sync smoke suite.
+  const original=store.getSkinSalesStats();
+  original.then(raw=>{
+    assert.equal(queryCount,1);
+    assert.equal(raw.totalPurchases,3);
+    assert.equal(raw.totalCoinsSpent,1500);
+    assert.equal(raw.uniqueBuyers,2);
+    assert.equal(raw.recentPurchases.length,3);
+    assert.equal(raw.bySkin.find(s=>s.skinId==='rebel_blade').purchases,2);
+    const presented=s.adminSkinSalesCatalogStats(raw);
+    assert.equal(presented.skins.length,9);
+    assert.equal(presented.skins.find(s=>s.id==='rebel_blade').coinsSpent,1200);
+    assert.equal(presented.skins.find(s=>s.id==='track_runner').purchases,0);
+    assert.equal(presented.recentPurchases[0].skinName,'반항아 블레이드');
+    console.log('PASS: 9-skin past-ledger admin sales, total/unique accounts, recent purchases');
+  }).catch(err=>{console.error(err);process.exitCode=1;});
+  const notesBuff=notes.sections.find(x=>x.heading.includes('캐릭터 밸런스')).groups.find(g=>g.label.includes('버프')).items[0].text;
+  for (const source of [notes.markdown,notesBuff]) {
+    assert.ok(source.indexOf('🏃 **러너:**')<source.indexOf('💣 **캐논:**'));
+    assert.ok(source.indexOf('💣 **캐논:**')<source.indexOf('💻 **해커:**'));
+    assert.ok(source.indexOf('💻 **해커:**')<source.indexOf('🚑 **레스큐**'));
+  }
+  assert.match(client,/teamUltimateStatusHtml/);
+  assert.match(client,/queueTeamUltimateToast/);
+  assert.match(fs.readFileSync(path.join(__dirname,'public/index.html'),'utf8'),/id="competitiveSkinSalesBody"/);
+  console.log('PASS: patch note role order, team readiness HUD, authenticated sales UI markup');
+}
 
 // 1.13 final / ultimate visual-authority regression. Cosmetics must be emitted only
 // after successful server-side actions and never change the actual gameplay result.
@@ -498,6 +624,124 @@ console.log('PASS: competitive reward toast never blocks exit or captures taps')
     assert.ok(wp.x<=w.x-.65+0.05 || start>=w.x+w.w, 'large speed step must not skip collision');
   }
   console.log('PASS: 1.14 numeric speed, additive slows, self/external/pack anti-heal, cap, Poision ultimate lifetime, 1.13 character numbers');
+}
+
+// 1.14 statistics-only hotfix: anti-heal attribution for all four sources.
+// Character numbers, healing outcomes, ultimate charge and the 80% cap are unchanged.
+{
+  const now=1900020000000;
+  const room=s.newRoom('ANTIHEAL114',{displayNumber:1,mode:'casual'});
+  room.state='playing';
+  const create=(id,character,team)=>({
+    id,name:id,character,team,alive:true,connected:true,
+    hp:s.CHARACTERS[character].hp,maxHp:s.CHARACTERS[character].hp,
+    statuses:Object.create(null),stats:s.makeMatchStats(character),ultimateCharge:0
+  });
+  const target=create('target','solar','B');
+  const fire=create('fire','fire','A');
+  const poison=create('poison','poison','A');
+  const reactor=create('reactor','reactor','A');
+  const flower=create('flower','flower','A');
+  const sources=[fire,poison,reactor,flower];
+  for(const p of [target,...sources])room.players.set(p.id,p);
+  const effects=[
+    {source:fire,id:'burn',r:.3},
+    {source:poison,id:'poison',r:.5},
+    {source:reactor,id:'radiation',r:.25},
+    {source:flower,id:'flower_thorns_antiheal',r:.4}
+  ];
+  const reset=()=>{
+    s.clearAllStatuses(target);
+    target.hp=target.maxHp-200;
+    target.stats=s.makeMatchStats(target.character);
+    target.ultimateCharge=0;
+    for(const p of sources)p.stats=s.makeMatchStats(p.character);
+  };
+  const approx=(a,b,msg)=>assert.ok(Math.abs(a-b)<1e-8,`${msg}: ${a} vs ${b}`);
+
+  // Each source alone gets exactly the HP that its effect actually prevented.
+  for(const e of effects){
+    reset();
+    s.applyStatus(room,e.source,target,e.id,2000,now,{healReduction:e.r});
+    const actual=s.applyHealing(room,null,target,100,now,{countsForUltimate:false});
+    approx(actual,100*(1-e.r),`${e.id} effective healing`);
+    approx(e.source.stats.healingPrevented,100*e.r,`${e.id} attribution`);
+    approx(sources.reduce((sum,p)=>sum+p.stats.healingPrevented,0),100*e.r,`${e.id} no double credit`);
+    approx(target.stats.healingReceived,actual,`${e.id} received counter unchanged`);
+  }
+
+  // Different effects stack additively but the actual reduction is capped at 80%.
+  reset();
+  for(const e of effects)s.applyStatus(room,e.source,target,e.id,2000,now,{healReduction:e.r});
+  approx(s.applyHealing(room,null,target,100,now,{countsForUltimate:false}),20,'capped healing');
+  const nominal=effects.reduce((sum,e)=>sum+e.r,0);
+  for(const e of effects){
+    approx(e.source.stats.healingPrevented,80*e.r/nominal,`${e.id} proportional 80% cap credit`);
+  }
+  approx(sources.reduce((sum,p)=>sum+p.stats.healingPrevented,0),80,'capped total no duplicate attribution');
+  approx(target.stats.healingReceived,20,'target receives actual heal');
+  approx(target.ultimateCharge,0,'health pack cannot grant ultimate charge');
+
+  // The credited amount is the heal truly lost, not nominal percentage of a
+  // heal that would have overhealed even without anti-heal.
+  reset();
+  target.hp=target.maxHp-40;
+  s.applyStatus(room,fire,target,'burn',2000,now,{healReduction:.3});
+  approx(s.applyHealing(room,null,target,100,now),40,'overhealing limited by missing HP');
+  approx(fire.stats.healingPrevented,0,'no phantom prevented overheal');
+  target.hp=target.maxHp;
+  approx(s.applyHealing(room,null,target,100,now),0,'no healing at full HP');
+  approx(fire.stats.healingPrevented,0,'full HP cannot earn prevention credit');
+
+  // A status may reduce self-healing and pack healing; both are credited.
+  reset();
+  s.applyStatus(room,reactor,target,'radiation',2000,now,{healReduction:.25});
+  approx(s.applyHealing(room,target,target,100,now),75,'self-healing unchanged');
+  approx(reactor.stats.healingPrevented,25,'self-healing prevention credited');
+  target.hp=target.maxHp-200;
+  approx(s.applyHealing(room,null,target,100,now,{countsForUltimate:false}),75,'health pack healing unchanged');
+  approx(reactor.stats.healingPrevented,50,'health pack prevention credited');
+
+  // Poison's 100% ultimate block has priority; other reductions cannot also
+  // claim prevention when the blocked heal would never pass through them.
+  reset();
+  for(const e of effects)s.applyStatus(room,e.source,target,e.id,2000,now,{healReduction:e.r});
+  s.applyStatus(room,poison,target,'poison_full_block',2000,now);
+  approx(s.applyHealing(room,null,target,100,now),0,'full block keeps real healing at zero');
+  approx(poison.stats.healingPrevented,100,'full block credited only to Poison');
+  for(const p of [fire,reactor,flower])approx(p.stats.healingPrevented,0,'full block has no secondary antiheal credit');
+  // Fully blocked health packs remain available. A 50 Hz pickup check must
+  // never falsely credit the same uncollected pack as 100 HP prevention/tick.
+  reset();
+  target.x=10;target.y=10;
+  room.healthPacks=[{id:'pack-test',x:10,y:10,readyAt:0}];
+  s.applyStatus(room,poison,target,'poison_full_block',500,now);
+  for(let i=0;i<20;i++)s.updateRoomHealthPacks(room,now+i*20);
+  approx(target.hp,target.maxHp-200,'full blocked pack does not heal');
+  approx(room.healthPacks[0].readyAt,0,'full blocked pack is not consumed');
+  approx(poison.stats.healingPrevented,0,'uncollected pack not credited 20 times');
+  s.updateRoomHealthPacks(room,now+501);
+  approx(target.hp,target.maxHp-100,'unblocked pack heals on expiration');
+  assert.equal(room.healthPacks[0].readyAt,now+501+s.HEALTH_PACK_RESPAWN_MS);
+
+  // Expired status no longer reduces healing or earns credit.
+  reset();
+  s.applyStatus(room,flower,target,'flower_thorns_antiheal',1000,now,{healReduction:.4});
+  approx(s.applyHealing(room,null,target,100,now+1001),100,'expired effect does not affect healing');
+  approx(flower.stats.healingPrevented,0,'expired effect cannot gain credit');
+
+  assert.match(fs.readFileSync(path.join(__dirname,'server.js'),'utf8'),/healingPreventedCoverage: 'all-four-sources-v1'/,'new records explicitly mark telemetry coverage');
+
+  const clientMain=fs.readFileSync(path.join(__dirname,'public/game.js'),'utf8');
+  const clientRoot=fs.readFileSync(path.join(__dirname,'game.js'),'utf8');
+  for(const js of [clientMain,clientRoot]){
+    for(const char of ['fire','poison','reactor','flower']){
+      const line=js.split('\n').find(x=>x.includes("if (character === '"+char+"') return"));
+      assert.ok(line,`${char} has postgame special metric`);
+      assert.match(line,/감소된 치유량/,`${char} shows antiheal contribution`);
+    }
+  }
+  console.log('PASS: 1.14 antiheal stats all sources, cap and proportional splits, self/pack/overheal, full block, expiry, both result UIs');
 }
 
 // 1.14 character updates and server-authoritative Flower two-shot projectile test.

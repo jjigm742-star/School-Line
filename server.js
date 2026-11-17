@@ -97,7 +97,7 @@ function statsSeriesForBalanceVersion(balanceVersion) {
 }
 // Official builds use their major.minor stats series; prerelease tags remain isolated.
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION.includes('-pre') ? BALANCE_VERSION : statsSeriesForBalanceVersion(BALANCE_VERSION);
-const COMPETITIVE_BUILD_ID = '1.14-system-heal-speed';
+const COMPETITIVE_BUILD_ID = '1.14-system-heal-speed-ult-ready-team-v1';
 const COMPETITIVE_ROSTER_VERSION = '1.14-system-only-roster-29';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
@@ -285,7 +285,11 @@ function updateRoomHealthPacks(room, now) {
       if (!player.alive || player.connected === false || player.hp >= player.maxHp - 1e-6) continue;
       const r = (CHARACTERS[player.character]?.radius || 0.8) + HEALTH_PACK_PICKUP_RADIUS;
       if (distance(player.x, player.y, pack.x, pack.y) > r) continue;
-      // Full healing block prevents pickup, so a pack cannot be wasted for zero health.
+      // A fully blocked pack is not consumed. Do not repeatedly count the same
+      // uncollected pack as "prevented healing" on every 50 Hz server tick.
+      // This is a statistics-only guard: the existing zero-heal/no-pickup result
+      // and the pack's respawn timing remain unchanged.
+      if (hasStatus(player, 'poison_full_block', now)) continue;
       const healed = applyHealing(room, null, player, HEALTH_PACK_HEAL, now, {countsForUltimate:false});
       if (healed <= 0) continue;
       pack.readyAt = now + HEALTH_PACK_RESPAWN_MS;
@@ -753,8 +757,24 @@ function publicNetworkStats() {
   };
 }
 
-function publicAdminStatsPayload(statsVersion) {
-  return { ...publicCompetitiveStats(statsVersion), network: publicNetworkStats(), persistence: { ...durableStore.status(), pendingSaves: pendingCompetitiveRecords.size } };
+function publicAdminStatsPayload(statsVersion, skinSales = null) {
+  return { ...publicCompetitiveStats(statsVersion), network: publicNetworkStats(), persistence: { ...durableStore.status(), pendingSaves: pendingCompetitiveRecords.size },
+    ...(skinSales ? { skinSales } : {}) };
+}
+
+function adminSkinSalesCatalogStats(raw) {
+  const rows = new Map((raw?.bySkin || []).map(item => [item.skinId, item]));
+  return {
+    totalPurchases: raw?.totalPurchases || 0,
+    totalCoinsSpent: raw?.totalCoinsSpent || 0,
+    uniqueBuyers: raw?.uniqueBuyers || 0,
+    skins: SKIN_CATALOG.map(skin => ({ id: skin.id, name: skin.name, characterId: skin.characterId, price: skin.price,
+      purchases: rows.get(skin.id)?.purchases || 0, coinsSpent:rows.get(skin.id)?.coinsSpent || 0,
+      uniqueBuyers:rows.get(skin.id)?.uniqueBuyers || 0, lastPurchasedAt:rows.get(skin.id)?.lastPurchasedAt || null
+    })),
+    recentPurchases: (raw?.recentPurchases || []).map(purchase=>({ ...purchase,
+      skinName: SKINS_BY_ID.get(purchase.skinId)?.name || purchase.skinId }))
+  };
 }
 
 function competitiveStatsBackupPayload() {
@@ -1940,7 +1960,8 @@ function handleAdminCompetitiveStatsHttp(req, res, exportMode = false) {
         sendJsonDownload(res, `competitive_stats_backup_${stamp}.json`, competitiveStatsBackupPayload());
         return;
       }
-      sendJson(res, 200, { ok:true, data: publicAdminStatsPayload(body && body.statsVersion) });
+      const skinSales = adminSkinSalesCatalogStats(await durableStore.getSkinSalesStats());
+      sendJson(res, 200, { ok:true, data: publicAdminStatsPayload(body && body.statsVersion, skinSales) });
     } catch (dbErr) {
       console.error('[admin-stats] database read failed:', dbErr?.message || dbErr);
       sendJson(res, 503, { ok:false, error:'database_unavailable', message:'영구 통계 저장소를 읽을 수 없습니다. 잠시 뒤 다시 시도하세요.', persistence: durableStore.status() });
@@ -2858,6 +2879,10 @@ function buildCompetitiveResult(room, now = Date.now()) {
   }));
   const result = {
     recordSchemaVersion: 4,
+    // Distinguish pre-hotfix 1.14 matches (Poison only) from fully attributed
+    // anti-heal records without creating a new balance/stats version.
+    healingPreventedCoverage: 'all-four-sources-v1',
+    featureFlags: { teamUltimateReadyNotifications: true },
     matchId: String(comp.matchId || crypto.randomUUID()),
     mapId:room.mapId, mapName:mapForRoom(room).name,
     statsVersion: COMPETITIVE_STATS_VERSION,
@@ -3263,27 +3288,30 @@ function onMessage(conn, msg) {
 
 function sendAdminCompetitiveStats(conn, msg) {
   if (!conn.roomCode || (!conn.playerId && !conn.spectatorId)) {
-    conn.send({ type: 'admin_stats_error', message: '먼저 방에 입장한 뒤 관리자 통계를 열어주세요.' });
+    conn.send({ type:'admin_stats_error', message:'먼저 방에 입장한 뒤 관리자 통계를 열어주세요.' });
     return;
   }
-  if (conn.adminStatsAuthorized) {
-    conn.send({ type: 'admin_stats_data', data: publicAdminStatsPayload(msg.statsVersion) });
-    return;
+  if (!conn.adminStatsAuthorized) {
+    const now = Date.now();
+    if (adminStatsAuthLocked(conn.remoteAddress, now)) {
+      conn.send({type:'admin_stats_error',message:'관리자 암호 입력이 잠시 잠겼습니다. 30초 뒤 다시 시도하세요.'});return;
+    }
+    const pin = safePin(msg.pin);
+    if (pin.length !== 4 || hashText(pin) !== ADMIN_STATS_PIN_HASH) {
+      noteAdminStatsAuthFailure(conn.remoteAddress, now);
+      conn.send({type:'admin_stats_error',message:'관리자 암호가 올바르지 않습니다.'});return;
+    }
+    clearAdminStatsAuthFailure(conn.remoteAddress);
+    conn.adminStatsAuthorized = true;
   }
-  const now = Date.now();
-  if (adminStatsAuthLocked(conn.remoteAddress, now)) {
-    conn.send({ type: 'admin_stats_error', message: '관리자 암호 입력이 잠시 잠겼습니다. 30초 뒤 다시 시도하세요.' });
-    return;
-  }
-  const pin = safePin(msg.pin);
-  if (pin.length !== 4 || hashText(pin) !== ADMIN_STATS_PIN_HASH) {
-    noteAdminStatsAuthFailure(conn.remoteAddress, now);
-    conn.send({ type: 'admin_stats_error', message: '관리자 암호가 올바르지 않습니다.' });
-    return;
-  }
-  clearAdminStatsAuthFailure(conn.remoteAddress);
-  conn.adminStatsAuthorized = true;
-  conn.send({ type: 'admin_stats_data', data: publicAdminStatsPayload(msg.statsVersion) });
+  // Also serve the WS fallback from the durable purchase ledger, not in-memory guesses.
+  void durableStore.getSkinSalesStats().then(raw=>{
+    if (!conn.adminStatsAuthorized || !conn.roomCode) return;
+    conn.send({type:'admin_stats_data',data:publicAdminStatsPayload(msg.statsVersion,adminSkinSalesCatalogStats(raw))});
+  }).catch(err=>{
+    console.error('[admin-skins] database read failed:',err?.message||err);
+    conn.send({type:'admin_stats_error',message:'스킨 판매 통계 저장소를 읽을 수 없습니다.'});
+  });
 }
 
 function sendAdminCompetitiveStatsBackup(conn) {
@@ -3405,7 +3433,7 @@ function joinRoom(conn, msg, options = {}) {
     sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
     jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0,
     jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0, magnetPull: null, flowerThornsSecondAt: 0,
-    reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), patternUltimateRemaining: 0, patternUltimateNextAt: 0,
+    reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, teamUltimateReadyAnnounced: false, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), patternUltimateRemaining: 0, patternUltimateNextAt: 0,
     perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
     shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
     stats: makeMatchStats(null)
@@ -3535,6 +3563,7 @@ function attachExistingPlayerConnection(conn, room, player, options = {}) {
   });
   if (room.state === 'playing') {
     if (!sendPlayingSnapshotToConnection(room, conn, Date.now())) conn.needsFullSync = true;
+    conn.send(teamUltimateStatusPayload(room, player.team), 'team_ultimates');
   } else conn.send(snapshot(room, player.id));
   if (PERK_SYSTEM.enabled && room.state === 'playing') {
     if (player.perkChoiceId) {
@@ -3678,6 +3707,7 @@ function startMatch(room, now = Date.now()) {
   room.matchStartedAt = now;
   room.matchEndAt = now + MATCH_SECONDS * 1000;
   room.nextUltimateAutoChargeAt = now + ULTIMATE_AUTO_CHARGE_INTERVAL_MS;
+  room.teamUltimateStatusSignatures = {};
   clearProjectiles(room);
   room.pendingRunnerBombs = [];
   room.beams = [];
@@ -3694,10 +3724,10 @@ function startMatch(room, now = Date.now()) {
       bladeDashCharges: p.character === 'blade' ? CHARACTERS.blade.bladeDashMaxCharges : 0, bladeDashRechargeAt: 0,
       diaFormUntil: 0, diaCooldownUntil: 0, sprintUntil: 0, sprintCooldownUntil: 0, windTailwindCooldownUntil: 0, angelBlessCooldownUntil: 0,
       jetBoostUntil: 0, jetBoostCooldownUntil: 0, jetBoostStartAt: 0, jetBoostStartX: 0, jetBoostStartY: 0, jetBoostEndX: 0, jetBoostEndY: 0, jetShieldUntil: 0, magnetPull: null, flowerThornsSecondAt: 0, newAbilityCooldownUntil: 0,
-      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, bladeDashUntil: 0, bladeDashStartAt: 0, bladeDashStartX: 0, bladeDashStartY: 0, bladeDashEndX: 0, bladeDashEndY: 0, bladeDashDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), patternUltimateRemaining: 0, patternUltimateNextAt: 0, lastCombatAt: now, damageContributors: Object.create(null), supportContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
+      reactorOutput: 0, reactorLastDamageAt: 0, jetBoostDistance: 0, teamUltimateReadyAnnounced: false, bladeDashUntil: 0, bladeDashStartAt: 0, bladeDashStartX: 0, bladeDashStartY: 0, bladeDashEndX: 0, bladeDashEndY: 0, bladeDashDistance: 0, ultimateCharge: 0, ultimateUntil: 0, ultimateUseSeq: 0, mechaSelfDestructAt: 0, pendingUltimateId: null, pendingUltimateAt: 0, diaUltimateBurstsRemaining: 0, diaUltimateNextBurstAt: 0, diaUltimateVolleySeq: 0, diaUltimateVolleyHits: new Map(), patternUltimateRemaining: 0, patternUltimateNextAt: 0, lastCombatAt: now, damageContributors: Object.create(null), supportContributors: Object.create(null), lastDamageAttackerId: null, lastDamageAt: 0,
       perkChoiceId: null, perkChosenAt: 0, perkOfferSent: false,
       shotSeq: 0, projectileHitSeq: 0, healHitSeq: 0, lastHealTargetId: null, lastHealFeedbackAt: 0, healNumberPending: 0, healNumberFlushAt: 0, abilityUseSeq: 0, lastAbilityTargetId: null,
-      stats: makeMatchStats(p.character)
+      stats: makeMatchStats(p.character), teamUltimateReadyAnnounced: false
     });
     p.input = { up: false, down: false, left: false, right: false, fire: false };
   }
@@ -4418,6 +4448,27 @@ function personalStatsPayload(player) {
 
 // Only each player's own counters, never a shared or spectator snapshot.
 // The separate 1 Hz send preserves the existing c6 10 Hz shared packet budget.
+// Send team status only when a teammate's charge/readiness, death or connection changes.
+// This avoids repeating four-player HUD data 180 times per match per recipient.
+function broadcastChangedTeamUltimateStatuses(room) {
+  if (!room || room.state !== 'playing') return 0;
+  const last = room.teamUltimateStatusSignatures || (room.teamUltimateStatusSignatures = {});
+  let sent = 0;
+  for (const team of ['A','B']) {
+    const payload = teamUltimateStatusPayload(room, team);
+    const signature = JSON.stringify(payload.members);
+    if (last[team] === signature) continue;
+    last[team] = signature;
+    for (const [playerId, conn] of room.clients.entries()) {
+      const player = room.players.get(playerId);
+      if (!player || player.team !== team || player.connected === false || !conn || conn.playerId !== playerId) continue;
+      if (conn.socket && Number(conn.socket.writableLength || 0) > MAX_WS_PENDING_BYTES) continue;
+      if (conn.send(payload,'team_ultimates')) sent++;
+    }
+  }
+  return sent;
+}
+
 function broadcastPersonalStats(room) {
   if (!room || room.state !== 'playing') return 0;
   let sent = 0;
@@ -4428,7 +4479,40 @@ function broadcastPersonalStats(room) {
     if (conn.socket && Number(conn.socket.writableLength || 0) > MAX_WS_PENDING_BYTES) continue;
     if (conn.send(personalStatsPayload(player), 'personal_stats')) sent += 1;
   }
+  broadcastChangedTeamUltimateStatuses(room);
   return sent;
+}
+
+// Team-only readiness. No charge numbers or opponent ultimates are transmitted.
+function teamUltimateStatusPayload(room, team) {
+  return { type:'team_ultimates', members:[...room.players.values()]
+    .filter(p=>p.team===team)
+    .map(p=>({id:p.id,character:p.character,name:p.name,
+      ready:ultimateCostForPlayer(p)>0 && (Number(p.ultimateCharge)||0)+1e-9>=ultimateCostForPlayer(p),
+      alive:p.alive===true,connected:p.connected!==false})) };
+}
+
+function checkTeamUltimateReadyNotifications(room, now=Date.now()) {
+  if (!room || room.state!=='playing') return 0;
+  let count=0;
+  for (const owner of room.players.values()) {
+    const cost=ultimateCostForPlayer(owner);
+    const ready=cost>0 && (Number(owner.ultimateCharge)||0)+1e-9>=cost;
+    if (!ready) { owner.teamUltimateReadyAnnounced=false; continue; }
+    // Death may not stop auto-charge. Only announce when the caster can act again.
+    // If cast-ready before dying, never re-announce the same charge after respawning.
+    if (!owner.alive || owner.connected===false || owner.teamUltimateReadyAnnounced) continue;
+    owner.teamUltimateReadyAnnounced=true;
+    const message={type:'team_ultimate_ready',playerId:owner.id,character:owner.character,name:owner.name};
+    for (const [id,conn] of room.clients.entries()) {
+      const ally=room.players.get(id);
+      if (ally?.team===owner.team && ally.connected!==false && conn.playerId===id) {
+        conn.send(message,'team_ultimate_ready');count+=1;
+      }
+    }
+    appendCompetitiveMatchEvent(room, 'team_ultimate_ready', {playerId:owner.id,team:owner.team,character:owner.character}, now);
+  }
+  return count;
 }
 
 function ultimateCostForPlayer(player) {
@@ -4817,6 +4901,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
 
   if (!activated) return false;
   player.ultimateCharge = 0;
+  player.teamUltimateReadyAnnounced = false;
   player.ultimateUseSeq = (player.ultimateUseSeq || 0) + 1;
   ensureMatchStats(player).ultimateUses += 1;
   appendCompetitiveMatchEvent(room, 'ultimate', { playerId: player.id, playerName: player.name, team: player.team, character: player.character, targetId: targetId || null }, now);
@@ -4945,16 +5030,26 @@ function applyHealing(room, healer, target, amount, now, options = null) {
     const totalReduction = Math.min(MAX_HEAL_REDUCTION, nominalReduction);
     effectiveRaw = raw * (1 - totalReduction);
 
-    // Credit prevented healing proportionally to each additive source. The actual
-    // anti-heal is globally capped at 80%, while attribution still follows each
-    // source's share of the uncapped additive reduction.
+    // 1.14 statistics-only anti-heal attribution: credit actual HP healing
+    // prevented by Fire, Poison, Reactor and Flower. Keep the existing 80% cap,
+    // effective healing, and ultimate-charge logic completely unchanged.
+    // The capped reduction is divided in proportion to the *uncapped* additive
+    // strengths so multiple sources never claim more than the actual prevented HP.
     const withoutReduction = Math.min(missing, raw);
     const withReduction = Math.min(missing, effectiveRaw);
     const prevented = Math.max(0, withoutReduction - withReduction);
     if (prevented > 0 && nominalReduction > 0) {
-      if (poison && poisonReduction > 0) {
-        const source = room?.players?.get(poison.sourceId);
-        if (source && source.character === 'poison') ensureMatchStats(source).healingPrevented += prevented * (poisonReduction / nominalReduction);
+      for (const [status, reduction, character] of [
+        [burn, burnReduction, 'fire'],
+        [poison, poisonReduction, 'poison'],
+        [radiation, radiationReduction, 'reactor'],
+        [flowerThorns, thornsReduction, 'flower']
+      ]) {
+        if (!status || reduction <= 0) continue;
+        const source = room?.players?.get(status.sourceId);
+        if (source?.character === character && source.team !== target.team) {
+          ensureMatchStats(source).healingPrevented += prevented * (reduction / nominalReduction);
+        }
       }
     }
   }
@@ -5771,6 +5866,7 @@ function updateRoom(room, dt, now) {
 
   if (aScoring) room.scoreA += dt;
   if (bScoring) room.scoreB += dt;
+  checkTeamUltimateReadyNotifications(room, now);
 }
 
 function competitivePhaseWireSnapshot(room, viewerId = null, spectator = false, now = Date.now()) {
@@ -6353,7 +6449,7 @@ module.exports = {
   reactorStageForOutput, reactorDamageForOutput, currentAttackDef,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
   POST_GAME_ROOM_CLOSE_MS, MAX_ROOMS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, additiveMovementSpeed, movePlayer, hasLineOfSight,
-  makeMatchStats, personalStatsPayload, broadcastPersonalStats, newRoom, makeWsConnection, recordConnectionClose, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
+  makeMatchStats, personalStatsPayload, broadcastPersonalStats, broadcastChangedTeamUltimateStatuses, teamUltimateStatusPayload, checkTeamUltimateReadyNotifications, adminSkinSalesCatalogStats, newRoom, makeWsConnection, recordConnectionClose, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateFlowerThorns, activateMagnetHook, beginMagnetPull, updateMagnetPull, magnetPullEndpoint, magnetHookCooldownSeconds, activateNewHeroAbility, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, activateBladeDash, finishBladeDash, updateBladeDashPosition, updateBladeDashCharges, grantBladeDashCharge, performMeleeAttack, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, requestCompetitiveReadySwap, respondCompetitiveReadySwap, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,

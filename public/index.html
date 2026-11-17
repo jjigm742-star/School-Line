@@ -218,6 +218,7 @@
 
         <button id="mobileCharacterGuideButton" class="mobile-character-guide-button" type="button" aria-label="현재 캐릭터 정보와 사용법 열기" title="캐릭터 정보 및 사용법" aria-haspopup="dialog" aria-controls="inGameCharacterGuideOverlay">ⓘ</button>
         <div id="myInfo" class="my-info"></div>
+        <div id="teamUltimateToast" class="team-ultimate-toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
         <div id="spectatorBadge" class="spectator-badge hidden">📺 관전자</div>
         <div id="respawn" class="respawn"></div>
 
@@ -288,6 +289,13 @@
         <div class="stats-note">통계 1.7부터 PostgreSQL에 경기별 원본을 영구 저장합니다. 1.7 / 1.8 / 1.9 통계는 시리즈별로 분리하고, 1.9와 1.9.1은 단독·통합 조회를 지원되며 신캐는 출시 이후 실제 선택 가능 경기만 분모에 포함됩니다.</div>
         <div class="stats-note stats-note-secondary">승률 옆 95% CI는 표본 불확실성을 나타냅니다. GitHub/Render 재배포와 무관하게 PostgreSQL 기록이 유지되며, JSON 버튼은 별도의 수동 백업 수단입니다.</div>
         <div id="competitiveStatsDataQuality" class="stats-quality"></div>
+        <section class="stats-skin-sales" aria-label="관리자 전용 스킨 구매 통계">
+          <h3 class="stats-recent-title">🛍️ 스킨 판매 현황 <small>전체 기간 · PostgreSQL 구매 기록</small></h3>
+          <div id="competitiveSkinSalesSummary" class="stats-note">구매 기록을 불러오는 중…</div>
+          <div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>스킨</th><th>가격</th><th>판매량</th><th>구매자</th><th>사용 코인</th><th>최근 구매</th></tr></thead><tbody id="competitiveSkinSalesBody"></tbody></table></div>
+          <h4 class="stats-recent-title">최근 구매 내역 <small>최대 25건 · 관리자만 열람</small></h4>
+          <div class="stats-table-wrap stats-subtable"><table class="stats-table"><thead><tr><th>구매 시각</th><th>구매자</th><th>스킨</th><th>사용 코인</th></tr></thead><tbody id="competitiveSkinRecentBody"></tbody></table></div>
+        </section>
         <h3 class="stats-recent-title">캐릭터 종합</h3>
         <div class="stats-table-wrap"><table class="stats-table"><thead><tr><th>캐릭터</th><th>가능</th><th>밴</th><th>밴률</th><th>픽</th><th>픽률</th><th>관여율</th><th>풀렸을 때 픽</th><th>W-L-D</th><th>승률</th><th>95% CI</th><th>K-D-A/판</th><th>피해/판</th><th>받피/판</th><th>치유/판</th><th>점유초/판</th><th>궁</th><th>픽당 궁</th></tr></thead><tbody id="competitiveStatsBody"></tbody></table></div>
         <div class="stats-analysis-grid">
@@ -423,6 +431,7 @@
       </article>
     </div>
   </main>
+  <script src="/devtools-shortcut-guard.js?v=1.14-classroom-1"></script>
   <script src="/game.js?v=1.14-final-notes-1"></script>
 </body>
 </html>

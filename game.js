@@ -3348,15 +3348,15 @@ function formatContributionNumber(value) {
 function contributionSpecialLine(character, stats) {
   if (character === 'shield') return `보호막으로 막은 피해량 ${formatContributionNumber(stats.shieldDamageBlocked)}`;
   if (character === 'buffer') return `연결 시간 ${formatContributionNumber(stats.bufferLinkSeconds)}초`;
-  if (character === 'fire') return `화상 피해량 ${formatContributionNumber(stats.burnDamage)}`;
+  if (character === 'fire') return `화상 피해량 ${formatContributionNumber(stats.burnDamage)} · 감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
   if (character === 'wind') return `순풍으로 가속된 팀원 ${formatContributionNumber(stats.tailwindApplications)}명`;
   if (character === 'poison') return `감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
-  if (character === 'reactor') return `출력 에너지 3단계 유지 시간 ${formatContributionNumber(stats.reactorStage3Seconds)}초`;
+  if (character === 'reactor') return `출력 에너지 3단계 유지 시간 ${formatContributionNumber(stats.reactorStage3Seconds)}초 · 감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
   if (character === 'solar') return `태양탄으로 회복한 체력 ${formatContributionNumber(stats.solarProjectileHealing)}`;
   if (character === 'angel') return `축복으로 회복한 체력 ${formatContributionNumber(stats.angelBlessingHealing)}`;
   if (character === 'dia') return `다이아폼 킬 ${formatContributionNumber(stats.diaFormKills)}회`;
   if (character === 'magnet') return `자석 적중 ${formatContributionNumber(stats.magnetHookHits)}회`;
-  if (character === 'flower') return `가시꽃 스킬로 입힌 피해량 ${formatContributionNumber(stats.flowerThornsDamage)}`;
+  if (character === 'flower') return `가시꽃 스킬로 입힌 피해량 ${formatContributionNumber(stats.flowerThornsDamage)} · 감소된 치유량 ${formatContributionNumber(stats.healingPrevented)}`;
   if (character === 'witch') return `저주로 증폭된 피해량 ${formatContributionNumber(stats.witchCurseBonusDamage)}`;
   if (character === 'hacker') return `은신 사용 ${formatContributionNumber(stats.hackerStealthUses)}회`;
   if (character === 'drain') return `흡혈로 회복한 치유량 ${formatContributionNumber(stats.drainLifestealHealing)}`;

@@ -48,6 +48,25 @@ const CHARACTER_ATLAS_IDS = Object.freeze([
   'cannon','fire','poison','reactor','spray','laser','ice','water','wind','star',
   'flower','angel','buffer','light','witch','hacker','rescue','drain','blade'
 ]);
+// Show a healing counter only for characters with a built-in HP recovery skill.
+// Health packs and out-of-combat regeneration do not count as personal healing.
+const HUD_HEALING_CHARACTERS = new Set([
+  'magnet', 'solar', 'dia', 'ice', 'drain',
+  'water', 'wind', 'star', 'flower', 'angel', 'buffer', 'light', 'rescue'
+]);
+let personalCombatStats = null;
+function clearPersonalCombatStats() { personalCombatStats = null; }
+function personalStatNumber(value) {
+  return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('ko-KR');
+}
+function personalStatsHudHtml(character) {
+  const st = personalCombatStats || { k:0, d:0, a:0, damage:0, healing:0 };
+  const kda = `<span class="my-info-stat-kda">K / D / A　${personalStatNumber(st.k)} / ${personalStatNumber(st.d)} / ${personalStatNumber(st.a)}</span>`;
+  const damage = character === 'buffer' ? '' : `<span class="my-info-stat-damage">⚔️ 딜 ${personalStatNumber(st.damage)}</span>`;
+  const healing = HUD_HEALING_CHARACTERS.has(character) ? `<span class="my-info-stat-healing">💚 힐 ${personalStatNumber(st.healing)}</span>` : '';
+  return `<span class="my-info-personal-stats">${kda}<span class="my-info-stat-numbers">${damage}${healing}</span></span>`;
+}
+
 const CHARACTER_ATLAS_COLUMNS = 6;
 const CHARACTER_PORTRAIT_CELL = Object.freeze({ width: 512, height: 640 });
 const CHARACTER_TOKEN_CELL = Object.freeze({ width: 256, height: 256 });
@@ -1839,6 +1858,7 @@ function updateAccessUi(open, message='') {
 }
 
 function resetClientForAccessLock(message='') {
+  clearPersonalCombatStats();
   clearSessionReconnect();
   updateAccessUi(false, message);
   resetPostGameSequence();
@@ -2848,6 +2868,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'room_closed') {
+    clearPersonalCombatStats();
     hideSchoolReward();
     clearSessionReconnect();
     const message = msg.message || '경기가 종료되어 방이 자동으로 닫혔습니다.';
@@ -2872,6 +2893,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'left_room') {
+    clearPersonalCombatStats();
     hideSchoolReward();
     clearSessionReconnect();
     resetPostGameSequence();
@@ -2911,6 +2933,13 @@ function handleMessage(msg) {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
     return;
   }
+  if (msg.type === 'personal_stats') {
+    // Private server-authoritative counters, never a local hit estimate.
+    if (state?.state === 'playing' && myId && !spectatorMode) {
+      personalCombatStats = msg;
+    }
+    return;
+  }
   if (msg.type === 'net_pong') {
     if (Number(msg.nonce) === lastNetPingNonce) {
       socketRttMs = Math.max(0,Date.now()-lastNetPingNonce);
@@ -2929,6 +2958,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'joined') {
+    clearPersonalCombatStats();
     clearSessionReconnect();
     if(randomQueueActive) randomQueueBusyUi(false);
     if (msg.accountId) localStorage.setItem(PLAYER_ACCOUNT_KEY, msg.accountId);
@@ -2945,6 +2975,7 @@ function handleMessage(msg) {
     show('lobby'); return;
   }
   if (msg.type === 'resumed') {
+    clearPersonalCombatStats();
     const recoveryDuration = sessionReconnectActive ? Math.round(performance.now()-sessionReconnectStartedAt) : 0;
     clearSessionReconnect();
     if (recoveryDuration) console.info('[network] reconnected after', recoveryDuration, 'ms');
@@ -2965,6 +2996,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'spectator_joined') {
+    clearPersonalCombatStats();
     clearLiveProjectileRegistry();
     spectatorMode = true;
     myId = null;
@@ -3060,6 +3092,7 @@ function handleMessage(msg) {
     syncSelectedMapFromServer(msg);
     const previousState = state;
     const startedPlaying = msg.state === 'playing' && (!previousState || previousState.state !== 'playing');
+    if (startedPlaying || (previousState?.state === 'playing' && msg.state !== 'playing')) clearPersonalCombatStats();
     if (msg.state === 'ended' && previousState?.state === 'playing') {
       hideCharacterIntroTip();
       state = msg;
@@ -6072,7 +6105,7 @@ function renderGame() {
         ultInfoLine = `<span class="my-info-ultimate">⚡ ${ultName} ${ultPct}% · ${Math.floor(ultCharge)}/${Math.floor(ultCost)}</span>`;
       }
     }
-    const infoHtml = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}`;
+    const infoHtml = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}${personalStatsHudHtml(me.character)}`;
     if ($('myInfo').innerHTML !== infoHtml) $('myInfo').innerHTML = infoHtml;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 

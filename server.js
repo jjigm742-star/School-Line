@@ -374,7 +374,7 @@ const CHARACTERS = {
   cannon: {
     name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
     fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 13,
+    projectileType: 'attack', damage: 14,
     ultimateName: '초대형 포격', ultimateCost: 1300, ultimateDescription: '8초간 이동할 수 없는 대신 기본 공격이 200 DPS가 된다.', ultimateDuration: 8, ultimateDamage: 20
   },
   fire: {
@@ -498,7 +498,7 @@ const CHARACTERS = {
   hacker: {
     name: '해커', role: '딜러', hp: 225, speed: 7.0, radius: 0.80,
     fireRate: 5, range: 12, projectileSpeed: 28, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 18,
+    projectileType: 'attack', damage: 20,
     abilityId: 'stealth', abilityCooldown: 12, stealthDuration: 4,
     ultimateName: 'EMP', ultimateCost: 1000, ultimateDescription: '반경 16m 적을 1초 기절시키고 기존 개인 보호막을 제거한다. HP 피해는 없다.',
     ultimateRadius: 16, ultimateStunDuration: 1, ultimateDuration: 1
@@ -4402,6 +4402,35 @@ function ensureMatchStats(player) {
   return player.stats;
 }
 
+// 1.14 in-match personal HUD: reuse the authoritative match counters rather than
+// adding any new damage/healing bookkeeping or exposing opponents' private stats.
+function personalStatsPayload(player) {
+  const stats = ensureMatchStats(player);
+  return {
+    type: 'personal_stats',
+    k: Math.max(0, Math.floor(Number(stats.kills) || 0)),
+    d: Math.max(0, Math.floor(Number(stats.deaths) || 0)),
+    a: Math.max(0, Math.floor(Number(stats.assists) || 0)),
+    damage: roundWireNumber(Math.max(0, Number(stats.damage) || 0), 1),
+    healing: roundWireNumber(Math.max(0, Number(stats.healing) || 0), 1)
+  };
+}
+
+// Only each player's own counters, never a shared or spectator snapshot.
+// The separate 1 Hz send preserves the existing c6 10 Hz shared packet budget.
+function broadcastPersonalStats(room) {
+  if (!room || room.state !== 'playing') return 0;
+  let sent = 0;
+  for (const [playerId, conn] of room.clients.entries()) {
+    const player = room.players.get(playerId);
+    if (!player || !conn || conn.playerId !== playerId || player.connected === false) continue;
+    // Respect socket backpressure even for these infrequent tiny messages.
+    if (conn.socket && Number(conn.socket.writableLength || 0) > MAX_WS_PENDING_BYTES) continue;
+    if (conn.send(personalStatsPayload(player), 'personal_stats')) sent += 1;
+  }
+  return sent;
+}
+
 function ultimateCostForPlayer(player) {
   if (!player) return 0;
   return Math.max(0, Number(CHARACTERS[player.character]?.ultimateCost) || 0);
@@ -6251,6 +6280,11 @@ async function startSchoolLineServer() {
     }
   }, 1000 / SNAPSHOT_SCHEDULER_HZ);
 
+  // Match contribution HUD: one small private message per connected player per second.
+  setInterval(() => {
+    for (const room of rooms.values()) broadcastPersonalStats(room);
+  }, 1000);
+
   setInterval(() => processRandomMatchQueue(Date.now()), 250);
 
   setInterval(() => retryPendingCompetitiveRecords(Date.now()), Math.min(COMPETITIVE_PERSIST_RETRY_MS, 1000));
@@ -6319,7 +6353,7 @@ module.exports = {
   reactorStageForOutput, reactorDamageForOutput, currentAttackDef,
   effectiveSpeed, resolveBufferTarget, bufferLinkState, setBufferTarget, clearBufferTargetRefs, periodicActionRateMultiplier, periodicActionReady,
   POST_GAME_ROOM_CLOSE_MS, MAX_ROOMS, cancelPostGameRoomClose, reopenEndedRoomForRematch, closeEndedRoom, updateRoom, snapshot, compactPlayingSnapshotForWire, compactPlayerWireRow, compactPlayerWireRowV5, compactPlayerWireRowV6, websocketFrameSize, publicNetworkStats, roomBroadcastIntervalMs, allowLiveRoomBroadcast, broadcast, additiveMovementSpeed, movePlayer, hasLineOfSight,
-  makeMatchStats, newRoom, makeWsConnection, recordConnectionClose, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
+  makeMatchStats, personalStatsPayload, broadcastPersonalStats, newRoom, makeWsConnection, recordConnectionClose, spawnProjectile, spawnSprayVolley, spawnSolarProjectile, updateProjectiles,
   traceBeam, traceLightBeam, activateFlowerThorns, activateMagnetHook, beginMagnetPull, updateMagnetPull, magnetPullEndpoint, magnetHookCooldownSeconds, activateNewHeroAbility, activateDiaForm, activateRunnerSprint, activateWindTailwind, activateShieldAbility, updateShieldAbilityCharges, activateJetBoost, finishJetBoost, updateJetBoostPosition, activateBladeDash, finishBladeDash, updateBladeDashPosition, updateBladeDashCharges, grantBladeDashCharge, performMeleeAttack, endDiaForm,
   registerDirectKill, die, respawn, applyRespawnPostShield, resumeRoom, disconnect, neutralizePlayerInput, safeResumeToken,
   startCompetitiveDraft, resolveCompetitiveBan, commitCompetitivePick, autoCompetitivePick, enterCompetitiveReady, requestCompetitiveReadySwap, respondCompetitiveReadySwap, swapCompetitiveReadyAssignments, finalizeCompetitiveReady, updateCompetitiveFlow, recordCompetitiveResult,

@@ -81,4 +81,15 @@ npm test
 ## 1.14 balance & Flower thorn rework (2026-11-16)
 - 1.14 system-only baseline preserved, no new game assets or gameplay data files.
 - Flower active ability: separate 2-shot long-range thorn projectiles, 40% antiheal for 2 s, heals remain active, owner-only ready aim line, death/stun cancels second shot.
-- Eight numerical balance changes per official 1.14 request; existing 1.13 skin shop and post-match toast fix unchanged.
+- Ten character balance adjustments total (8 buffs, 2 nerfs), including Cannon and Hacker; existing skin shop and post-match toast fix unchanged.
+
+
+## ⚡ 1.14 밸런스 구성 — 50판 관찰 기준
+
+1.14 경쟁전 통계 버전은 `1.14`이며, 동일 밸런스로 50판 누적을 권장합니다.
+
+- 💣 캐논 기본 피해: 초당 10발, 발당 13 → 14 (**130 → 140 DPS**); 궁극기 발당 20, **200 DPS 유지**.
+- 💻 해커 기본 피해: 초당 5발, 발당 18 → 20 (**90 → 100 DPS**); 은신/EMP 변경 없음.
+- 캐논과 해커는 1.14 패치노트의 **3. 캐릭터 밸런스 변경 / 버프 8종**에 포함되어 있습니다.
+- **캐논 궁극기 300 DPS**, **메카 자폭 자해 100**, **제트 DPS +10**, **위치 저주 30%**는 1.14에 포함되지 않은 향후 검토안입니다.
+- 미니미 아틀라스·구매 스킨 9종·일반전 스킨 착용·PostgreSQL 스키마는 이전 1.14 버전과 동일합니다.

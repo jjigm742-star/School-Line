@@ -71,6 +71,12 @@ h2, h3 { margin-top: 0; }
 .my-info-ultimate { display:block; margin-top:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,.18); color:#e9dcff; font-weight:850; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .my-info-ultimate.ready { color:#ffe88a; text-shadow:0 0 8px rgba(255,211,86,.30); }
 .my-info-ultimate.active { color:#d7f4ff; }
+/* 1.14 private in-match KDA + damage/healing contribution. Wrap on narrow mobile HUDs. */
+.my-info-personal-stats { display:block; margin-top:5px; padding-top:5px; border-top:1px solid rgba(255,255,255,.18); font-size:.9em; line-height:1.4; font-variant-numeric:tabular-nums; }
+.my-info-stat-kda { display:block; color:#f2f5fb; font-weight:800; white-space:normal; }
+.my-info-stat-numbers { display:flex; flex-wrap:wrap; column-gap:9px; row-gap:1px; margin-top:2px; font-weight:800; }
+.my-info-stat-damage { color:#ffd6ad; white-space:nowrap; }
+.my-info-stat-healing { color:#a9ffd2; white-space:nowrap; }
 .respawn { position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); z-index: 9; color: #ffcf70; background: rgba(10,14,20,.82); border-radius: 14px; padding: 10px 14px; font-size: clamp(18px, 5vh, 28px); font-weight: 900; pointer-events: none; }
 .action-buttons { position:absolute; left:50%; bottom:max(12px, env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:20; display:flex; align-items:flex-end; justify-content:center; gap:8px; pointer-events:auto; }
 .action-buttons.hidden { display:none !important; }

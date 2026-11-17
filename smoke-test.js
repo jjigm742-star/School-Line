@@ -43,6 +43,61 @@ assert.match(client, /drawImage\(tokenImg, tokenRect\.x/);
 assert.match(client, /bladeSlashSweepAngle/);
 console.log('PASS: 1.13 slim atlas packaging, game balance, UI asset integrations, archive preservation');
 
+// 1.14 personal in-match HUD regression: server owns counters; 1 Hz private
+// messages must not expose other players' stats or appear for spectators.
+{
+  const st = s.makeMatchStats('water');
+  Object.assign(st, {kills:3,deaths:2,assists:7,damage:123.45,healing:456.75});
+  const player={id:'hud-water',character:'water',connected:true,stats:st};
+  const payload=s.personalStatsPayload(player);
+  assert.deepEqual(payload,{type:'personal_stats',k:3,d:2,a:7,damage:123.5,healing:456.8});
+  const room=s.newRoom('HUD-TEST',{displayNumber:1,mode:'casual'});
+  room.state='playing';
+  room.players.set('hud-water',player);
+  const other={id:'hud-buffer',character:'buffer',connected:true,stats:s.makeMatchStats('buffer')};
+  other.stats.healing=999;
+  room.players.set(other.id,other);
+  const sentWater=[],sentBuffer=[],sentSpectator=[];
+  room.clients.set('hud-water',{playerId:'hud-water',send:(msg,kind)=>{sentWater.push({msg,kind});return true;}});
+  room.clients.set('hud-buffer',{playerId:'hud-buffer',send:(msg,kind)=>{sentBuffer.push({msg,kind});return true;}});
+  room.spectators.set('observer',{send:msg=>{sentSpectator.push(msg);return true;}});
+  assert.equal(s.broadcastPersonalStats(room),2);
+  assert.deepEqual(sentWater,[{msg:payload,kind:'personal_stats'}]);
+  assert.equal(sentBuffer[0]?.msg.healing,999);
+  assert.equal(sentWater[0]?.msg.healing,456.8,'other player healing is never included');
+  assert.equal(sentSpectator.length,0,'spectators cannot receive private match counters');
+  room.state='ended';
+  assert.equal(s.broadcastPersonalStats(room),0,'no update outside live match');
+  const localHudCode=client.slice(client.indexOf('// Show a healing counter only'),client.indexOf('const CHARACTER_ATLAS_COLUMNS = 6;'));
+  assert.ok(localHudCode.startsWith('// Show a healing counter only'),'client contains HUD rules');
+  const vm=require('node:vm');
+  const h=vm.runInNewContext(localHudCode+`
+personalCombatStats={k:3,d:2,a:7,damage:123.5,healing:456.8};
+({
+    buffer: personalStatsHudHtml('buffer'),
+    cannon: personalStatsHudHtml('cannon'),
+    water: personalStatsHudHtml('water'),
+    solar: personalStatsHudHtml('solar'),
+    list:[...HUD_HEALING_CHARACTERS]
+  })`);
+  assert.equal(h.list.length,13);
+  assert.match(h.buffer,/힐/);assert.doesNotMatch(h.buffer,/딜/);
+  assert.match(h.cannon,/딜/);assert.doesNotMatch(h.cannon,/힐/);
+  assert.match(h.water,/딜/);assert.match(h.water,/힐/);
+  assert.match(h.solar,/딜/);assert.match(h.solar,/힐/);
+  const atlastIds=client.match(/const CHARACTER_ATLAS_IDS = Object\.freeze\(\[([\s\S]*?)\]\)/)?.[1];
+  assert.ok(atlastIds,'29 characters in atlas');
+  const all=[...atlastIds.matchAll(/'([a-z]+)'/g)].map(m=>m[1]);
+  assert.equal(all.length,29);
+  assert.equal(new Set(all).size,29);
+  for(const name of h.list)assert.ok(all.includes(name),'HUD healing id exists: '+name);
+  assert.equal(all.filter(name=>!h.list.includes(name)).length,16);
+  assert.equal(c.buffer.noBasicAttack,true);
+  assert.match(client,/clearPersonalCombatStats\(\)/);
+  console.log('PASS: personal HUD private 1 Hz counters, 29-char role display, postgame cleanup, no spectators');
+}
+
+
 // 1.13 final / ultimate visual-authority regression. Cosmetics must be emitted only
 // after successful server-side actions and never change the actual gameplay result.
 const makeUltimatePlayer=(id,team,character,x=10,y=10)=>({
@@ -563,3 +618,33 @@ assert.ok(notes.markdown.includes('### 🏃 육상부원 러너'));
 assert.ok(notes.markdown.includes('### 💗 퀸카 플라워'));
 assert.match(client,/className = 'latest-patch-markdown'/);
 console.log('PASS: 1.14 final Korean patch notes rendered, four new skins listed');
+
+// 1.14 final pre-season DPS correction. Must not accidentally enable proposed
+// 1.15 cannon 300-DPS ultimate or change any other class, skin, or stats series.
+assert.equal(c.cannon.fireRate, 10);
+assert.equal(c.cannon.damage, 14);
+assert.equal(c.cannon.damage * c.cannon.fireRate, 140);
+assert.equal(c.cannon.ultimateDamage, 20);
+assert.equal(c.cannon.ultimateDamage * c.cannon.fireRate, 200);
+assert.equal(c.hacker.fireRate, 5);
+assert.equal(c.hacker.damage, 20);
+assert.equal(c.hacker.damage * c.hacker.fireRate, 100);
+assert.equal(s.currentAttackDef({character:'cannon',ultimateUntil:0},Date.now()).damage,14);
+assert.equal(s.currentAttackDef({character:'hacker',ultimateUntil:0},Date.now()).damage,20);
+const ultimateCheckNow = Date.now();
+assert.equal(s.currentAttackDef({character:'cannon',ultimateUntil:ultimateCheckNow+5000},ultimateCheckNow).damage,20);
+assert.equal(s.publicCompetitiveStats().currentBuild.balanceVersion,'1.14');
+assert.ok(notes.markdown.includes('캐논:** 기본 공격 DPS **130 → 140**'));
+assert.ok(notes.markdown.includes('해커:** 기본 공격 DPS **90 → 100**'));
+assert.equal(notes.sections.length, 5, 'only five integrated 1.14 patch sections');
+assert.ok(notes.markdown.includes('### 📈 버프 — 8종'));
+assert.ok(!notes.markdown.includes('최종 추가 밸런스 조정'));
+assert.ok(!notes.markdown.includes('## ⚡ 6.'));
+assert.equal(notes.markdown.match(/💣 \*\*캐논:\*\*/g)?.length, 1);
+assert.equal(notes.markdown.match(/💻 \*\*해커:\*\*/g)?.length, 1);
+const balanceBuff = notes.sections.find(section=>section.heading.includes('캐릭터 밸런스 변경'))?.groups?.[0];
+assert.equal(balanceBuff?.label, '📈 버프 — 8종');
+assert.equal(balanceBuff.items[0].name, '📈 버프 — 8종');
+assert.match(balanceBuff.items[0].text,/캐논:\*\* 기본 공격 DPS \*\*130 → 140\*\*/);
+assert.match(balanceBuff.items[0].text,/해커:\*\* 기본 공격 DPS \*\*90 → 100\*\*/);
+console.log('PASS: cannon 140 DPS, hacker 100 DPS; cannon ultimate stays 200 DPS; v1.14 stats & patch notes');

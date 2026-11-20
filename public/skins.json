@@ -35,7 +35,7 @@
     "name": "보건실 단골 리액터",
     "tier": "특급",
     "price": 600,
-    "effect": "의무실 리컬러 · 출력 3단계 투사체 변경 · 궁극기 특수 연출",
+    "effect": "리컬러 · 출력 3단계 투사체 변경 · 궁극기 특수 연출",
     "effectId": "infirmary_regular_reactor",
     "tokenIndex": 40
   },

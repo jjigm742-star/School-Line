@@ -985,7 +985,7 @@ console.log('PASS: 1.15 roster, official release notes, archived 1.14 and Scienc
   const quickDraft=client.slice(client.indexOf('function renderDraftCharacterGrid('),client.indexOf('function renderReadyAssignments('));
   assert.doesNotMatch(quickDraft,/ready-story-button|openReadyCharacterStory/,'ban/pick UI untouched');
   const html=fs.readFileSync(path.join(__dirname,'public/index.html'),'utf8');
-  assert.match(html,/src="\/game.js\?v=1\.15-story-ready-1"/);
+  assert.match(html,/src="\/game.js\?v=1\.15-reactor-token-clean-1"/);
   const styles=fs.readFileSync(path.join(__dirname,'public/style.css'),'utf8');
   assert.match(styles,/\.ready-story-button/);
   assert.ok(notes.markdown.includes('준비 단계 열람'));

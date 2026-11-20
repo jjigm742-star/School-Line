@@ -1,5 +1,45 @@
 [
   {
+    "id": "school_nurse_buffer",
+    "characterId": "buffer",
+    "name": "보건교사 버퍼",
+    "tier": "특급",
+    "price": 600,
+    "effect": "초록색 주입 링크 + 궁극기 십자가 입자",
+    "effectId": "buffer_medical",
+    "tokenIndex": 33
+  },
+  {
+    "id": "rebel_blade",
+    "characterId": "blade",
+    "name": "반항아 블레이드",
+    "tier": "특급",
+    "price": 600,
+    "effect": "푸른 참격·처치 쨍 소리/폭발·용검 푸른 불꽃",
+    "effectId": "blade_bluefire",
+    "tokenIndex": 34
+  },
+  {
+    "id": "principal_solar",
+    "characterId": "solar",
+    "name": "교장선생님 솔라",
+    "tier": "특급",
+    "price": 600,
+    "effect": "황금 정장 리컬러 · 태양탄 ☀️ · 처치 시 노란 안개",
+    "effectId": "principal_solar",
+    "tokenIndex": 38
+  },
+  {
+    "id": "infirmary_regular_reactor",
+    "characterId": "reactor",
+    "name": "보건실 단골 리액터",
+    "tier": "특급",
+    "price": 600,
+    "effect": "의무실 리컬러 · 출력 3단계 투사체 변경 · 궁극기 특수 연출",
+    "effectId": "infirmary_regular_reactor",
+    "tokenIndex": 40
+  },
+  {
     "id": "honor_shooter",
     "characterId": "shooter",
     "name": "모범생 슈터",
@@ -40,26 +80,6 @@
     "tokenIndex": 32
   },
   {
-    "id": "school_nurse_buffer",
-    "characterId": "buffer",
-    "name": "보건교사 버퍼",
-    "tier": "특급",
-    "price": 600,
-    "effect": "초록색 주입 링크 + 궁극기 십자가 입자",
-    "effectId": "buffer_medical",
-    "tokenIndex": 33
-  },
-  {
-    "id": "rebel_blade",
-    "characterId": "blade",
-    "name": "반항아 블레이드",
-    "tier": "특급",
-    "price": 600,
-    "effect": "푸른 참격·처치 쨍 소리/폭발·용검 푸른 불꽃",
-    "effectId": "blade_bluefire",
-    "tokenIndex": 34
-  },
-  {
     "id": "cold_ice",
     "characterId": "ice",
     "name": "냉혈한 아이스",
@@ -88,5 +108,25 @@
     "effect": "가시꽃 투사체를 핑크 하트로 변경",
     "effectId": "flower_heart",
     "tokenIndex": 37
+  },
+  {
+    "id": "transfer_student_light",
+    "characterId": "light",
+    "name": "전학생 라이트",
+    "tier": "일반",
+    "price": 300,
+    "effect": "연노랑 교복 리컬러 · 궁극기 후 4초 스포트라이트 반짝임",
+    "effectId": "transfer_student_light",
+    "tokenIndex": 39
+  },
+  {
+    "id": "vice_principal_witch",
+    "characterId": "witch",
+    "name": "교감선생님 위치",
+    "tier": "일반",
+    "price": 300,
+    "effect": "정장 리컬러 · 저주 대상 주변 작은 해골 표식",
+    "effectId": "vice_principal_witch",
+    "tokenIndex": 41
   }
 ]

@@ -51,10 +51,11 @@ const ARCHIVED_110_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '
 const ARCHIVED_111_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.11.json');
 const ARCHIVED_112_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.12.json');
 const ARCHIVED_113_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.13.json');
+const ARCHIVED_114_PATCH_FILE = path.join(COMPETITIVE_DATA_DIR, 'patch_notes', '1.14.json');
 const CURRENT_PATCH_FILE = path.join(PUBLIC_DIR, 'latest-patch.json');
 function bundledCompetitivePatchNotes() {
   const notes = {};
-  for (const file of [ARCHIVED_110_PATCH_FILE, ARCHIVED_111_PATCH_FILE, ARCHIVED_112_PATCH_FILE, ARCHIVED_113_PATCH_FILE, CURRENT_PATCH_FILE]) {
+  for (const file of [ARCHIVED_110_PATCH_FILE, ARCHIVED_111_PATCH_FILE, ARCHIVED_112_PATCH_FILE, ARCHIVED_113_PATCH_FILE, ARCHIVED_114_PATCH_FILE, CURRENT_PATCH_FILE]) {
     const note = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (!note || !/^\d+\.\d+$/.test(note.version) || !Array.isArray(note.sections)) {
       throw new Error(`Invalid packaged patch notes: ${file}`);
@@ -83,8 +84,8 @@ const ADMIN_STATS_LOCK_MS = 30000;
 const ACCESS_ADMIN_PIN_HASH = LEGACY_ADMIN_PIN_HASH; // Preserve existing classroom access PIN.
 const ACCESS_ADMIN_MAX_FAILURES = 5;
 const ACCESS_ADMIN_LOCK_MS = 30000;
-const BALANCE_VERSION = '1.14';
-const GAME_VERSION = '1.14';
+const BALANCE_VERSION = '1.15';
+const GAME_VERSION = '1.15';
 const COMPETITIVE_STATS_SCHEMA_VERSION = 7;
 // Stats series reset: historical 1.6 data is intentionally NOT imported. This build starts at 1.7.
 // From gameplay 1.7 onward the series follows major.minor automatically, so 1.7.x / 1.8.x split without hard-coded lists.
@@ -97,8 +98,8 @@ function statsSeriesForBalanceVersion(balanceVersion) {
 }
 // Official builds use their major.minor stats series; prerelease tags remain isolated.
 const COMPETITIVE_STATS_VERSION = BALANCE_VERSION.includes('-pre') ? BALANCE_VERSION : statsSeriesForBalanceVersion(BALANCE_VERSION);
-const COMPETITIVE_BUILD_ID = '1.14-system-heal-speed-ult-ready-team-v1';
-const COMPETITIVE_ROSTER_VERSION = '1.14-system-only-roster-29';
+const COMPETITIVE_BUILD_ID = '1.15-science-lab-control-damage-boost-v1';
+const COMPETITIVE_ROSTER_VERSION = '1.15-balance-roster-29';
 const COMPETITIVE_PERSIST_RETRY_MS = Math.max(1000, Number(process.env.SCHOOL_LINE_PERSIST_RETRY_MS || 3000));
 const durableStore = new DurableStore();
 const pendingCompetitiveRecords = new Map();
@@ -243,8 +244,8 @@ const STATUS_DEFS = Object.freeze({
   freeze:   { kind: 'harmful', clearOnDeath: true }, // Ice's slowdown, distinct from Witch's curse slowdown.
   witch_slow: { kind: 'harmful', clearOnDeath: true },
   stun:     { kind: 'harmful', clearOnDeath: true },
-  // Curse: ability-specific duration, additive +25 percentage points to damage taken.
-  curse:    { kind: 'harmful', clearOnDeath: true, damageTakenBonus: 0.25 },
+  // Curse: ability-specific duration, additive +30 percentage points to damage taken.
+  curse:    { kind: 'harmful', clearOnDeath: true, damageTakenBonus: 0.30 },
   tailwind: { kind: 'beneficial', clearOnDeath: true },
   flower_bloom: { kind: 'beneficial', clearOnDeath: true }
 });
@@ -260,11 +261,20 @@ const CLASSROOM_WALLS = [
   { x: 27, y: 41, w: 10, h: 3 },
   { x: 20.1, y: 56, w: 1.8, h: 6 }
 ];
+// 1.15 Science Lab: world x=0..42, y=0..68; symmetric cover, clear 8m objective.
+const SCIENCE_LAB_WALLS = [
+  { x:6, y:22, w:7, h:3 }, { x:29, y:22, w:7, h:3 },
+  { x:6, y:43, w:7, h:3 }, { x:29, y:43, w:7, h:3 },
+  { x:8, y:31, w:3, h:6 }, { x:31, y:31, w:3, h:6 },
+  { x:20.1, y:6, w:1.8, h:6 }, { x:20.1, y:56, w:1.8, h:6 }
+];
+const SCIENCE_LAB_OBJECTIVE = Object.freeze({ x:21, y:34, radius:8, pointsPerSecond:1 });
 // A single authoritative map definition controls ALL server movement, LOS and projectile collisions.
 const PLAYGROUND_WALLS = CLASSROOM_WALLS.filter(w => !(w.x === 18 && w.y === 31 && w.w === 6 && w.h === 6));
 const MAP_DEFS = Object.freeze({
   classroom: Object.freeze({ name: '교실', walls: CLASSROOM_WALLS, healthPacks: [] }),
-  playground: Object.freeze({ name: '운동장', walls: PLAYGROUND_WALLS, healthPacks: [{id:'upper',x:3,y:34},{id:'lower',x:39,y:34}] })
+  playground: Object.freeze({ name: '운동장', walls: PLAYGROUND_WALLS, healthPacks: [{id:'upper',x:3,y:34},{id:'lower',x:39,y:34}] }),
+  science_lab: Object.freeze({ name: '과학실', walls: SCIENCE_LAB_WALLS, healthPacks: [], objective: SCIENCE_LAB_OBJECTIVE })
 });
 const HEALTH_PACK_HEAL = 100;
 const HEALTH_PACK_RESPAWN_MS = 20000;
@@ -272,7 +282,7 @@ const HEALTH_PACK_PICKUP_RADIUS = 0.80;
 function mapForRoom(room) { return MAP_DEFS[room?.mapId] || MAP_DEFS.classroom; }
 function getRoomWalls(room) { return mapForRoom(room).walls; }
 function publicMapDefinitions() {
-  return Object.fromEntries(Object.entries(MAP_DEFS).map(([id,m]) => [id, {name:m.name,walls:m.walls,healthPacks:m.healthPacks}]));
+  return Object.fromEntries(Object.entries(MAP_DEFS).map(([id,m]) => [id, {name:m.name,walls:m.walls,healthPacks:m.healthPacks,objective:m.objective || null}]));
 }
 function resetRoomHealthPacks(room) {
   room.healthPacks = mapForRoom(room).healthPacks.map(p => ({...p, readyAt:0}));
@@ -311,7 +321,7 @@ const CHARACTERS = {
     name: '메카', role: '탱커', hp: 550, speed: 7.0, radius: 1.00,
     fireRate: 5, range: 16, projectileSpeed: 28, projectileRadius: 0.20,
     projectileType: 'attack', damage: 13,
-    ultimateName: '자폭', ultimateCost: 800, ultimateDescription: '4초 후 반경 16m 적에게 200 피해를 주고 자신도 200 피해를 받는다.', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 200, ultimateDelay: 4
+    ultimateName: '자폭', ultimateCost: 800, ultimateDescription: '4초 후 반경 16m 적에게 200 피해를 주고 자신도 100 피해를 받는다.', ultimateRadius: 16, ultimateDamage: 200, ultimateSelfDamage: 100, ultimateDelay: 4
   },
   magnet: {
     name: '마그넷', role: '탱커', hp: 350, speed: 6.0, radius: 1.00,
@@ -333,10 +343,10 @@ const CHARACTERS = {
   },
   solar: {
     name: '솔라', role: '탱커', hp: 400, speed: 5.0, radius: 1.00,
-    attackType: 'beam', range: 16, beamDps: 55,
+    attackType: 'beam', range: 16, beamDps: 45,
     solarFireRate: 1, solarProjectileRange: 24, solarProjectileSpeed: 28,
     solarProjectileRadius: 0.32, solarProjectileDamage: 30, solarSelfHeal: 30,
-    ultimateName: '일출', ultimateCost: 1200, ultimateDescription: '6초간 반경 24m 적에게 초당 25 피해를 주고 자신은 초당 50 회복한다. 궁극기 활성 중 충전 불가.', ultimateDuration: 6, ultimateRadius: 24, ultimateAuraDps: 25, ultimateSelfHealHps: 50
+    ultimateName: '일출', ultimateCost: 1200, ultimateDescription: '6초간 반경 24m 적에게 초당 25 피해를 주고 자신은 초당 40 회복한다. 궁극기 활성 중 충전 불가.', ultimateDuration: 6, ultimateRadius: 24, ultimateAuraDps: 25, ultimateSelfHealHps: 40
   },
   shield: {
     name: '쉴드', role: '탱커', hp: 400, speed: 5.0, radius: 1.00,
@@ -356,12 +366,12 @@ const CHARACTERS = {
   },
   blade: {
     name: '블레이드', role: '딜러', hp: 250, speed: 6.5, radius: 0.80,
-    attackType: 'melee', fireRate: 2, range: 4, damage: 60, meleeFanAngleDeg: 60, meleeTargetMode: 'nearest',
+    attackType: 'melee', fireRate: 2, range: 6, damage: 60, meleeFanAngleDeg: 60, meleeTargetMode: 'nearest',
     abilityId: 'blade_dash', abilityCooldown: 10, bladeDashDistance: 8, bladeDashDuration: 0.3,
     bladeDashMaxCharges: 2, bladeDashRecharge: 10,
     ultimateName: '용검', ultimateCost: 800,
-    ultimateDescription: '8초 동안 전방 6m·60° 부채꼴 범위 모든 적을 초당 2회, 발당 80 피해로 공격한다. 사용 시 돌격 1회 충전.',
-    ultimateDuration: 8, ultimateRange: 6, ultimateDamage: 80, ultimateMeleeTargetMode: 'all', ultimateMeleeFanAngleDeg: 60
+    ultimateDescription: '8초 동안 전방 8m·60° 부채꼴 범위 모든 적을 초당 2회, 발당 80 피해로 공격한다. 사용 시 돌격 1회 충전.',
+    ultimateDuration: 8, ultimateRange: 8, ultimateDamage: 80, ultimateMeleeTargetMode: 'all', ultimateMeleeFanAngleDeg: 60
   },
   shooter: {
     name: '슈터', role: '딜러', hp: 250, speed: 6.0, radius: 0.80,
@@ -379,7 +389,7 @@ const CHARACTERS = {
     name: '캐논', role: '딜러', hp: 275, speed: 4.0, radius: 1.00,
     fireRate: 10, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
     projectileType: 'attack', damage: 14,
-    ultimateName: '초대형 포격', ultimateCost: 1300, ultimateDescription: '8초간 이동할 수 없는 대신 기본 공격이 200 DPS가 된다.', ultimateDuration: 8, ultimateDamage: 20
+    ultimateName: '포격', ultimateCost: 1300, ultimateDescription: '8초간 이동할 수 없는 대신 기본 공격이 300 DPS가 된다.', ultimateDuration: 8, ultimateDamage: 30
   },
   fire: {
     name: '파이어', role: '딜러', hp: 200, speed: 7.0, radius: 0.80,
@@ -395,7 +405,7 @@ const CHARACTERS = {
   },
   reactor: {
     name: '리액터', role: '딜러', hp: 225, speed: 6.0, radius: 0.80,
-    fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
+    fireRate: 5, range: 24, projectileSpeed: 28, projectileRadius: 0.32,
     projectileType: 'attack', damage: 15,
     // Official output stages use exclusive upper bounds for stages 1 and 2:
     // stage 1 = [0,33), stage 2 = [33,66), stage 3 = [66,100].
@@ -429,7 +439,7 @@ const CHARACTERS = {
     name: '윈드', role: '힐러', hp: 175, speed: 8.0, radius: 0.65,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.52,
     projectileType: 'heal', heal: 12, damage: 10,
-    tailwindDuration: 4, tailwindCooldown: 15, tailwindSpeedBonus: 1.0, abilityId: 'tailwind',
+    tailwindDuration: 4, tailwindCooldown: 15, tailwindSpeedBonus: 1.5, abilityId: 'tailwind',
     ultimateName: '계절풍', ultimateCost: 1200, ultimateDescription: '8초간 반경 12m 자신과 아군을 초당 30 회복한다.', ultimateDuration: 8, ultimateRadius: 12, ultimateHealHps: 30
   },
   star: {
@@ -446,9 +456,9 @@ const CHARACTERS = {
     flowerThornsRange: 36, flowerThornsProjectileSpeed: 42, flowerThornsProjectileRadius: 0.32,
     flowerThornsVolleyInterval: 0.5, flowerThornsHealReduction: 0.40, flowerThornsHealReductionDuration: 2,
     ultimateName: '만개', ultimateCost: 1000,
-    ultimateDescription: '자신 또는 선택한 아군 1명을 즉시 100 회복하고 초과 치유량을 3초 보호막으로 전환한다. 8초간 이동속도 +2.0m/s, 공격속도 +25%. 만개 사용자의 궁극기 재충전 8초 잠금.',
+    ultimateDescription: '자신 또는 선택한 아군 1명을 즉시 100 회복하고 초과 치유량을 3초 보호막으로 전환한다. 8초간 이동속도 +2.0m/s, 공격력 +50%. 만개 사용자의 궁극기 재충전 8초 잠금.',
     ultimateHeal: 100, ultimateShieldDuration: 3,
-    ultimateSpeedBonus: 2.0, ultimateDuration: 8, ultimateAttackSpeedBoost: 0.25,
+    ultimateSpeedBonus: 2.0, ultimateDuration: 8, ultimateDamageBoost: 0.50,
     ultimateTargeting: { relations: [TARGET_RELATION.SELF, TARGET_RELATION.ALLY], requireLos: false }
   },
   angel: {
@@ -462,9 +472,9 @@ const CHARACTERS = {
   buffer: {
     name: '버퍼', role: '힐러', hp: 200, speed: 5.0, radius: 0.65,
     range: 16, noBasicAttack: true,
-    linkHealHps: 40, actionSpeedBoost: 0.25,
+    linkHealHps: 40, damageBoost: 0.25,
     linkTargeting: { relations: [TARGET_RELATION.ALLY], range: 16, requireLos: false },
-    ultimateName: '업그레이드', ultimateCost: 1000, ultimateDescription: '8초간 링크 치유량이 초당 65로 증가하고 대상 이동속도 +1.0m/s.', ultimateDuration: 8, ultimateLinkHealHps: 65, ultimateLinkedSpeedBonus: 1.0
+    ultimateName: '업그레이드', ultimateCost: 1000, ultimateDescription: '8초간 링크 최대 거리 24m, 치유 65 HPS, 대상 이동속도 +1.0m/s. 링크 공격력 +25% 유지.', ultimateDuration: 8, ultimateLinkHealHps: 65, ultimateLinkedSpeedBonus: 1.0, ultimateLinkRange: 24
   },
   light: {
     name: '라이트', role: '힐러', hp: 275, speed: 6.0, radius: 0.65,
@@ -474,8 +484,8 @@ const CHARACTERS = {
   },
   laser: {
     name: '레이저', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
-    attackType: 'beam', range: 16, beamDps: 55, maxHpDpsRatio: 0.15,
-    ultimateName: '파괴광선', ultimateCost: 1400, ultimateDescription: '전방 24×6m 직사각형 내 적에게 10+최대 HP의 40% 즉시 피해. 실효 피해량만큼 3초 보호막. 벽 관통.', ultimateRange: 24, ultimateWidth: 6, ultimateDamage: 10, ultimateMaxHpDamageRatio: 0.40, ultimateShieldDuration: 3
+    attackType: 'beam', range: 16, beamDps: 60, maxHpDpsRatio: 0.15,
+    ultimateName: '파괴광선', ultimateCost: 1400, ultimateDescription: '전방 24×6m 직사각형 내 적에게 10+최대 HP의 50% 즉시 피해. 실효 피해량만큼 3초 보호막. 벽 관통.', ultimateRange: 24, ultimateWidth: 6, ultimateDamage: 10, ultimateMaxHpDamageRatio: 0.50, ultimateShieldDuration: 3
   },
   ice: {
     name: '아이스', role: '딜러', hp: 275, speed: 6.0, radius: 0.80,
@@ -486,7 +496,7 @@ const CHARACTERS = {
   dia: {
     name: '다이아', role: '탱커', hp: 350, speed: 5.0, radius: 1.00,
     fireRate: 5, range: 24, projectileSpeed: 20, projectileRadius: 0.32,
-    projectileType: 'attack', damage: 13,
+    projectileType: 'attack', damage: 12,
     formDuration: 6, formCooldown: 14, formHp: 450, formSpeed: 7.0,
     formRange: 16, formBeamDps: 95, formKillCooldownReduction: 6, abilityId: 'form',
     ultimateName: '수정 폭발', ultimateCost: 800, ultimateDescription: '시전 후 2초간 다이아를 따라가는 반경 16m 경고 범위. 2초 뒤 현재 위치에서 푸른 폭발로 적 각각 125 피해, 실제 피해를 입은 적당 자신 65 회복. 대기 중 충전 불가.', ultimateRadius: 16, ultimateDamage: 125, ultimateHealPerHit: 65, ultimateDelay: 2
@@ -496,7 +506,7 @@ const CHARACTERS = {
     attackType: 'beam', range: 16, beamDps: 70,
     abilityId: 'curse', abilityCooldown: 10, curseDuration: 5,
     abilityTargeting: { relations: [TARGET_RELATION.ENEMY], requireLos: false },
-    ultimateName: '마법약', ultimateCost: 1400, ultimateDescription: '사용 즉시 전장 전체의 살아 있는 적에게 5초간 저주(받는 피해 +25%)와 이동속도 -1.0m/s를 부여한다. 무적 상태의 적은 제외한다.',
+    ultimateName: '마법약', ultimateCost: 1400, ultimateDescription: '사용 즉시 전장 전체의 살아 있는 적에게 5초간 저주(받는 피해 +30%)와 이동속도 -1.0m/s를 부여한다. 무적 상태의 적은 제외한다.',
     ultimateDuration: 5, ultimateEffectDuration: 5, ultimateSpeedDelta: -1.0
   },
   hacker: {
@@ -1526,8 +1536,9 @@ function bufferLinkState(room, buffer, now = Date.now()) {
   const target = resolveBufferTarget(room, buffer);
   if (!target) return { target: null, active: false };
   const def = CHARACTERS.buffer;
+  const linkRange = isUltimateActive(buffer, now) ? Number(def.ultimateLinkRange || def.range) : Number(def.range);
   const active = !!buffer.alive && buffer.connected !== false && !isStunned(buffer, now)
-    && distance(buffer.x, buffer.y, target.x, target.y) <= Number(def.range || 16) + 1e-9;
+    && distance(buffer.x, buffer.y, target.x, target.y) <= linkRange + 1e-9;
   return { target, active };
 }
 
@@ -1559,17 +1570,7 @@ function linkedBufferUltimateSpeedDelta(room, player, now = Date.now()) {
 function periodicActionRateMultiplier(room, player, now = Date.now()) {
   if (!room || !player || !player.alive) return 1;
   let boost = 0;
-  for (const buffer of room.players.values()) {
-    if (buffer.character !== 'buffer' || buffer.team !== player.team) continue;
-    const state = bufferLinkState(room, buffer, now);
-    if (state.active && state.target && state.target.id === player.id) {
-      boost += Math.max(0, Number(CHARACTERS.buffer.actionSpeedBoost) || 0);
-      break; // Existing Buffer support does not stack from multiple Buffers.
-    }
-  }
   if (player.character === 'drain' && isUltimateActive(player, now)) boost += CHARACTERS.drain.ultimateAttackSpeedBoost;
-  const bloom = getStatus(player, 'flower_bloom', now);
-  if (bloom) boost += Math.max(0, Number(bloom.data?.attackSpeedBoost) || 0);
   return 1 + boost;
 }
 
@@ -2656,7 +2657,7 @@ function startCompetitiveDraft(room, now = Date.now()) {
   if (!isExactCompetitiveRoster(room)) return false;
   if (normalizeRoomMode(room.mode) !== 'competitive') return false;
   cancelPostGameRoomClose(room);
-  room.mapId = Math.random() < 0.5 ? 'classroom' : 'playground';
+  room.mapId = ['classroom','playground','science_lab'][Math.floor(Math.random() * 3)];
   room.state = 'draft';
   room.winner = null;
   room.winnerReason = null;
@@ -3618,7 +3619,7 @@ function publicCharacterDefs() {
     'flowerThornsCooldown', 'flowerThornsDamage', 'flowerThornsRange', 'flowerThornsProjectileSpeed', 'flowerThornsProjectileRadius', 'flowerThornsVolleyInterval', 'flowerThornsHealReduction', 'flowerThornsHealReductionDuration', 'ultimateSpeedBonus',
     'shieldAmount', 'shieldDuration', 'shieldCap', 'shieldMaxCharges', 'shieldRecharge', 'shieldAbilityRange',
     'reactorDamagePerOutput', 'reactorKillOutputGain', 'reactorDecayDelay', 'reactorDecayPerSecond', 'reactorHighThreshold', 'reactorHighSpeed',
-    'linkHealHps', 'actionSpeedBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
+    'linkHealHps', 'damageBoost', 'ultimateLinkRange', 'ultimateDamageBoost', 'noBasicAttack', 'spraySideProjectileRadius', 'spraySideDamage',
     'formDuration', 'formCooldown', 'formHp', 'formSpeed', 'formRange', 'formBeamDps', 'formKillCooldownReduction',
     'curseDuration', 'curseDamageTakenBonus', 'stealthDuration', 'lifestealOnHit', 'ultimateAttackSpeedBoost', 'ultimateEffectDuration',
     'ultimateName', 'ultimateCost', 'ultimateDescription', 'ultimateRadius', 'ultimateDamage', 'ultimateHealPerHit', 'ultimateProjectileSpeed', 'ultimateProjectileRange', 'ultimateStunDuration', 'ultimateDuration', 'ultimateRange', 'ultimateSpeedBonus', 'ultimateProjectileRadius', 'ultimateBurnDuration', 'ultimateHeal', 'ultimateShield', 'ultimateShieldDuration', 'ultimateDelay', 'ultimateSelfDamage', 'ultimateBoostCooldown', 'ultimateAuraDps', 'ultimateSelfHealHps', 'ultimatePoisonDuration', 'ultimateSideDamage', 'ultimateHealHps', 'ultimateBeamDps', 'ultimateMaxHpDpsRatio', 'ultimateLinkHealHps', 'ultimateLinkedSpeedBonus', 'ultimateSpeedDelta', 'ultimateProjectileCount', 'ultimateVolleyCount', 'ultimateVolleyInterval', 'ultimateFanAngleDeg', 'ultimateRotationDeg', 'ultimateWidth', 'ultimateMaxHpDamageRatio', 'ultimateSelfHeal'
@@ -4259,6 +4260,8 @@ function die(room, player, now) {
     emitSkinFx(room,{kind:'shooter_hundred',playerId:killer.id,x:player.x,y:player.y});
   if (killer && killer.character === 'blade' && killer.skinId === 'rebel_blade')
     emitSkinFx(room,{kind:'blade_blue_burst',playerId:killer.id,x:player.x,y:player.y});
+  if (killer && killer.character === 'solar' && killer.skinId === 'principal_solar')
+    emitSkinFx(room,{kind:'principal_solar_fog',playerId:killer.id,x:player.x,y:player.y});
   appendCompetitiveMatchEvent(room, 'death', {
     victimId: player.id, victimName: player.name, victimTeam: player.team, victimCharacter: player.character,
     killerId: killer ? killer.id : null, killerName: killer ? killer.name : null, killerTeam: killer ? killer.team : null, killerCharacter: killer ? killer.character : null,
@@ -4838,7 +4841,7 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
       }
     }
     applyStatus(room, player, target, 'flower_bloom', def.ultimateDuration * 1000, now,
-      { speedDelta: def.ultimateSpeedBonus, attackSpeedBoost: def.ultimateAttackSpeedBoost });
+      { speedDelta: def.ultimateSpeedBonus, damageBoost: def.ultimateDamageBoost });
     emitPrototypeUltimateFx(room, { kind:'recipient', character:'flower', team:player.team, targetId:target.id, durationMs:def.ultimateDuration * 1000 });
     // Bloom's owner is locked from charging again throughout the complete 8-second buff.
     player.ultimateUntil = now + def.ultimateDuration * 1000;
@@ -4909,8 +4912,26 @@ function activateUltimate(room, player, now = Date.now(), targetId = null, castA
 }
 
 
+// Applies ONLY to enemy-directed damage. Healing, self healing, shields, lifesteal
+// and Mecha's direct self-damage never pass through this multiplier.
+function outgoingDamageMultiplier(room, attackerId, target, now) {
+  const attacker = room?.players.get(attackerId);
+  if (!attacker || !attacker.alive || !target || attacker.team === target.team || attacker.id === target.id) return 1;
+  let bonus = 0;
+  for (const buffer of room.players.values()) {
+    if (buffer.character !== 'buffer' || buffer.team !== attacker.team) continue;
+    const link = bufferLinkState(room, buffer, now);
+    if (link.active && link.target?.id === attacker.id) {
+      bonus += Math.max(0, Number(CHARACTERS.buffer.damageBoost) || 0);
+      break; // Buffer links do not stack with other Buffer links.
+    }
+  }
+  const bloom = getStatus(attacker, 'flower_bloom', now);
+  if (bloom) bonus += Math.max(0, Number(bloom.data?.damageBoost) || 0);
+  return 1 + bonus;
+}
 function dealDamageDetailed(room, attackerId, target, amount, now, options = null) {
-  const incoming = Math.max(0, Number(amount) || 0);
+  const incoming = Math.max(0, Number(amount) || 0) * outgoingDamageMultiplier(room, attackerId, target, now);
   if (incoming <= 0 || !target || !target.alive || target.invulnerableUntil > now) return { total: 0, hp: 0, shield: 0 };
   // Defensive-role tuning: selected tanks use authoritative incoming-damage multipliers for
   // every damage path that reaches this resolver (projectiles, beams, DoT, etc.).
@@ -5836,36 +5857,56 @@ function updateRoom(room, dt, now) {
   updateProjectiles(room, dt, now);
   updateRoomHealthPacks(room, now);
 
-  const aAttackers = [], bDefenders = [], bAttackers = [], aDefenders = [];
-  for (const p of room.players.values()) {
-    if (!p.alive || p.connected === false) continue;
-    if (p.y >= WORLD.bZoneStart) {
-      if (p.team === 'A') aAttackers.push(p); else if (p.team === 'B') bDefenders.push(p);
+  const mapObjective = mapForRoom(room).objective;
+  if (mapObjective) {
+    const presentA = [], presentB = [];
+    for (const p of room.players.values()) {
+      if (!p.alive || p.connected === false) continue;
+      // Score strictly by the character's CENTER, regardless of body radius.
+      if (distance(p.x, p.y, mapObjective.x, mapObjective.y) > mapObjective.radius + 1e-9) continue;
+      if (p.team === 'A') presentA.push(p);
+      else if (p.team === 'B') presentB.push(p);
     }
-    if (p.y <= WORLD.aZoneEnd) {
-      if (p.team === 'B') bAttackers.push(p); else if (p.team === 'A') aDefenders.push(p);
+    const aScoring = presentA.length > 0 && presentB.length === 0;
+    const bScoring = presentB.length > 0 && presentA.length === 0;
+    if (aScoring) { room.scoreA += mapObjective.pointsPerSecond * dt; for (const p of presentA) ensureMatchStats(p).objectiveSeconds += dt; }
+    if (bScoring) { room.scoreB += mapObjective.pointsPerSecond * dt; for (const p of presentB) ensureMatchStats(p).objectiveSeconds += dt; }
+    if (presentA.length > 0 && presentB.length > 0) {
+      for (const p of [...presentA, ...presentB]) ensureMatchStats(p).contestSeconds += dt;
     }
+    // enemyZoneSeconds / ownZoneDefenseSeconds are intentionally not accrued in Science Lab.
+  } else {
+    const aAttackers = [], bDefenders = [], bAttackers = [], aDefenders = [];
+    for (const p of room.players.values()) {
+      if (!p.alive || p.connected === false) continue;
+      if (p.y >= WORLD.bZoneStart) {
+        if (p.team === 'A') aAttackers.push(p); else if (p.team === 'B') bDefenders.push(p);
+      }
+      if (p.y <= WORLD.aZoneEnd) {
+        if (p.team === 'B') bAttackers.push(p); else if (p.team === 'A') aDefenders.push(p);
+      }
+    }
+    const aScoring = aAttackers.length > 0 && bDefenders.length === 0;
+    const bScoring = bAttackers.length > 0 && aDefenders.length === 0;
+  
+    for (const p of aAttackers) ensureMatchStats(p).enemyZoneSeconds += dt;
+    for (const p of bAttackers) ensureMatchStats(p).enemyZoneSeconds += dt;
+    for (const p of aDefenders) ensureMatchStats(p).ownZoneDefenseSeconds += dt;
+    for (const p of bDefenders) ensureMatchStats(p).ownZoneDefenseSeconds += dt;
+    if (aScoring) for (const p of aAttackers) ensureMatchStats(p).objectiveSeconds += dt;
+    if (bScoring) for (const p of bAttackers) ensureMatchStats(p).objectiveSeconds += dt;
+    if (aAttackers.length && bDefenders.length) {
+      for (const p of aAttackers) ensureMatchStats(p).contestSeconds += dt;
+      for (const p of bDefenders) ensureMatchStats(p).contestSeconds += dt;
+    }
+    if (bAttackers.length && aDefenders.length) {
+      for (const p of bAttackers) ensureMatchStats(p).contestSeconds += dt;
+      for (const p of aDefenders) ensureMatchStats(p).contestSeconds += dt;
+    }
+  
+    if (aScoring) room.scoreA += dt;
+    if (bScoring) room.scoreB += dt;
   }
-  const aScoring = aAttackers.length > 0 && bDefenders.length === 0;
-  const bScoring = bAttackers.length > 0 && aDefenders.length === 0;
-
-  for (const p of aAttackers) ensureMatchStats(p).enemyZoneSeconds += dt;
-  for (const p of bAttackers) ensureMatchStats(p).enemyZoneSeconds += dt;
-  for (const p of aDefenders) ensureMatchStats(p).ownZoneDefenseSeconds += dt;
-  for (const p of bDefenders) ensureMatchStats(p).ownZoneDefenseSeconds += dt;
-  if (aScoring) for (const p of aAttackers) ensureMatchStats(p).objectiveSeconds += dt;
-  if (bScoring) for (const p of bAttackers) ensureMatchStats(p).objectiveSeconds += dt;
-  if (aAttackers.length && bDefenders.length) {
-    for (const p of aAttackers) ensureMatchStats(p).contestSeconds += dt;
-    for (const p of bDefenders) ensureMatchStats(p).contestSeconds += dt;
-  }
-  if (bAttackers.length && aDefenders.length) {
-    for (const p of bAttackers) ensureMatchStats(p).contestSeconds += dt;
-    for (const p of aDefenders) ensureMatchStats(p).contestSeconds += dt;
-  }
-
-  if (aScoring) room.scoreA += dt;
-  if (bScoring) room.scoreB += dt;
   checkTeamUltimateReadyNotifications(room, now);
 }
 
@@ -5925,7 +5966,11 @@ function snapshot(room, viewerId = null, spectator = false) {
       if (iceFreeze) { row.frozen = true; if (iceFreeze.data?.cosmeticSkinId === 'cold_ice') row.iceSkinFreeze = true; }
       if (hasStatus(p, 'witch_slow', now)) row.witchSlowed = true;
       if (hasStatus(p, 'stun', now)) row.stunned = true;
-      if (hasStatus(p, 'curse', now)) row.cursed = true;
+      if (hasStatus(p, 'curse', now)) {
+        row.cursed = true;
+        const curseSource=room.players.get(getStatus(p, 'curse', now)?.sourceId);
+        row.vicePrincipalCurse=curseSource?.character==='witch' && curseSource?.skinId==='vice_principal_witch';
+      }
       if (p.character === 'hacker' && p.alive && p.stealthUntil > now) row.stealthed = true;
 
       if (!hideCharacter && ['witch','hacker','rescue','magnet','flower'].includes(p.character)) {
@@ -6079,6 +6124,7 @@ function compactPlayerWireRow(p) {
   if (p.jetBoost) flags |= 1 << 9;
   if (p.bufferLinkActive) flags |= 1 << 10;
   if (p.cursed) flags |= 1 << 13;
+  if (p.vicePrincipalCurse) flags |= 1 << 17;
   if (p.stealthed) flags |= 1 << 14;
   const ms = value => value == null ? null : Math.max(0, Math.round(Number(value) || 0));
   const num = (value, digits = 3) => value == null ? null : roundWireNumber(value, digits);
@@ -6119,6 +6165,7 @@ function compactPlayerWireRowV5(p, beamActive = false, beamDidDamage = false) {
   if (p.jetBoost) flags |= 1 << 9;
   if (p.bufferLinkActive) flags |= 1 << 10;
   if (p.cursed) flags |= 1 << 13;
+  if (p.vicePrincipalCurse) flags |= 1 << 17;
   if (p.stealthed) flags |= 1 << 14;
   if (beamActive) flags |= 1 << 11;
   if (beamDidDamage) flags |= 1 << 12;
@@ -6162,6 +6209,7 @@ function compactPlayerWireRowV6(p, beamActive = false, beamDidDamage = false) {
   if (p.jetBoost) flags |= 1 << 9;
   if (p.bufferLinkActive) flags |= 1 << 10;
   if (p.cursed) flags |= 1 << 13;
+  if (p.vicePrincipalCurse) flags |= 1 << 17;
   if (p.stealthed) flags |= 1 << 14;
   if (beamActive) flags |= 1 << 11;
   if (beamDidDamage) flags |= 1 << 12;

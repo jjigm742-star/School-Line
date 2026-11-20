@@ -71,6 +71,12 @@ h2, h3 { margin-top: 0; }
 .my-info-ultimate { display:block; margin-top:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,.18); color:#e9dcff; font-weight:850; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .my-info-ultimate.ready { color:#ffe88a; text-shadow:0 0 8px rgba(255,211,86,.30); }
 .my-info-ultimate.active { color:#d7f4ff; }
+/* 1.14 private in-match KDA + damage/healing contribution. Wrap on narrow mobile HUDs. */
+.my-info-personal-stats { display:block; margin-top:5px; padding-top:5px; border-top:1px solid rgba(255,255,255,.18); font-size:.9em; line-height:1.4; font-variant-numeric:tabular-nums; }
+.my-info-stat-kda { display:block; color:#f2f5fb; font-weight:800; white-space:normal; }
+.my-info-stat-numbers { display:flex; flex-wrap:wrap; column-gap:9px; row-gap:1px; margin-top:2px; font-weight:800; }
+.my-info-stat-damage { color:#ffd6ad; white-space:nowrap; }
+.my-info-stat-healing { color:#a9ffd2; white-space:nowrap; }
 .respawn { position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); z-index: 9; color: #ffcf70; background: rgba(10,14,20,.82); border-radius: 14px; padding: 10px 14px; font-size: clamp(18px, 5vh, 28px); font-weight: 900; pointer-events: none; }
 .action-buttons { position:absolute; left:50%; bottom:max(12px, env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:20; display:flex; align-items:flex-end; justify-content:center; gap:8px; pointer-events:auto; }
 .action-buttons.hidden { display:none !important; }
@@ -724,6 +730,13 @@ body.post-game-sequence .mobile-character-guide-button { display:none !important
 .latest-patch-group ul { list-style:disc; padding-left:23px; margin:5px 0 9px; }
 .latest-patch-group li { margin:7px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; white-space:pre-line; }
 .latest-patch-group li strong { color:#fff; }
+.latest-patch-markdown h3 { margin:16px 0 9px; font-size:16px; color:#f4f8ff; }
+.latest-patch-markdown h4 { margin:13px 0 6px; font-size:14px; color:#bfe8f6; }
+.latest-patch-markdown p { margin:9px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; }
+.latest-patch-markdown ul { list-style:disc; padding-left:23px; margin:7px 0 12px; }
+.latest-patch-markdown li { margin:6px 0; font-size:14px; color:#d4e1f1; overflow-wrap:anywhere; }
+.latest-patch-markdown strong { color:#fff; }
+.latest-patch-markdown hr { border:0; border-top:1px solid #344962; margin:15px 0; }
 .latest-patch-close { flex:0 0 auto; margin-top:12px; width:100%; min-height:44px; font-weight:900; }
 body.latest-patch-open { overflow:hidden; }
 @media(max-width:640px) {
@@ -827,6 +840,32 @@ body.latest-patch-open { overflow:hidden; }
 .school-skin-pick label{font-weight:800}
 .school-skin-pick select{max-width:230px;min-height:40px;border-radius:8px;padding:8px 10px;color:#1c1d2e;background:white}
 .school-skin-pick small{opacity:.85;font-size:.77rem}
-.school-reward-toast{position:fixed;z-index:10020;top:10%;left:50%;transform:translateX(-50%);max-width:min(90vw,380px);background:#fff8de;border:2px solid #f0bb40;border-radius:13px;padding:12px 20px;color:#624400;box-shadow:0 4px 19px rgba(0,0,0,.27);font-weight:900;text-align:center}
+/* Informational only: never cover the lobby exit or capture student taps. */
+.school-reward-toast{position:fixed;z-index:10020;top:auto;bottom:max(14px, env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);max-width:min(90vw,380px);box-sizing:border-box;pointer-events:none;background:#fff8de;border:2px solid #f0bb40;border-radius:13px;padding:10px 16px;color:#624400;box-shadow:0 4px 19px rgba(0,0,0,.27);font-weight:900;text-align:center}
 .school-reward-toast.hidden{display:none!important}
 @media(max-width:540px){.school-shop-panel{padding:12px}.school-shop-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.school-shop-card{padding:10px 6px}.school-shop-card img{width:76px;height:76px}.school-shop-card h3{font-size:.89rem}.school-shop-card p{font-size:.72rem}}
+
+/* 1.14 team-only ultimate coordination. The marker does not reveal opponent charge. */
+.my-team-ult{display:block;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.18);font-size:.78em;line-height:1.35}
+.my-team-ult-title{display:block;font-weight:900;color:#ebdefc;margin-bottom:3px}
+.my-team-ult-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}
+.my-team-ult-member{display:flex;flex-direction:column;min-width:0;background:rgba(255,255,255,.06);padding:3px 5px;border:1px solid rgba(255,255,255,.10);border-radius:6px;color:#d8dee9}
+.my-team-ult-member>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.my-team-ult-member>b{font-size:.93em;color:#bbc9d6;font-weight:800}
+.my-team-ult-member.ready{border-color:rgba(255,216,102,.48);background:rgba(255,195,64,.12)}
+.my-team-ult-member.ready>b{color:#ffdc80}
+.my-team-ult-member.dead{opacity:.6}
+.team-ultimate-toast{position:absolute;top:15%;left:50%;transform:translateX(-50%);z-index:18;max-width:min(88vw,460px);padding:9px 14px;border-radius:12px;text-align:center;pointer-events:none;color:#fff1bc;background:rgba(33,29,54,.92);border:1px solid rgba(255,224,135,.7);box-shadow:0 8px 30px rgba(0,0,0,.36),0 0 16px rgba(239,191,72,.18);font-weight:900;font-size:clamp(12px,2.8vh,17px);line-height:1.35}
+.team-ultimate-toast.hidden{display:none!important}
+.stats-skin-sales{margin:12px 0 20px;padding:12px;border:1px solid #426474;border-radius:12px;background:rgba(17,42,53,.75)}
+.stats-skin-sales h4{font-size:13px;margin-top:15px}
+.stats-skin-sales .stats-recent-title small{font-size:11px;font-weight:500;color:#a7cbd3}
+@media (max-width:650px){.my-team-ult-grid{grid-template-columns:1fr 1fr}.my-team-ult-member{padding:2px 3px}.team-ultimate-toast{top:19%;width:max-content;max-width:85vw}}
+
+
+.school-shop-section{grid-column:1/-1;font-weight:900;color:#3d4d63;font-size:15px;margin:6px 0 2px;letter-spacing:.02em;}
+
+/* 1.15: story access exclusively during the 20-second competitive ready phase. */
+.ready-story-button { grid-column:2; justify-self:end; min-height:32px; padding:5px 12px; border-radius:9px; border:1px solid rgba(240,213,111,.55); background:#2a3441; color:#ffe69a; font-size:12px; font-weight:900; cursor:pointer; touch-action:manipulation; }
+.ready-story-button:hover { background:#39475a; }
+.ready-story-button:focus-visible { outline:2px solid #f0d56f; outline-offset:2px; }

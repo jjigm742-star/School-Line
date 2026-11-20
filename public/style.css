@@ -861,3 +861,11 @@ body.latest-patch-open { overflow:hidden; }
 .stats-skin-sales h4{font-size:13px;margin-top:15px}
 .stats-skin-sales .stats-recent-title small{font-size:11px;font-weight:500;color:#a7cbd3}
 @media (max-width:650px){.my-team-ult-grid{grid-template-columns:1fr 1fr}.my-team-ult-member{padding:2px 3px}.team-ultimate-toast{top:19%;width:max-content;max-width:85vw}}
+
+
+.school-shop-section{grid-column:1/-1;font-weight:900;color:#3d4d63;font-size:15px;margin:6px 0 2px;letter-spacing:.02em;}
+
+/* 1.15: story access exclusively during the 20-second competitive ready phase. */
+.ready-story-button { grid-column:2; justify-self:end; min-height:32px; padding:5px 12px; border-radius:9px; border:1px solid rgba(240,213,111,.55); background:#2a3441; color:#ffe69a; font-size:12px; font-weight:900; cursor:pointer; touch-action:manipulation; }
+.ready-story-button:hover { background:#39475a; }
+.ready-story-button:focus-visible { outline:2px solid #f0d56f; outline-offset:2px; }

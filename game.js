@@ -29,7 +29,7 @@ const CHARACTER_META = {
   star:    { role:'힐러', name:'스타', icon:'⭐', summary:'아주 먼 거리에서 높은 치유량을 공급하는 후방 힐러' },
   flower:  { role:'힐러', name:'플라워', icon:'🌹', summary:'공격과 치유를 전환하고 원거리에서 아군을 구출하는 힐러' },
   angel:   { role:'힐러', name:'엔젤', icon:'😇', summary:'축복으로 어디서든 아군을 즉시 구조하는 힐러' },
-  buffer:  { role:'힐러', name:'버퍼', icon:'🎛️', summary:'한 명을 계속 연결해 치유와 행동속도를 함께 증폭하는 힐러' },
+  buffer:  { role:'힐러', name:'버퍼', icon:'🎛️', summary:'한 명을 계속 연결해 치유와 공격력을 함께 강화하는 힐러' },
   light:   { role:'힐러', name:'라이트', icon:'✨', summary:'한 줄에서 치유와 공격을 동시에 만드는 광선 힐러' },
   witch:   { role:'탱커', name:'위치', icon:'🧹', summary:'저주로 적이 받는 피해를 증폭시키는 마법 탱커' },
   hacker:  { role:'딜러', name:'해커', icon:'👾', summary:'은신으로 적의 시야에서 사라지는 기동 딜러' },
@@ -37,7 +37,7 @@ const CHARACTER_META = {
   drain:   { role:'딜러', name:'드레인', icon:'🩸', summary:'공격을 적중시키며 자신을 치유하는 흡혈 딜러' }
 };
 
-const VISUAL_ASSET_VERSION = '1.13-school-skins-2';
+const VISUAL_ASSET_VERSION = '1.15-science-lab-2';
 const artPath = path => `${path}?v=${VISUAL_ASSET_VERSION}`;
 
 // 1.13 SLIM: one atlas per visual class, not 58 separately hosted files.
@@ -48,6 +48,61 @@ const CHARACTER_ATLAS_IDS = Object.freeze([
   'cannon','fire','poison','reactor','spray','laser','ice','water','wind','star',
   'flower','angel','buffer','light','witch','hacker','rescue','drain','blade'
 ]);
+// Show a healing counter only for characters with a built-in HP recovery skill.
+// Health packs and out-of-combat regeneration do not count as personal healing.
+const HUD_HEALING_CHARACTERS = new Set([
+  'magnet', 'solar', 'dia', 'ice', 'drain',
+  'water', 'wind', 'star', 'flower', 'angel', 'buffer', 'light', 'rescue'
+]);
+let personalCombatStats = null;
+let teamUltimateMembers = [];
+let teamUltimateToastTimer = null;
+let teamUltimateToastQueue = [];
+function resetTeamUltimateUi() {
+  teamUltimateMembers = [];
+  teamUltimateToastQueue = [];
+  if (teamUltimateToastTimer) clearTimeout(teamUltimateToastTimer);
+  teamUltimateToastTimer = null;
+  const toast = document.getElementById('teamUltimateToast');
+  if (toast) { toast.classList.add('hidden'); toast.textContent=''; }
+}
+function teamUltimateStatusHtml() {
+  if (!teamUltimateMembers.length || spectatorMode) return '';
+  const cards = teamUltimateMembers.map(p=>{
+    const m = CHARACTER_META[p.character] || {};
+    const label = escapeHtml(String(p.name || m.name || p.character).slice(0,12));
+    const status = !p.connected ? '이탈' : !p.alive ? (p.ready?'부활 대기':'사망') : p.ready ? '준비!' : '충전 중';
+    return `<span class="my-team-ult-member${p.ready?' ready':''}${!p.alive?' dead':''}"><span>${m.icon||'⚡'} ${label}</span><b>${status}</b></span>`;
+  }).join('');
+  return `<div class="my-team-ult"><span class="my-team-ult-title">⚡ 우리 팀 궁극기</span><span class="my-team-ult-grid">${cards}</span></div>`;
+}
+function nextTeamUltimateToast() {
+  const toast = document.getElementById('teamUltimateToast');
+  if (!toast) return;
+  if (!teamUltimateToastQueue.length) { toast.classList.add('hidden'); toast.textContent=''; teamUltimateToastTimer=null; return; }
+  const msg = teamUltimateToastQueue.shift();
+  const label = CHARACTER_META[msg.character]?.name || msg.character || '아군';
+  toast.textContent = `⚡ ${msg.name || label} · ${label} 궁극기 준비 완료!`;
+  toast.classList.remove('hidden');
+  teamUltimateToastTimer = setTimeout(nextTeamUltimateToast, 2350);
+}
+function queueTeamUltimateToast(msg) {
+  if (!msg || spectatorMode || !myId || state?.state !== 'playing') return;
+  teamUltimateToastQueue.push(msg);
+  if (!teamUltimateToastTimer) nextTeamUltimateToast();
+}
+function clearPersonalCombatStats() { personalCombatStats = null; resetTeamUltimateUi(); }
+function personalStatNumber(value) {
+  return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('ko-KR');
+}
+function personalStatsHudHtml(character) {
+  const st = personalCombatStats || { k:0, d:0, a:0, damage:0, healing:0 };
+  const kda = `<span class="my-info-stat-kda">K / D / A　${personalStatNumber(st.k)} / ${personalStatNumber(st.d)} / ${personalStatNumber(st.a)}</span>`;
+  const damage = character === 'buffer' ? '' : `<span class="my-info-stat-damage">⚔️ 딜 ${personalStatNumber(st.damage)}</span>`;
+  const healing = HUD_HEALING_CHARACTERS.has(character) ? `<span class="my-info-stat-healing">💚 힐 ${personalStatNumber(st.healing)}</span>` : '';
+  return `<span class="my-info-personal-stats">${kda}<span class="my-info-stat-numbers">${damage}${healing}</span></span>`;
+}
+
 const CHARACTER_ATLAS_COLUMNS = 6;
 const CHARACTER_PORTRAIT_CELL = Object.freeze({ width: 512, height: 640 });
 const CHARACTER_TOKEN_CELL = Object.freeze({ width: 256, height: 256 });
@@ -73,19 +128,28 @@ const CHARACTER_TOKEN_ATLAS = new Image();
 let skinCatalog = [];
 const skinDefinitions = new Map();
 const skinPreviewSources = new Map();
+const SKIN_TIER_SORT = Object.freeze({'특급':0,'일반':1});
+function compareSkinCatalogEntries(a,b){
+  const tierDelta=(SKIN_TIER_SORT[a?.tier]??9)-(SKIN_TIER_SORT[b?.tier]??9);
+  if(tierDelta) return tierDelta;
+  const charDelta=String(a?.characterId||'').localeCompare(String(b?.characterId||''),'ko');
+  if(charDelta) return charDelta;
+  return String(a?.name||'').localeCompare(String(b?.name||''),'ko');
+}
 async function loadSkinCatalog() {
   try {
     const response=await fetch('/skins.json',{cache:'no-store'});
     if(!response.ok) throw new Error('catalog');
     const items=await response.json();
-    skinCatalog=Array.isArray(items)?items:[];
+    skinCatalog=(Array.isArray(items)?items:[]).slice().sort(compareSkinCatalogEntries);
     skinDefinitions.clear();skinPreviewSources.clear();
     for(const skin of skinCatalog){
       if(!skin?.id || !Number.isInteger(skin.tokenIndex) || skin.tokenIndex < CHARACTER_ATLAS_IDS.length) continue;
       skinDefinitions.set(skin.id,skin);
     }
     if(typeof renderSchoolShop==='function') renderSchoolShop();
-    if(state?.state==='ready'){lastCompetitiveRenderKey=null;renderCompetitiveDraft();}
+    if (state?.state==='ready'){lastCompetitiveRenderKey=null;renderCompetitiveDraft();}
+    if (state?.state==='lobby'){lastCasualSkinPickerKey=null;renderCasualSkinPicker();}
   } catch(err){console.warn('[shop] catalog unavailable',err);}
 }
 // All skins reuse the existing character token atlas; no per-skin image requests.
@@ -184,8 +248,8 @@ const CHARACTER_STORIES = {
     title:'메카', icon:'🤖',
     text:'오랫동안 창고에 방치되어 있던 기계에 어느 날 갑자기 영혼이 깃들었다. 깨어나자마자 세상을 구경하고 싶어졌고, 튼튼한 몸과 빠른 다리를 이용해 여기저기 돌아다니며 싸움에도 끼어들고 있다. 자신이 왜 깨어났는지는 메카 자신도 모른다.'
   },
-  magnet: { title:'마그넷', icon:'🧲', text:'가방 속에서 꺼낸 자석으로 적을 끌어오는 발명가. 필요한 것은 언제나 손 안에 있다.' },
-  flower: { title:'플라워', icon:'🌹', text:'피어날 시간이에요. 아름답고 위험적인 꽃. 가장 아름다운 방식으로 핀다.' },
+  magnet: { title:'마그넷', icon:'🧲', text:'버퍼와 같은 연구소에서 일하는 발명가. 무엇이든 끌어당기는 자석을 개발해 갑부가 되었다. 최근에는 창고에서 갑자기 깨어난 메카에게 관심을 갖고 정체를 조사하고 있다.' },
+  flower: { title:'플라워', icon:'🌹', text:'아름다운 꽃을 다루는 능력으로 사람들의 관심을 독차지하는 인기인. 과거 포이즌의 친구였으나 포이즌이 개발한 독의 가치를 알아보고 그 기술을 빼돌려 자신의 가시꽃에 응용했다. 이 사실을 알게 된 포이즌은 플라워와 절교했다.' },
   jet: {
     title:'제트', icon:'🚀',
     text:'어릴 때부터 우주를 동경해 우주비행사가 되었다. 하지만 지금은 로켓 기술을 이용해 싸움터를 누비는 것이 더 즐겁다고 한다.'
@@ -208,7 +272,7 @@ const CHARACTER_STORIES = {
   },
   blade: {
     title:'블레이드', icon:'⚡',
-    text:'무기 대신 비현실적인 붉은 판을 휘두르듯 허공을 가르며 적을 베어낸다. 돌격으로 순식간에 파고드는 속도전의 달인이다.'
+    text:'아이언의 훈련장에서 쫓겨난 제자. 아이언은 강한 상대의 공격을 버티는 법을 가르치려 했지만, 블레이드는 맞기 전에 베어버리면 된다며 자기 주장을 굽히지 않았다. 이후에도 자신의 전투 방식이 옳다고 믿으며 훈련을 거듭한 끝에, 강력한 돌격 능력을 익혔다.'
   },
   cannon: {
     title:'캐논', icon:'💥',
@@ -353,8 +417,8 @@ function buildCharacterStats(id) {
     range = `${fmtNumber(c.range)} m`;
     throughputLabel = 'HPS';
     throughput = fmtNumber(c.linkHealHps);
-    rateLabel = '주기형 행동속도';
-    rate = `+${fmtNumber(Number(c.actionSpeedBoost||0)*100)}%`;
+    rateLabel = '공격력 증가';
+    rate = `+${fmtNumber(Number(c.damageBoost||0)*100)}%`;
   } else if (c.attackType === 'lightBeam') {
     throughputLabel = 'DPS / HPS';
     throughput = `${fmtNumber(c.beamDps)} / ${fmtNumber(c.healHps)}`;
@@ -404,7 +468,7 @@ function buildCharacterMini(id, meta) {
   const move = `${fmtNumber(c.speed)} m/s`;
   if (c.role === '탱커') return `${fmtNumber(c.hp)} HP · ${move}`;
   if (id === 'blade') return `${fmtNumber(Number(c.damage||0)*Number(c.fireRate||0))} DPS · ${move}`;
-  if (id === 'buffer') return `${fmtNumber(c.linkHealHps)} HPS + 행동속도 ${fmtNumber(Number(c.actionSpeedBoost||0)*100)}% · ${move}`;
+  if (id === 'buffer') return `${fmtNumber(c.linkHealHps)} HPS + 공격력 ${fmtNumber(Number(c.damageBoost||0)*100)}% · ${move}`;
   if (c.projectileType === 'heal') {
     const healHps = Number(c.heal||0)*Number(c.fireRate||0);
     const damageDps = Number(c.damage||0)*Number(c.fireRate||0);
@@ -442,7 +506,7 @@ function characterAbilityGuide(id) {
     case 'wind': return {name:'순풍',effect:`쿨타임 ${n(c.tailwindCooldown)}초. ${n(c.tailwindDuration)}초 동안 아군 전체 이동속도 +${n(c.tailwindSpeedBonus)}m/s.`,control:direct};
     case 'flower': return {name:'가시꽃',effect:`쿨타임 ${n(c.flowerThornsCooldown)}초. 가시 2발을 즉시·${n(c.flowerThornsVolleyInterval)}초 후 연속 발사(발당 ${n(c.flowerThornsDamage)} 피해). 사거리 ${n(c.flowerThornsRange)}m, 투사체 속도 ${n(c.flowerThornsProjectileSpeed)}m/s. 적중하면 ${n(c.flowerThornsHealReductionDuration)}초간 치유 ${percent(c.flowerThornsHealReduction)}% 감소(재적중 시 갱신, 다른 종류와 합산 최대 80%). 기본 치유 공격은 계속 가능합니다.`,control:direct};
     case 'angel': return {name:'축복',effect:`쿨타임 ${n(c.abilityCooldown)}초. 거리·시야 제한 없이 선택한 자신 또는 아군 ${n(c.abilityHeal)} HP 치유.`,control:ally};
-    case 'buffer': return {name:'링크',effect:`최대 ${n(c.range)}m 거리 내 선택 아군을 지속 치유 ${n(c.linkHealHps)} HPS하고 행동속도를 ${percent(c.actionSpeedBoost)}% 증가시킵니다.`,control:'아군을 클릭(터치)하여 연결. Space 키 사용 불필요.'};
+    case 'buffer': return {name:'링크',effect:`최대 ${n(c.range)}m 거리 내 선택 아군을 지속 치유 ${n(c.linkHealHps)} HPS하고 공격력을 ${percent(c.damageBoost)}% 증가시킵니다.`,control:'아군을 클릭(터치)하여 연결. Space 키 사용 불필요.'};
     case 'witch': return {name:'저주',effect:`쿨타임 ${n(c.abilityCooldown)}초. 선택한 적에게 ${n(c.curseDuration)}초 동안 받는 피해 +${percent(c.curseDamageTakenBonus)}% 저주를 부여합니다. 거리·시야 제한 없음.`,control:enemy};
     case 'hacker': return {name:'은신',effect:`쿨타임 ${n(c.abilityCooldown)}초. ${n(c.stealthDuration)}초 동안 자신을 은신시킵니다. 이동·공격·점유 판정은 유지.`,control:direct};
     case 'rescue': return {name:'긴급출동',effect:`쿨타임 ${n(c.abilityCooldown)}초. 거리·시야 제한 없이 살아 있는 다른 아군에게 순간이동하고 ${n(c.abilityHeal)} HP를 회복시킵니다.`,control:ally};
@@ -484,11 +548,11 @@ function characterUltimateGuide(id) {
     case 'water': effect=`반경 ${n(c.ultimateRadius)}m 아군 ${n(c.ultimateHeal)} 회복, 적 ${n(c.ultimateDamage)} 피해와 ${n(c.ultimateStunDuration)}초 기절.`; break;
     case 'wind': effect=`${n(c.ultimateDuration)}초 동안 반경 ${n(c.ultimateRadius)}m 내 자신 및 아군을 ${n(c.ultimateHealHps)} HPS 회복.`; break;
     case 'star': effect=`${n(c.ultimateDelay)}초 후 반경 ${n(c.ultimateRadius)}m 아군 ${n(c.ultimateHeal)} 회복, 적 ${n(c.ultimateDamage)} 피해.`; break;
-    case 'flower': effect=`맵 전체에서 선택한 자신 또는 아군 1명에게 즉시 ${n(c.ultimateHeal)} HP 회복. 초과량을 ${n(c.ultimateShieldDuration)}초 보호막으로 전환. ${n(c.ultimateDuration)}초 동안 이동속도 +${n(c.ultimateSpeedBonus)}m/s, 공격속도 +${pct(c.ultimateAttackSpeedBoost)}%. 사용자 궁극기 재충전 ${n(c.ultimateDuration)}초 잠금.`; break;
+    case 'flower': effect=`맵 전체에서 선택한 자신 또는 아군 1명에게 즉시 ${n(c.ultimateHeal)} HP 회복. 초과량을 ${n(c.ultimateShieldDuration)}초 보호막으로 전환. ${n(c.ultimateDuration)}초 동안 이동속도 +${n(c.ultimateSpeedBonus)}m/s, 공격력 +${pct(c.ultimateDamageBoost)}%. 사용자 궁극기 재충전 ${n(c.ultimateDuration)}초 잠금.`; break;
     case 'angel': effect=`선택한 자신 또는 아군을 ${n(c.ultimateDuration)}초간 무적으로 만듭니다.`; break;
-    case 'buffer': effect=`${n(c.ultimateDuration)}초 동안 링크 대상 치유량이 ${n(c.ultimateLinkHealHps)} HPS로 증가하고 이동속도 +${n(c.ultimateLinkedSpeedBonus)}m/s.`; break;
+    case 'buffer': effect=`${n(c.ultimateDuration)}초 동안 링크 최대 거리 ${n(c.ultimateLinkRange)}m, 대상 치유 ${n(c.ultimateLinkHealHps)} HPS, 이동속도 +${n(c.ultimateLinkedSpeedBonus)}m/s. 공격력 강화 유지.`; break;
     case 'light': effect=`전방 ${n(c.ultimateRange)}×${n(c.ultimateWidth)}m 범위 적 ${n(c.ultimateDamage)} 피해, 아군 ${n(c.ultimateHeal)} 회복, 자신도 ${n(c.ultimateSelfHeal)} 회복.`; break;
-    case 'witch': effect=`즉시 전장 전체의 살아 있는 적에게 ${n(c.ultimateEffectDuration)}초간 저주(받는 피해 +25%)와 이동속도 ${n(c.ultimateSpeedDelta)}m/s. 무적 대상 제외.`; break;
+    case 'witch': effect=`즉시 전장 전체의 살아 있는 적에게 ${n(c.ultimateEffectDuration)}초간 저주(받는 피해 +${pct(c.curseDamageTakenBonus)}%)와 이동속도 ${n(c.ultimateSpeedDelta)}m/s. 무적 대상 제외.`; break;
     case 'hacker': effect=`반경 ${n(c.ultimateRadius)}m 적의 개인 보호막을 제거하고 ${n(c.ultimateStunDuration)}초 기절시킵니다. HP 피해 없음.`; break;
     case 'rescue': effect=`반경 ${n(c.ultimateRadius)}m 아군 및 자신 ${n(c.ultimateHeal)} 회복, 초과 치유량은 ${n(c.ultimateShieldDuration)}초 보호막으로 전환.`; break;
     case 'drain': effect=`자신을 즉시 ${n(c.ultimateHeal)} 회복하고 ${n(c.ultimateDuration)}초 동안 공격속도 +${pct(c.ultimateAttackSpeedBoost)}%. 공격 적중당 흡혈 ${n(c.lifestealOnHit)} HP도 유지.`; break;
@@ -1159,6 +1223,7 @@ const shownTimeWarnings = new Set();
 const worldFx = [];
 const playerHitFlashUntil = new Map();
 const ultimateRecipientFx = new Map(); // character:targetId -> local cosmetic expiration
+const lightSpotlightUntil = new Map(); // transfer-student Light: 4 seconds after instant ultimate
 function revealMyUltimate(character) {
   if (spectatorMode || !myId || !character || !state || state.state !== 'playing') return;
   const layer=$('localUltimateReveal'), name=$('localUltimateRevealName');
@@ -1178,6 +1243,7 @@ function rememberUltimateRecipient(character, targetId, durationMs) {
 }
 function resetUltimateVisualState() {
   ultimateRecipientFx.clear();
+  lightSpotlightUntil.clear();
   $('localUltimateReveal')?.classList.remove('playing');
 }
 function isVisibleForUltimateFx(player, viewerTeam) {
@@ -1519,7 +1585,7 @@ function playCharacterUltimateCue(character, local=false) {
 function addWorldFx(type, player, extra={}) {
   if (!player) return;
   const now=performance.now();
-  const durations={muzzle:90,bladeSlash:220,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,schoolHundred:1000,schoolMeow:850,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650,diaExplosion:580};
+  const durations={muzzle:90,bladeSlash:220,heal:220,death:380,respawn:420,ability:240,diaTransform:520,jetStart:260,jetEnd:300,jetWallSpark:220,reactor33:300,reactor66:420,reactor100:520,reactorDown:260,radiationStart:260,angelCast:260,angelBless:520,bufferLink:320,schoolHundred:1000,schoolMeow:850,schoolRun:850,bladeBlueBurst:520,principalSolarFog:1250,windTailwindCast:420,ultimateCast:760,ultimateWindup:520,diaUltimateWave:520,ironUltimate:700,mechaUltimate:760,jetUltimate:620,solarUltimate:760,shieldUltimate:820,runnerUltimate:620,shooterUltimate:650,sniperUltimate:650,cannonUltimate:700,fireUltimate:720,poisonUltimate:720,reactorUltimate:680,sprayUltimate:680,waterUltimate:900,windUltimate:780,starUltimate:900,angelUltimate:880,bufferUltimate:720,lightUltimate:720,laserUltimate:720,iceUltimate:820,diaUltimate:760,ultimateRectHit:560,witchCurseBurst:680,runnerBombAttached:3000,runnerBombExplosion:650,diaExplosion:580};
   worldFx.push({type,x:player.x,y:player.y,character:player.character,team:player.team,start:now,end:now+(durations[type]||180),...extra});
   if (worldFx.length>80) worldFx.splice(0,worldFx.length-80);
 }
@@ -1531,6 +1597,17 @@ function addMuzzleFx(player) {
   let dx=player.aimX-player.x, dy=player.aimY-player.y;
   const len=Math.hypot(dx,dy)||1; dx/=len; dy/=len;
   addWorldFx('muzzle', player, {x:player.x+dx*(r+.22), y:player.y+dy*(r+.22), dx,dy});
+}
+
+// Short metallic impact: inharmonic overtones through the existing SFX limiter.
+let lastBladeClangAt = -Infinity;
+function playBladeClang() {
+  const now=performance.now();
+  if (now-lastBladeClangAt < 90) return;
+  lastBladeClangAt=now;
+  noiseBurst(.055,.042);
+  for (const [frequency,gain,duration] of [[742,.047,.26],[1047,.036,.22],[1594,.025,.17],[2159,.014,.12]])
+    synthTone({freq:frequency,endFreq:frequency*.97,duration,type:'sine',gain});
 }
 
 function playDeathFeedback() {
@@ -1670,7 +1747,7 @@ function processCombatFeedback(previousState, nextState) {
         // Consecutive swings alternate left-to-right, then right-to-left.
         // The hit is already server-authoritative and instantaneous; the panel is visual only.
         const sweepDirection = Number(after.shotSeq) % 2 === 1 ? 1 : -1;
-        addWorldFx('bladeSlash', after, {dx:dx/len,dy:dy/len,rangeWorld:powered?6:4,angleDeg:60,powered,sweepDirection});
+        addWorldFx('bladeSlash', after, {dx:dx/len,dy:dy/len,rangeWorld:powered?6:4,angleDeg:60,powered,sweepDirection,blueFire:after.skinId==='rebel_blade'});
       } else if (!(after.character === 'hacker' && after.stealthed && !spectatorMode && after.team !== afterById.get(myId)?.team)) addMuzzleFx(after);
       if (after.id===myId && after.character==='sniper') playSniperShotCue();
     }
@@ -1761,6 +1838,8 @@ function processCombatFeedback(previousState, nextState) {
       } else if (visibleCast) {
         addCharacterUltimateFx(after, 'cast');
       }
+      if(after.character==='light' && after.skinId==='transfer_student_light' && visibleCast)
+        lightSpotlightUntil.set(after.id, performance.now()+4000);
       if (after.id===myId && !spectatorMode) revealMyUltimate(after.character);
       playCharacterUltimateCue(after.character, after.id===myId);
       if (after.id===myId) pulseUltimateButton();
@@ -1827,6 +1906,7 @@ function updateAccessUi(open, message='') {
 }
 
 function resetClientForAccessLock(message='') {
+  clearPersonalCombatStats();
   clearSessionReconnect();
   updateAccessUi(false, message);
   resetPostGameSequence();
@@ -2116,14 +2196,27 @@ function selectedAccountCredentials() {
 }
 // Account-scoped shop: server is authoritative for wallet, price and ownership.
 let shopToken=null, shopAccountId=null, shopOwned=new Set(), shopCoins=0;
+function resetSchoolShopSession() {
+  // A different account (or a failed login) must never inherit the last user's wallet or purchase authority.
+  shopToken=null;shopAccountId=null;shopOwned=new Set();shopCoins=0;
+  const accountLabel=$('schoolShopAccount');
+  if(accountLabel)accountLabel.textContent='계정 로그인 필요';
+}
 let readyOwnedSkins=new Set();
+let skinInventoryLoaded=false;
+let lastCasualSkinPickerKey=null;
 let schoolRewardToastTimer=null;
+function hideSchoolReward() {
+  clearTimeout(schoolRewardToastTimer);
+  schoolRewardToastTimer=null;
+  $('schoolRewardToast')?.classList.add('hidden');
+}
 function showSchoolReward(coinAmount,balance) {
   const toast=$('schoolRewardToast');if(!toast)return;
   toast.textContent=`🪙 경쟁전 보상 +${Number(coinAmount)||0}코인! · 잔액 ${Number(balance)||0}코인`;
   toast.classList.remove('hidden');
   clearTimeout(schoolRewardToastTimer);
-  schoolRewardToastTimer=setTimeout(()=>toast.classList.add('hidden'),6500);
+  schoolRewardToastTimer=setTimeout(hideSchoolReward,3000);
 }
 async function schoolShopApi(url,body) {
   const response=await fetch(url,{
@@ -2131,14 +2224,19 @@ async function schoolShopApi(url,body) {
     ...(body?{body:JSON.stringify(body)}:{}),cache:'no-store'
   });
   const result=await response.json();
-  if(!response.ok){if(response.status===401)shopToken=null;throw new Error(result.message||result.error||'상점 요청 실패');}
+  if(!response.ok){if(response.status===401)resetSchoolShopSession();throw new Error(result.message||result.error||'상점 요청 실패');}
   return result;
 }
 function renderSchoolShop() {
   const root=$('schoolShopCards');if(!root)return;
   $('schoolShopBalance').textContent=`🪙 ${shopCoins.toLocaleString('ko-KR')}코인`;
   root.innerHTML='';
+  let lastTier=null;
   for(const skin of skinCatalog){
+    if(skin.tier!==lastTier){
+      lastTier=skin.tier;
+      const heading=document.createElement('div');heading.className='school-shop-section';heading.textContent=skin.tier==='특급'?'💚 특급 스킨':'🎀 일반 스킨';root.appendChild(heading);
+    }
     const card=document.createElement('article');card.className='school-shop-card';
     const img=document.createElement('img');img.alt=`${skin.name} 미니미`;img.loading='lazy';
     const preview=skinPreviewSource(skin);if(preview)img.src=preview;else img.style.visibility='hidden';
@@ -2149,14 +2247,14 @@ function renderSchoolShop() {
     const btn=document.createElement('button');btn.type='button';
     const owned=shopOwned.has(skin.id);
     btn.disabled=owned || shopCoins<skin.price || !shopToken;
-    btn.textContent=owned?'✅ 보유 중':shopCoins<skin.price?'코인 부족':'🪙 구매하기';
+    btn.textContent=!shopToken?'로그인 후 구매':owned?'✅ 보유 중':shopCoins<skin.price?`${(skin.price-shopCoins).toLocaleString('ko-KR')}코인 부족`:'🪙 구매하기';
     btn.onclick=async()=>{
       if(!confirm(`${skin.name} 스킨을 ${skin.price}코인에 구매할까요?`))return;
       btn.disabled=true;
       try {
         const result=await schoolShopApi('/shop/buy',{skinId:skin.id});
         shopCoins=result.coins;shopOwned.add(skin.id);
-        $('schoolShopMessage').textContent=`✅ ${skin.name} 구매 완료! 경쟁전 준비 단계에서 장착할 수 있어요.`;
+        $('schoolShopMessage').textContent=`✅ ${skin.name} 구매 완료! 일반전 대기실 또는 경쟁전 준비 단계에서 장착할 수 있어요.`;
       } catch(err) {
         $('schoolShopMessage').textContent=`⚠️ ${err.message}`;
         try{const data=await schoolShopApi('/shop/account');shopCoins=data.coins;shopOwned=new Set(data.owned);}catch(_){}
@@ -2175,6 +2273,9 @@ $('schoolShopOpen')?.addEventListener('click',async()=>{
   $('schoolShopMessage').textContent='계정을 확인하고 있어요…';
   try{
     if(!shopToken || shopAccountId!==selectedId){
+      // Clear the previous user's credentials and balance *before* reauth, including when the new PIN is wrong.
+      resetSchoolShopSession();
+      renderSchoolShop();
       const credentials=selectedAccountCredentials();if(!credentials)throw new Error('4자리 PIN을 입력하세요.');
       const response=await fetch('/shop/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(credentials),cache:'no-store'});
       const auth=await response.json();if(!response.ok)throw new Error(auth.message||'상점 로그인 실패');
@@ -2186,7 +2287,7 @@ $('schoolShopOpen')?.addEventListener('click',async()=>{
     $('schoolShopMessage').textContent='구매한 스킨은 내 계정에 영구 보관돼요.';
   }catch(err){
     $('schoolShopMessage').textContent=`⚠️ ${err.message}`;
-    if(!shopToken){shopCoins=0;shopOwned=new Set();}
+    if(!shopToken)resetSchoolShopSession();
   }
   renderSchoolShop();
 });
@@ -2299,6 +2400,7 @@ $('createCompetitiveRoomButton').onclick = () => createRoom('competitive');
 $('refreshRoomsButton').onclick = refreshRoomDirectory;
 $('leaveRoomButton').onclick = () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  hideSchoolReward();
   $('leaveRoomButton').disabled = true;
   ws.send(JSON.stringify({ type:'leave_room' }));
   setTimeout(() => { if ($('leaveRoomButton')) $('leaveRoomButton').disabled = false; }, 1200);
@@ -2481,8 +2583,11 @@ function expandCompactPlayerRow(p) {
   if (flags & (1 << 2)) out.radiated = true;
   if (flags & (1 << 3)) out.tailwind = true;
   if (flags & (1 << 4)) out.frozen = true;
+  if (flags & (1 << 15)) out.witchSlowed = true;
+  if (flags & (1 << 16)) out.iceSkinFreeze = true;
   if (flags & (1 << 5)) out.stunned = true;
   if (flags & (1 << 13)) out.cursed = true;
+  if (flags & (1 << 17)) out.vicePrincipalCurse = true;
   if (flags & (1 << 14)) out.stealthed = true;
   if (flags & (1 << 6)) out.invulnerable = true;
   if (flags & (1 << 7)) out.diaForm = true;
@@ -2527,8 +2632,11 @@ function expandCompactPlayerRowC5(p, meta) {
   if (flags & (1 << 2)) out.radiated = true;
   if (flags & (1 << 3)) out.tailwind = true;
   if (flags & (1 << 4)) out.frozen = true;
+  if (flags & (1 << 15)) out.witchSlowed = true;
+  if (flags & (1 << 16)) out.iceSkinFreeze = true;
   if (flags & (1 << 5)) out.stunned = true;
   if (flags & (1 << 13)) out.cursed = true;
+  if (flags & (1 << 17)) out.vicePrincipalCurse = true;
   if (flags & (1 << 14)) out.stealthed = true;
   if (flags & (1 << 6)) out.invulnerable = true;
   if (flags & (1 << 7)) out.diaForm = true;
@@ -2573,8 +2681,11 @@ function expandCompactPlayerRowC6(p, meta) {
   if (flags & (1 << 2)) out.radiated = true;
   if (flags & (1 << 3)) out.tailwind = true;
   if (flags & (1 << 4)) out.frozen = true;
+  if (flags & (1 << 15)) out.witchSlowed = true;
+  if (flags & (1 << 16)) out.iceSkinFreeze = true;
   if (flags & (1 << 5)) out.stunned = true;
   if (flags & (1 << 13)) out.cursed = true;
+  if (flags & (1 << 17)) out.vicePrincipalCurse = true;
   if (flags & (1 << 14)) out.stealthed = true;
   if (flags & (1 << 6)) out.invulnerable = true;
   if (flags & (1 << 7)) out.diaForm = true;
@@ -2761,17 +2872,24 @@ function handleMessage(msg) {
   if (msg.type === 'shop_reward') {showSchoolReward(msg.coins,msg.balance);return;}
   if (msg.type === 'skin_inventory') {
     readyOwnedSkins=new Set(msg.owned||[]);
+    skinInventoryLoaded=true;
     lastCompetitiveRenderKey=null;
+    lastCasualSkinPickerKey=null;
     if(state?.state==='ready')renderCompetitiveDraft();
+    if(state?.state==='lobby')renderCasualSkinPicker();
     return;
   }
   if (msg.type === 'skin_error') {
-    const notice=$('draftNotice');if(notice)notice.textContent=`⚠️ ${msg.message||'스킨을 선택하지 못했어요.'}`;
+    const notice=$(state?.state==='lobby'?'pickNotice':'draftNotice');
+    if(notice)notice.textContent=`⚠️ ${msg.message||'스킨을 선택하지 못했어요.'}`;
     return;
   }
   if (msg.type === 'skin_fx') {
     if(msg.kind==='shooter_hundred')addWorldFx('schoolHundred',{x:msg.x,y:msg.y,character:'shooter',team:'A'});
     if(msg.kind==='rescue_meow')addWorldFx('schoolMeow',{x:msg.x,y:msg.y,character:'rescue',team:'A'}, {playerId:msg.playerId});
+    if(msg.kind==='runner_go')addWorldFx('schoolRun',{x:msg.x,y:msg.y,character:'runner',team:'A'}, {playerId:msg.playerId});
+    if(msg.kind==='blade_blue_burst'){addWorldFx('bladeBlueBurst',{x:msg.x,y:msg.y,character:'blade',team:'A'});playBladeClang();}
+    if(msg.kind==='principal_solar_fog')addWorldFx('principalSolarFog',{x:msg.x,y:msg.y,character:'solar',team:'A'});
     return;
   }
   if (msg.type === 'ultimate_fx') {
@@ -2807,6 +2925,8 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'room_closed') {
+    clearPersonalCombatStats();
+    hideSchoolReward();
     clearSessionReconnect();
     const message = msg.message || '경기가 종료되어 방이 자동으로 닫혔습니다.';
     resetPostGameSequence();
@@ -2830,6 +2950,8 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'left_room') {
+    clearPersonalCombatStats();
+    hideSchoolReward();
     clearSessionReconnect();
     resetPostGameSequence();
     stopBgm();
@@ -2868,6 +2990,22 @@ function handleMessage(msg) {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { try { ws.close(); } catch (_) {} }
     return;
   }
+  if (msg.type === 'team_ultimates') {
+    if (state?.state === 'playing' && myId && !spectatorMode)
+      teamUltimateMembers = Array.isArray(msg.members) ? msg.members.filter(p=>p && typeof p.character==='string').slice(0,4) : [];
+    return;
+  }
+  if (msg.type === 'team_ultimate_ready') {
+    queueTeamUltimateToast(msg);
+    return;
+  }
+  if (msg.type === 'personal_stats') {
+    // Private server-authoritative counters, never a local hit estimate.
+    if (state?.state === 'playing' && myId && !spectatorMode) {
+      personalCombatStats = msg;
+    }
+    return;
+  }
   if (msg.type === 'net_pong') {
     if (Number(msg.nonce) === lastNetPingNonce) {
       socketRttMs = Math.max(0,Date.now()-lastNetPingNonce);
@@ -2886,12 +3024,15 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'joined') {
+    clearPersonalCombatStats();
     clearSessionReconnect();
     if(randomQueueActive) randomQueueBusyUi(false);
     if (msg.accountId) localStorage.setItem(PLAYER_ACCOUNT_KEY, msg.accountId);
     if ($('accountPinInput')) $('accountPinInput').value = '';
     clearLiveProjectileRegistry();
     myId = msg.id; config = msg.config; $('roomLabel').textContent = msg.room;
+    readyOwnedSkins=new Set();skinInventoryLoaded=false;lastCasualSkinPickerKey=null;
+    if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ready_skins_request'}));
     saveResumeCredentials(msg.roomId || msg.room, msg.resumeToken, msg.room);
     pickerState.lobby.selected = null;
     lastLobbyPickerAvailabilityKey = null;
@@ -2900,6 +3041,7 @@ function handleMessage(msg) {
     show('lobby'); return;
   }
   if (msg.type === 'resumed') {
+    clearPersonalCombatStats();
     const recoveryDuration = sessionReconnectActive ? Math.round(performance.now()-sessionReconnectStartedAt) : 0;
     clearSessionReconnect();
     if (recoveryDuration) console.info('[network] reconnected after', recoveryDuration, 'ms');
@@ -2911,6 +3053,8 @@ function handleMessage(msg) {
     myId = msg.id;
     config = msg.config;
     $('roomLabel').textContent = msg.room;
+    readyOwnedSkins=new Set();skinInventoryLoaded=false;lastCasualSkinPickerKey=null;
+    if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ready_skins_request'}));
     saveResumeCredentials(msg.roomId || msg.room, msg.resumeToken, msg.room);
     const notice = $('pickNotice');
     if (notice) notice.textContent = msg.recoveredByAccount ? '↩️ 같은 계정의 기존 경기 자리로 복귀했습니다.' : '↩️ 기존 경기 자리로 재접속했습니다.';
@@ -2918,6 +3062,7 @@ function handleMessage(msg) {
     return;
   }
   if (msg.type === 'spectator_joined') {
+    clearPersonalCombatStats();
     clearLiveProjectileRegistry();
     spectatorMode = true;
     myId = null;
@@ -3013,6 +3158,7 @@ function handleMessage(msg) {
     syncSelectedMapFromServer(msg);
     const previousState = state;
     const startedPlaying = msg.state === 'playing' && (!previousState || previousState.state !== 'playing');
+    if (startedPlaying || (previousState?.state === 'playing' && msg.state !== 'playing')) clearPersonalCombatStats();
     if (msg.state === 'ended' && previousState?.state === 'playing') {
       hideCharacterIntroTip();
       state = msg;
@@ -3022,6 +3168,8 @@ function handleMessage(msg) {
     processCombatFeedback(previousState, msg);
     updatePlayerMotionTracks(previousState, msg);
     state = msg;
+    // A swap changes the story shown; any exit from ready closes the modal.
+    syncReadyCharacterStory();
     if(state.state==='ready' && previousState?.state!=='ready' && ws?.readyState===WebSocket.OPEN && !spectatorMode){
       readyOwnedSkins=new Set();
       ws.send(JSON.stringify({type:'ready_skins_request'}));
@@ -3113,6 +3261,50 @@ function renderLatestPatchNotes(notes) {
   const content = $('latestPatchBody');
   content.replaceChildren();
   $('latestPatchTitle').textContent = String(notes.title || `스쿨라인 ${notes.version} 변경점`);
+  // Preserve user-authored patch notes verbatim; render only safe text nodes (no HTML injection).
+  if (typeof notes.markdown === 'string' && notes.markdown.trim()) {
+    const prose = document.createElement('div');
+    prose.className = 'latest-patch-markdown';
+    let currentList = null;
+    for (const rawLine of notes.markdown.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line) { currentList = null; continue; }
+      if (line.startsWith('# ')) { // The modal header already displays the document title.
+        currentList = null;
+        continue;
+      }
+      if (line === '---') {
+        currentList = null;
+        prose.appendChild(document.createElement('hr'));
+        continue;
+      }
+      const headingMatch = /^(#{2,3})\s+(.+)$/.exec(line);
+      if (headingMatch) {
+        currentList = null;
+        const h = document.createElement(headingMatch[1].length === 2 ? 'h3' : 'h4');
+        h.textContent = headingMatch[2];
+        prose.appendChild(h);
+        continue;
+      }
+      if (line.startsWith('- ')) {
+        if (!currentList) {
+          currentList = document.createElement('ul');
+          prose.appendChild(currentList);
+        }
+        const li = document.createElement('li');
+        appendPatchFormattedText(li, line.slice(2));
+        currentList.appendChild(li);
+        continue;
+      }
+      currentList = null;
+      const paragraph = document.createElement('p');
+      appendPatchFormattedText(paragraph, line);
+      prose.appendChild(paragraph);
+    }
+    content.appendChild(prose);
+    content.scrollTop = 0;
+    return;
+  }
   // textContent prevents HTML contained in future editorial patch notes from being executed.
   for (const section of notes.sections) {
     const sectionElement = document.createElement('section');
@@ -3440,16 +3632,36 @@ function updateStoryButton() {
   button.classList.toggle('hidden', !character || !CHARACTER_STORIES[character]);
 }
 
-function openMyCharacterStory() {
-  const character = getMyPlayedCharacter();
+let readyStoryCharacter = null;
+function displayCharacterStory(character, context='result') {
   const story = character ? CHARACTER_STORIES[character] : null;
-  if (!story) return;
+  if (!story) return false;
   $('storyTitle').textContent = `${story.icon} ${story.title}`;
   $('storyText').textContent = story.text;
+  const kicker = $('storyOverlay')?.querySelector('.story-kicker');
+  if (kicker) kicker.textContent = context==='ready' ? '📖 준비 단계 · 내 캐릭터 이야기' : '📖 내가 플레이한 캐릭터 이야기';
+  readyStoryCharacter = context==='ready' ? character : null;
   $('storyOverlay').classList.remove('hidden');
+  return true;
 }
-
+function openMyCharacterStory() {
+  displayCharacterStory(getMyPlayedCharacter(), 'result');
+}
+function openReadyCharacterStory() {
+  if (spectatorMode || state?.state !== 'ready') return;
+  const me = playerFromState(myId);
+  if (!me?.character) return;
+  displayCharacterStory(me.character, 'ready');
+}
+function syncReadyCharacterStory() {
+  if (!readyStoryCharacter) return;
+  if (spectatorMode || state?.state !== 'ready') {closeMyCharacterStory();return;}
+  const character = playerFromState(myId)?.character;
+  if (!character) {closeMyCharacterStory();return;}
+  if (character !== readyStoryCharacter) displayCharacterStory(character, 'ready');
+}
 function closeMyCharacterStory() {
+  readyStoryCharacter = null;
   const overlay = $('storyOverlay');
   if (overlay) overlay.classList.add('hidden');
 }
@@ -3589,6 +3801,16 @@ function renderReadyAssignments(comp) {
       if (draggable) card.onpointerdown = e => startReadyDrag(p.id, e);
       slot.innerHTML = `<div class="ready-player-name">${p.id === myId ? '⭐ ' : ''}${escapeHtml(p.name)}${p.connected === false ? ' · 📡' : ''}</div>`;
       slot.appendChild(card);
+      // A separate control: does not trigger the existing pointer drag-and-swap gesture.
+      if (draggable && p.character && CHARACTER_STORIES[p.character]) {
+        const storyButton=document.createElement('button');
+        storyButton.type='button';storyButton.className='ready-story-button';
+        storyButton.textContent='📖 스토리';
+        storyButton.setAttribute('aria-label',`${CHARACTER_STORIES[p.character].title} 스토리 읽기`);
+        storyButton.addEventListener('pointerdown',e=>e.stopPropagation());
+        storyButton.addEventListener('click',e=>{e.stopPropagation();openReadyCharacterStory();});
+        slot.appendChild(storyButton);
+      }
       section.appendChild(slot);
     }
     root.appendChild(section);
@@ -3682,8 +3904,20 @@ function drawDraftMapPreview(mapId) {
   const c = canvas.getContext('2d');
   const sx=canvas.width/config.world.height, sy=canvas.height/config.world.width;
   c.fillStyle='#e6edf4'; c.fillRect(0,0,canvas.width,canvas.height);
-  c.fillStyle='rgba(73,130,235,.18)'; c.fillRect(0,0,config.world.aZoneEnd*sx,canvas.height);
-  c.fillStyle='rgba(255,100,100,.16)'; c.fillRect(config.world.bZoneStart*sx,0,(config.world.height-config.world.bZoneStart)*sx,canvas.height);
+  if (!map.objective) {
+    c.fillStyle='rgba(73,130,235,.18)'; c.fillRect(0,0,config.world.aZoneEnd*sx,canvas.height);
+    c.fillStyle='rgba(255,100,100,.16)'; c.fillRect(config.world.bZoneStart*sx,0,(config.world.height-config.world.bZoneStart)*sx,canvas.height);
+  }
+  if (map.objective) {
+    c.strokeStyle='rgba(55,65,81,.45)'; c.lineWidth=1; c.setLineDash([4,4]);
+    for (const y of [config.world.aZoneEnd,config.world.bZoneStart]) { c.beginPath();c.moveTo(y*sx,0);c.lineTo(y*sx,canvas.height);c.stroke(); }
+    c.setLineDash([]);
+    const o=map.objective;
+    // The compressed draft preview keeps the same world-aligned elliptical projection as walls.
+    c.save();c.translate(o.y*sx,o.x*sy);c.scale(sx,sy);
+    c.beginPath();c.arc(0,0,o.radius,0,Math.PI*2);
+    c.fillStyle='rgba(255,225,91,.24)';c.fill();c.strokeStyle='#D9B332';c.lineWidth=2/Math.max(sx,sy);c.stroke();c.restore();
+  }
   c.fillStyle='#566477';
   for (const w of (map.walls||[])) c.fillRect(w.y*sx,w.x*sy,w.h*sx,w.w*sy);
   for (const pack of (map.healthPacks||[])) {
@@ -3875,6 +4109,20 @@ function renderCompetitiveStats(data) {
     }
   }
 
+  // Purchases are all-time durable ledger data; not filtered by selected match version.
+  const skinSales = data.skinSales;
+  const salesSummary = $('competitiveSkinSalesSummary');
+  const salesBody = $('competitiveSkinSalesBody');
+  const recentBody = $('competitiveSkinRecentBody');
+  if (skinSales && salesSummary && salesBody && recentBody) {
+    salesSummary.textContent = `총 ${Number(skinSales.totalPurchases||0).toLocaleString('ko-KR')}건 판매 · ${Number(skinSales.totalCoinsSpent||0).toLocaleString('ko-KR')}코인 소비 · 구매 계정 ${Number(skinSales.uniqueBuyers||0)}명`;
+    const skins = [...(skinSales.skins||[])].sort((a,b)=>Number(b.purchases||0)-Number(a.purchases||0)||String(a.name).localeCompare(String(b.name),'ko'));
+    salesBody.innerHTML = skins.map(s=>`<tr><td>${escapeHtml(s.name||s.id)}</td><td>${Number(s.price||0).toLocaleString('ko-KR')}</td><td><strong>${Number(s.purchases||0)}</strong></td><td>${Number(s.uniqueBuyers||0)}</td><td>${Number(s.coinsSpent||0).toLocaleString('ko-KR')}</td><td>${s.lastPurchasedAt?escapeHtml(new Date(s.lastPurchasedAt).toLocaleString('ko-KR')):'—'}</td></tr>`).join('') || '<tr><td colspan="6">스킨 카탈로그 없음</td></tr>';
+    recentBody.innerHTML = (skinSales.recentPurchases||[]).map(row=>`<tr><td>${escapeHtml(new Date(row.purchasedAt).toLocaleString('ko-KR'))}</td><td>${escapeHtml(row.buyerName||row.accountId||'—')}</td><td>${escapeHtml(row.skinName||row.skinId||'—')}</td><td>${Number(row.coinsSpent||0).toLocaleString('ko-KR')}</td></tr>`).join('') || '<tr><td colspan="4">아직 구매 내역이 없어.</td></tr>';
+  } else if (salesSummary) {
+    salesSummary.textContent = '스킨 판매 통계는 관리자 인증 HTTP 화면에서 확인할 수 있어.';
+    if(salesBody)salesBody.innerHTML=''; if(recentBody)recentBody.innerHTML='';
+  }
   const adv = data.advanced || {};
   const quality = $('competitiveStatsDataQuality');
   if (quality) {
@@ -3995,6 +4243,33 @@ function updatePostGameCountdownUi() {
 
 setInterval(updatePostGameCountdownUi, 250);
 
+function renderCasualSkinPicker() {
+  const root=$('casualSkinPicker');
+  if(!root)return;
+  const me=state && !spectatorMode ? state.players.find(p=>p.id===myId) : null;
+  const showPicker=state?.state==='lobby' && state.mode==='casual' && !!me?.character;
+  root.classList.toggle('hidden',!showPicker);
+  if(!showPicker){lastCasualSkinPickerKey=null;return;}
+  const owned=skinCatalog.filter(s=>s.characterId===me.character && readyOwnedSkins.has(s.id));
+  const key=[me.character,me.skinId||'',skinInventoryLoaded,owned.map(s=>s.id).join(',')].join('|');
+  if(key===lastCasualSkinPickerKey)return; // Do not replace an active mobile select on each snapshot.
+  lastCasualSkinPickerKey=key;
+  root.replaceChildren();
+  const label=document.createElement('label');label.textContent='🎀 내 스킨';label.htmlFor='casualSkinSelect';
+  const select=document.createElement('select');select.id='casualSkinSelect';
+  select.disabled=!skinInventoryLoaded;
+  for(const skin of [{id:null,name:'기본 미니미'},...owned]){
+    const option=document.createElement('option');option.value=skin.id||'';option.textContent=skin.name;
+    option.selected=(me.skinId||'')===(skin.id||'');select.appendChild(option);
+  }
+  select.onchange=()=>{
+    if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ready_choose_skin',skinId:select.value||null}));
+  };
+  const hint=document.createElement('small');
+  hint.textContent=!skinInventoryLoaded?'보유 스킨 확인 중…':owned.length?'일반전에서도 장착한 스킨 효과가 적용돼요.':'이 캐릭터의 보유 스킨이 없어요.';
+  root.append(label,select,hint);
+}
+
 function renderLobby() {
   if (!state) return;
   const me = state.players.find(p => p.id === myId);
@@ -4075,6 +4350,7 @@ function renderLobby() {
       $('resultBanner').textContent = modeLabel + `${state.winner}팀 승리! ${finalScore}`;
     }
   }
+  renderCasualSkinPicker();
   renderResultStats();
   updateStoryButton();
   for (const team of ['A','B']) {
@@ -4724,11 +5000,12 @@ function drawSustainedUltimateAura(p,x,y,radius,nowMs) {
   const style=ULTIMATE_FX_STYLE[char]||{color:fxCharacterColor(char),dark:'#263041'};
   ctx.save();
   if (char==='blade') {
-    // Dense crimson afterglow persists for exactly the Dragonblade timer.
-    ctx.globalAlpha=.16*pulse;ctx.fillStyle='#c41545';ctx.beginPath();ctx.arc(x,y,radius+19,0,Math.PI*2);ctx.fill();
+    // Base Dragonblade uses crimson; Rebel Blade replaces it with blue fire.
+    const rebel=p.skinId==='rebel_blade';
+    ctx.globalAlpha=.16*pulse;ctx.fillStyle=rebel?'#156df0':'#c41545';ctx.beginPath();ctx.arc(x,y,radius+19,0,Math.PI*2);ctx.fill();
     for(let k=0;k<5;k++){
       const th=k*Math.PI*2/5+phase,rr=radius+14+6*Math.sin(phase*2+k);
-      ctx.globalAlpha=.48+.22*pulse;ctx.strokeStyle=k%2?'#ff466f':'#a81039';ctx.lineWidth=3.5;
+      ctx.globalAlpha=.48+.22*pulse;ctx.strokeStyle=rebel?(k%2?'#4fdcff':'#1556bc'):(k%2?'#ff466f':'#a81039');ctx.lineWidth=3.5;
       ctx.beginPath();ctx.arc(x,y,rr,th,th+.66);ctx.stroke();
     }
   } else if (char==='solar') {
@@ -4822,12 +5099,40 @@ function drawWorldFx(nowMs) {
       ctx.beginPath();ctx.roundRect(cx-29,cy-21,58,28,10);ctx.fill();ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx-3,cy+7);ctx.lineTo(cx+2,cy+13);ctx.lineTo(cx+8,cy+7);ctx.fill();ctx.stroke();
       ctx.font='bold 15px sans-serif';ctx.fillStyle='#8b5138';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('야옹',cx,cy-7);
+    } else if(fx.type==='schoolRun') {
+      const actor=state?.players?.find(p=>p.id===fx.playerId && p.alive);
+      const pos=actor?renderedPlayerWorldPosition(actor,nowMs):{x:fx.x,y:fx.y};
+      const pt=worldToScreen(pos.x,pos.y),cx=pt.x,cy=pt.y-38-q*7;
+      ctx.globalAlpha=Math.min(1,(1-q)*3);ctx.fillStyle='#fff9e3';ctx.strokeStyle='#e0a044';ctx.lineWidth=2;
+      ctx.beginPath();ctx.roundRect(cx-31,cy-21,62,28,10);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.moveTo(cx-4,cy+7);ctx.lineTo(cx+1,cy+13);ctx.lineTo(cx+8,cy+7);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#a85918';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('달려!',cx,cy-7);
+    } else if(fx.type==='bladeBlueBurst') {
+      const t=1-q, pulse=7+q*22;
+      ctx.globalAlpha=t*.45;ctx.fillStyle='#12a8ff';ctx.beginPath();ctx.arc(a.x,a.y,pulse*.7,0,Math.PI*2);ctx.fill();
+      for(let i=0;i<7;i++){
+        const theta=i*Math.PI*2/7+q*.38,dist=q*(18+i%2*6),rr=2.2+t*2.4;
+        ctx.globalAlpha=t*(.78+i%2*.18);ctx.fillStyle=i%2?'#9cf2ff':'#2d77ef';
+        ctx.beginPath();ctx.arc(a.x+Math.cos(theta)*dist,a.y+Math.sin(theta)*dist,rr,0,Math.PI*2);ctx.fill();
+      }
+      ctx.globalAlpha=t*.93;ctx.strokeStyle='#77ecff';ctx.lineWidth=3.2*t+.6;
+      ctx.beginPath();ctx.arc(a.x,a.y,pulse,0,Math.PI*2);ctx.stroke();
+    } else if(fx.type==='principalSolarFog') {
+      const radius=14+q*34;
+      ctx.globalAlpha=(1-q)*.28;ctx.fillStyle='#f0d34d';ctx.beginPath();ctx.arc(a.x,a.y,radius,0,Math.PI*2);ctx.fill();
+      for(let k=0;k<10;k++){
+        const ang=k*Math.PI*2/10+q*2.2;const dist=6+q*(10+(k%3)*7),rr=3.5+(1-q)*4.5;
+        ctx.globalAlpha=(1-q)*(.28+(k%2)*.09);ctx.fillStyle=k%2?'#ffe993':'#f7c934';
+        ctx.beginPath();ctx.arc(a.x+Math.cos(ang)*dist,a.y+Math.sin(ang)*dist,rr,0,Math.PI*2);ctx.fill();
+      }
     } else if (fx.type === 'bladeSlash') {
       // A narrow transparent red *sheet* swings bodily through the 60° cone.
       // There is deliberately NO stationary sector fill and NO sword-shaped object.
       // Every attack flips direction: left -> right -> left -> right ...
       const range = Number(fx.rangeWorld) || 4;
       const powered = !!fx.powered;
+      const blueFire = !!fx.blueFire;
       const direction = Number(fx.sweepDirection) === -1 ? -1 : 1;
       const angle = bladeSlashSweepAngle(fx, q);
       const widthAngle = powered ? 0.11 : 0.085;
@@ -4851,11 +5156,11 @@ function drawWorldFx(nowMs) {
         ctx.lineTo(innerR.x, innerR.y);
         ctx.closePath();
         ctx.globalAlpha = alpha;
-        ctx.fillStyle = powered ? '#ba0036' : '#e84666';
+        ctx.fillStyle = blueFire ? (powered ? '#1459bb' : '#397cde') : (powered ? '#ba0036' : '#e84666');
         ctx.fill();
         ctx.globalAlpha = alpha * 0.95;
         ctx.lineWidth = powered ? 2.8 : 2.0;
-        ctx.strokeStyle = powered ? '#fb769b' : '#af2447';
+        ctx.strokeStyle = blueFire ? (powered ? '#85e9ff' : '#69bcff') : (powered ? '#fb769b' : '#af2447');
         ctx.stroke();
       };
       // Translucent afterimages make travel direction legible at ordinary 60fps.
@@ -4871,11 +5176,11 @@ function drawWorldFx(nowMs) {
       const outer = pointAt(range, frontTheta);
       ctx.beginPath();ctx.moveTo(inner.x,inner.y);ctx.lineTo(outer.x,outer.y);
       ctx.globalAlpha = fade * (powered ? 0.95 : 0.84);
-      ctx.strokeStyle = powered ? '#fff2fa' : '#ffd9e5';
+      ctx.strokeStyle = blueFire ? '#d0faff' : (powered ? '#fff2fa' : '#ffd9e5');
       ctx.lineWidth = powered ? 5.3 : 3.7;
       ctx.stroke();
       ctx.globalAlpha = fade * (powered ? 0.48 : 0.35);
-      ctx.strokeStyle = '#ff2458';
+      ctx.strokeStyle = blueFire ? '#0caeff' : '#ff2458';
       ctx.lineWidth = powered ? 10 : 7;
       ctx.stroke();
     } else if (fx.type === 'diaExplosion') {
@@ -5153,6 +5458,16 @@ let scoringStatusUiKey = '';
 
 function scoringStateFromPlayers(viewState) {
   if (!viewState || !config?.world) return { a:false, b:false };
+  const objective=config.maps?.[config.mapId]?.objective;
+  if (objective) {
+    let a=0,b=0;
+    for (const p of (viewState.players||[])) {
+      if (!p.alive || p.connected===false) continue;
+      if (Math.hypot(Number(p.x)-objective.x,Number(p.y)-objective.y)>objective.radius+1e-9) continue;
+      if (p.team==='A') a++; else if (p.team==='B') b++;
+    }
+    return {a:a>0&&b===0,b:b>0&&a===0,contested:a>0&&b>0,neutral:a===0&&b===0};
+  }
   let aAttackers=0, bDefenders=0, bAttackers=0, aDefenders=0;
   for (const p of (viewState.players || [])) {
     if (!p.alive || p.connected === false) continue;
@@ -5181,7 +5496,7 @@ function updateScoringStatusUi(viewState) {
   const scoring=scoringStateFromPlayers(viewState);
   const me = spectatorMode ? null : (viewState.players || []).find(p => p.id === myId);
   const perspective = spectatorMode || !me ? 'spectator' : me.team;
-  const key=`${scoring.a?'A':''}${scoring.b?'B':''}:${perspective}`;
+  const key=`${scoring.a?'A':''}${scoring.b?'B':''}:${scoring.contested?'C':''}:${scoring.neutral?'N':''}:${perspective}:${config.mapId}`;
   if (key === scoringStatusUiKey) return;
   scoringStatusUiKey=key;
   const el=$('scoringStatus');
@@ -5190,6 +5505,12 @@ function updateScoringStatusUi(viewState) {
   pillB?.classList.toggle('scoring', scoring.b);
   if (!el) return;
   el.classList.remove('score-a','score-b','score-both');
+  if (config.maps?.[config.mapId]?.objective && scoring.contested) {
+    el.classList.remove('hidden'); el.textContent='⚔️ 중앙 경합 중 · 득점 중단'; el.classList.add('score-both'); return;
+  }
+  if (config.maps?.[config.mapId]?.objective && scoring.neutral) {
+    el.classList.remove('hidden'); el.textContent='🟡 중앙 거점 중립 · 점령하면 득점'; return;
+  }
   if (!scoring.a && !scoring.b) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
   if (scoring.a && scoring.b) {
@@ -5261,10 +5582,17 @@ function drawCachedBattlefield(viewState) {
     if (!background) return false;
     background.fillStyle = '#ffffff';
     background.fillRect(0, 0, image.width, image.height);
-    background.fillStyle = 'rgba(65,130,255,.09)';
-    background.fillRect(0, 0, config.world.aZoneEnd*SCALE, image.height);
-    background.fillStyle = 'rgba(255,80,80,.075)';
-    background.fillRect(config.world.bZoneStart*SCALE,0,(config.world.height-config.world.bZoneStart)*SCALE,image.height);
+    const mapObjective = config.maps?.[config.mapId]?.objective;
+    if (!mapObjective) {
+      background.fillStyle = 'rgba(65,130,255,.09)';
+      background.fillRect(0, 0, config.world.aZoneEnd*SCALE, image.height);
+      background.fillStyle = 'rgba(255,80,80,.075)';
+      background.fillRect(config.world.bZoneStart*SCALE,0,(config.world.height-config.world.bZoneStart)*SCALE,image.height);
+    } else {
+      background.beginPath(); background.arc(mapObjective.y*SCALE,mapObjective.x*SCALE,mapObjective.radius*SCALE,0,Math.PI*2);
+      background.fillStyle='rgba(255,225,91,.23)'; background.fill();
+      background.strokeStyle='#D6B235'; background.lineWidth=Math.max(2,1.6*SCALE/10); background.stroke();
+    }
     background.strokeStyle = 'rgba(55,65,81,.28)';
     background.setLineDash([7,7]);
     for (const y of [config.world.aZoneEnd, config.world.bZoneStart]) {
@@ -5272,7 +5600,7 @@ function drawCachedBattlefield(viewState) {
       background.lineTo(y*SCALE,image.height); background.stroke();
     }
     background.setLineDash([]);
-    drawHomeZoneLabels(viewState, background);
+    if (!config.maps?.[config.mapId]?.objective) drawHomeZoneLabels(viewState, background);
     background.fillStyle = '#5c6675';
     for (const w of config.walls) background.fillRect(w.y*SCALE,w.x*SCALE,w.h*SCALE,w.w*SCALE);
     cached = { config, width:canvas.width, height:canvas.height, perspective, image };
@@ -5377,9 +5705,25 @@ function renderGame() {
     }
   }
 
+  // 1.15: the LINK RECIPIENT sees Buffer's effective 16/24 m range.
+  if (!spectatorMode && myId) {
+    const local=viewState.players.find(p=>p.id===myId && p.alive);
+    if (local) for (const buffer of viewState.players) {
+      if (!buffer.alive || buffer.team!==local.team || buffer.character!=='buffer' ||
+          !buffer.bufferLinkActive || buffer.bufferTargetId!==myId) continue;
+      const range=Number(buffer.ultimateActiveMs||0)>0
+        ? Number(characterPublicDef('buffer')?.ultimateLinkRange)||24
+        : Number(characterPublicDef('buffer')?.range)||16;
+      const pos=renderedPlayerWorldPosition(buffer,beamFxNow);
+      const center=worldToScreen(pos.x,pos.y);
+      ctx.save();ctx.strokeStyle='rgba(175,124,236,.72)';ctx.lineWidth=2;
+      ctx.setLineDash([6,5]);ctx.beginPath();ctx.arc(center.x,center.y,range*SCALE,0,Math.PI*2);ctx.stroke();ctx.restore();
+    }
+  }
   const renderProjectiles = [...(viewState.projectiles || []), ...liveNetworkProjectiles(beamFxNow)];
   for (const p of renderProjectiles) {
     const s=worldToScreen(p.x,p.y), r=Math.max(2,p.radius*SCALE);
+    const projectileOwner=p.ownerId?viewState.players.find(q=>q.id===p.ownerId):null;
     if (p.character === 'magnet_hook') {
       const caster=viewState.players.find(q=>q.id===p.ownerId && q.alive);
       if (caster) {
@@ -5405,17 +5749,54 @@ function renderGame() {
       ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-dx*length,s.y-dy*length);ctx.stroke();
       ctx.globalAlpha=.9;ctx.strokeStyle='#fff9e5';ctx.lineWidth=1.6;ctx.stroke();ctx.restore();
     }
+
+    if(p.character==='solar' && projectileOwner?.skinId==='principal_solar'){
+      const size=Math.max(5,r*1.4), phase=beamFxNow*.006;
+      ctx.save();ctx.translate(s.x,s.y);ctx.rotate(phase);
+      ctx.fillStyle='#f1cb3f';ctx.strokeStyle='#8f6500';ctx.lineWidth=1.1;
+      for(let i=0;i<8;i++){
+        const ang=i*Math.PI/4;
+        ctx.beginPath();ctx.moveTo(Math.cos(ang)*(size*.95),Math.sin(ang)*(size*.95));
+        ctx.lineTo(Math.cos(ang)*(size*1.75),Math.sin(ang)*(size*1.75));ctx.stroke();
+      }
+      ctx.beginPath();ctx.arc(0,0,size,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.globalAlpha=.9;ctx.strokeStyle='#fff6c7';ctx.lineWidth=.8;ctx.beginPath();ctx.arc(-size*.18,-size*.18,size*.35,0,Math.PI*2);ctx.stroke();
+      ctx.restore();continue;
+    }
+    if(p.character==='reactor' && projectileOwner?.skinId==='infirmary_regular_reactor' && Number(p.reactorFxBand)>=2){
+      const angle=Math.atan2(Number(p.vy)||0,Number(p.vx)||1);
+      const size=Math.max(5,r*1.7);
+      ctx.save();ctx.translate(s.x,s.y);ctx.rotate(angle);
+      ctx.fillStyle='#dffff0';ctx.strokeStyle='#39956f';ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.roundRect(-size*1.2,-size*.6,size*2.4,size*1.2,size*.55);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.rect(-size*.10,-size*.48,size*.20,size*.96);ctx.fillStyle='#39c992';ctx.fill();
+      ctx.beginPath();ctx.rect(-size*.48,-size*.10,size*.96,size*.20);ctx.fill();
+      ctx.globalAlpha=.55;ctx.fillStyle='#96ffd4';ctx.beginPath();ctx.arc(size*.32,0,size*.36,0,Math.PI*2);ctx.fill();
+      ctx.restore();continue;
+    }
     if (p.character === 'flower_thorns') {
       // Thorn-shaped projectile is visual only: server collision radius remains unchanged.
       const angle=Math.atan2(Number(p.vx)||0,Number(p.vy)||1);
       ctx.save();ctx.translate(s.x,s.y);ctx.rotate(angle);
-      ctx.fillStyle='#cb356b';ctx.strokeStyle='#712544';ctx.lineWidth=1.5;
-      // An isosceles point facing actual projectile travel, hitbox remains circular.
-      ctx.beginPath();ctx.moveTo(r*1.8,0);ctx.lineTo(-r*1.2,-r*.85);
-      ctx.lineTo(-r*1.2,r*.85);ctx.closePath();ctx.fill();ctx.stroke();
+      const queen=projectileOwner?.skinId==='queen_flower';
+      ctx.fillStyle=queen?'#ff5cb2':'#cb356b';ctx.strokeStyle=queen?'#a91762':'#712544';ctx.lineWidth=1.5;
+      if(queen){
+        // Heart tip points exactly forward (positive x after rotation).
+        // Rendering only: authoritative collision remains a radius 0.32m circle.
+        const rr=Math.max(4.2,r*1.45);
+        ctx.beginPath();ctx.moveTo(rr*1.33,0);
+        ctx.bezierCurveTo(rr*.7,-rr*.35,rr*.48,-rr*1.18,-rr*.20,-rr*.93);
+        ctx.bezierCurveTo(-rr*.62,-rr*.78,-rr*.78,-rr*.32,-rr*.52,0);
+        ctx.bezierCurveTo(-rr*.78,rr*.32,-rr*.62,rr*.78,-rr*.20,rr*.93);
+        ctx.bezierCurveTo(rr*.48,rr*1.18,rr*.7,rr*.35,rr*1.33,0);ctx.closePath();
+        ctx.fill();ctx.stroke();
+        ctx.strokeStyle='#ffcae7';ctx.lineWidth=.9;ctx.beginPath();ctx.moveTo(-rr*.29,-rr*.73);ctx.quadraticCurveTo(rr*.12,-rr*.83,rr*.28,-rr*.42);ctx.stroke();
+      } else {
+        ctx.beginPath();ctx.moveTo(r*1.8,0);ctx.lineTo(-r*1.2,-r*.85);
+        ctx.lineTo(-r*1.2,r*.85);ctx.closePath();ctx.fill();ctx.stroke();
+      }
       ctx.restore();continue;
     }
-    const projectileOwner=p.ownerId?viewState.players.find(q=>q.id===p.ownerId):null;
     if(p.character==='star' && !p.ultimateProjectile && projectileOwner?.skinId==='class_president_star'){
       const size=Math.max(5,r*1.45);ctx.save();ctx.translate(s.x,s.y);
       ctx.fillStyle='#ffe169';ctx.strokeStyle='#93610b';ctx.lineWidth=1.3;
@@ -5443,7 +5824,7 @@ function renderGame() {
       continue;
     }
     ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2);
-    if (p.type === 'heal') ctx.fillStyle = p.character === 'flower' ? '#d76287' : (p.character === 'wind' ? '#35b97e' : (p.character === 'star' ? '#d39a13' : (p.character === 'angel' ? '#c58a18' : '#168bc4')));
+    if (p.type === 'heal') ctx.fillStyle = p.character === 'flower' ? (projectileOwner?.skinId==='queen_flower' ? '#ff6ab6' : '#d76287') : (p.character === 'wind' ? '#35b97e' : (p.character === 'star' ? '#d39a13' : (p.character === 'angel' ? '#c58a18' : '#168bc4')));
     else if (p.character === 'fire') ctx.fillStyle = '#ed5a25';
     else if (p.character === 'reactor') ctx.fillStyle = Number(p.reactorFxBand) >= 2 ? '#df4312' : (Number(p.reactorFxBand) >= 1 ? '#d8751d' : '#b56c32');
     else if (p.character === 'spray') ctx.fillStyle = '#1689a9';
@@ -5546,11 +5927,30 @@ function renderGame() {
     const radius = tokenImg ? Math.max(hitRadius, tokenSize/2) : hitRadius;
     // Persistent unique ultimate glows stay under the actor so chibi silhouettes remain legible.
     drawSustainedUltimateAura(p,x,y,radius,beamFxNow);
+    if(p.character==='light' && p.skinId==='transfer_student_light' && (lightSpotlightUntil.get(p.id)||0)>beamFxNow){
+      const phase=beamFxNow*.006;
+      ctx.save();
+      ctx.globalAlpha=.10;ctx.fillStyle='#ffef98';ctx.beginPath();ctx.arc(x,y,radius+18,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=.30+.12*Math.sin(phase);ctx.strokeStyle='#ffe375';ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(x,y,radius+14+2*Math.sin(phase*1.4),0,Math.PI*2);ctx.stroke();
+      for(let k=0;k<5;k++){const ang=phase+k*Math.PI*2/5,dist=radius+11+3*Math.sin(phase*1.8+k),sx=x+Math.cos(ang)*dist,sy=y+Math.sin(ang)*dist;ctx.globalAlpha=.72;ctx.fillStyle=k%2?'#fff8d5':'#ffe884';ctx.beginPath();ctx.arc(sx,sy,1.8+(k%2),0,Math.PI*2);ctx.fill();}
+      ctx.restore();
+    }
     const empoweredBuffer=viewState.players.find(other=>other.alive && other.character==='buffer' && other.team===p.team &&
       other.bufferLinkActive && other.bufferTargetId===p.id && Number(other.ultimateActiveMs||0)>0);
     if (empoweredBuffer) {
       ctx.save();ctx.strokeStyle=empoweredBuffer.skinId==='school_nurse_buffer'?'#4ce998':'#ad73f4';ctx.lineWidth=3;ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.008);
       traceRegularPolygon(x,y,radius+14,6,beamFxNow*.001);ctx.stroke();ctx.restore();
+    }
+    if(p.character==='reactor' && p.skinId==='infirmary_regular_reactor' && Number(p.ultimateActiveMs||0)>0){
+      ctx.save();
+      const phase=beamFxNow*.0055;
+      ctx.globalAlpha=.16;ctx.fillStyle='#a8ffe1';ctx.beginPath();ctx.arc(x,y,radius+10,0,Math.PI*2);ctx.fill();
+      for(let k=0;k<6;k++){
+        const ang=phase+k*Math.PI/3,rr=radius+10+4*Math.sin(phase*1.4+k),fx=x+Math.cos(ang)*rr,fy=y+Math.sin(ang)*rr;
+        ctx.globalAlpha=.68+.16*Math.sin(phase*2+k);ctx.fillStyle=k%2?'#d8fff1':'#7ff3c7';
+        ctx.fillRect(fx-1.3,fy-4.4,2.6,8.8);ctx.fillRect(fx-4.4,fy-1.3,8.8,2.6);
+      }
+      ctx.restore();
     }
     drawUltimateRecipientAuras(p,x,y,radius,beamFxNow);
     // Faint body disc shows the true server hitbox footprint underneath the larger chibi art.
@@ -5584,8 +5984,9 @@ function renderGame() {
     if (Number(p.ultimateActiveMs||0) > 0 && p.character !== 'angel') {
       const phase=beamFxNow*.006;
       const ustyle=ULTIMATE_FX_STYLE[p.character];
-      const palette=ustyle?.color;
-      const dark=ustyle?.dark || '#24303d';
+      const rebel=p.character==='blade' && p.skinId==='rebel_blade';
+      const palette=rebel?'#33bdff':ustyle?.color;
+      const dark=rebel?'#0c3579':(ustyle?.dark || '#24303d');
       if (palette) {
         const rr=radius+10+2*Math.sin(phase);
         ctx.save();
@@ -5597,6 +5998,20 @@ function renderGame() {
         if (p.character==='runner' || p.character==='jet') {
           ctx.globalAlpha=.92; ctx.lineWidth=2.2;
           for (let k=0;k<3;k++) { const ar=radius+12+k*5; ctx.beginPath(); ctx.arc(x,y,ar,phase*2+k*2.0,phase*2+k*2.0+.8); ctx.stroke(); }
+        }
+        ctx.restore();
+      }
+      if(p.character==='blade' && p.skinId==='rebel_blade' && Number(p.ultimateActiveMs||0)>0){
+        ctx.save();
+        const phase=beamFxNow*.0058;
+        for(let k=0;k<6;k++){
+          const a=phase+k*Math.PI/3,rr=radius+8+3*Math.sin(phase*1.8+k),fx=x+Math.cos(a)*rr,fy=y+Math.sin(a)*rr;
+          const flicker=3.3+2*Math.sin(phase*3+k*1.7);
+          ctx.globalAlpha=.60+.30*Math.sin(phase*2.2+k);ctx.fillStyle=k%2?'#4ed8ff':'#2d76ff';
+          ctx.beginPath();ctx.moveTo(fx+Math.cos(a+.15)*flicker*1.7,fy+Math.sin(a+.15)*flicker*1.7);
+          ctx.quadraticCurveTo(fx-Math.sin(a)*flicker,fy+Math.cos(a)*flicker,fx-Math.cos(a)*flicker,fy-Math.sin(a)*flicker);
+          ctx.quadraticCurveTo(fx+Math.sin(a)*flicker,fy-Math.cos(a)*flicker,fx+Math.cos(a+.15)*flicker*1.7,fy+Math.sin(a+.15)*flicker*1.7);
+          ctx.fill();
         }
         ctx.restore();
       }
@@ -5672,7 +6087,20 @@ function renderGame() {
     }
     if (p.burning) { ctx.save(); ctx.globalAlpha=.68+.24*Math.sin(beamFxNow*.018+x*.02); ctx.lineWidth=2.2; ctx.strokeStyle='#ffb347'; ctx.beginPath(); ctx.arc(x,y,radius+4,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
     if (p.poisoned) { ctx.save(); ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.012+y*.02); ctx.lineWidth=2.5; ctx.strokeStyle='#c58cff'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
-    if (p.cursed) { ctx.save(); ctx.globalAlpha=.72+.20*Math.sin(beamFxNow*.014+x*.011); ctx.strokeStyle='#8e44e9'; ctx.lineWidth=3.2; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.arc(x,y,radius+11,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
+    if (p.cursed) { ctx.save(); ctx.globalAlpha=.72+.20*Math.sin(beamFxNow*.014+x*.011); ctx.strokeStyle='#8e44e9'; ctx.lineWidth=3.2; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.arc(x,y,radius+11,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+      const viceWitch=!!p.vicePrincipalCurse;
+      if(viceWitch){
+        ctx.save();
+        for(let k=0;k<3;k++){
+          const ang=beamFxNow*.0045+k*Math.PI*2/3, rr=radius+17+2*Math.sin(beamFxNow*.008+k);
+          const sx=x+Math.cos(ang)*rr, sy=y+Math.sin(ang)*rr;
+          ctx.globalAlpha=.78;ctx.fillStyle='#f3e9ff';ctx.beginPath();ctx.arc(sx,sy,4.5,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle='#5e2b87';ctx.beginPath();ctx.arc(sx-1.4,sy-1.1,0.9,0,Math.PI*2);ctx.arc(sx+1.4,sy-1.1,0.9,0,Math.PI*2);ctx.fill();
+          ctx.lineWidth=1.1;ctx.strokeStyle='#5e2b87';ctx.beginPath();ctx.arc(sx,sy+.5,1.9,0,Math.PI);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(sx-1.4,sy+4.1);ctx.lineTo(sx-1.4,sy+6.6);ctx.moveTo(sx+1.4,sy+4.1);ctx.lineTo(sx+1.4,sy+6.6);ctx.moveTo(sx-3.1,sy+5.3);ctx.lineTo(sx+3.1,sy+5.3);ctx.stroke();
+        }
+        ctx.restore();
+      } }
     if (p.radiated) {
       ctx.save(); ctx.globalAlpha=.68+.18*Math.sin(beamFxNow*.013+x*.017); ctx.lineWidth=2.3; ctx.strokeStyle='#ff8a3d';
       const rr=radius+6, rp=beamFxNow*.0022;
@@ -5695,6 +6123,16 @@ function renderGame() {
     }
     if (p.tailwind) { ctx.save(); ctx.globalAlpha=.78; ctx.lineWidth=4.2; ctx.strokeStyle='#07563a'; ctx.beginPath(); ctx.arc(x,y,radius+7,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=.96; ctx.lineWidth=2; ctx.strokeStyle='#24a86f'; ctx.beginPath(); ctx.arc(x,y,radius+7,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
     if (p.frozen) { ctx.save(); ctx.globalAlpha=.72+.18*Math.sin(beamFxNow*.011+x*.015); ctx.lineWidth=4.5; ctx.strokeStyle='#07566d'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); ctx.lineWidth=2.3; ctx.strokeStyle='#159cbd'; ctx.beginPath(); ctx.arc(x,y,radius+5,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+    if(p.witchSlowed) { ctx.save();ctx.globalAlpha=.65+.19*Math.sin(beamFxNow*.009+x*.014);ctx.lineWidth=2.6;ctx.strokeStyle='#9253c6';ctx.setLineDash([4,5]);ctx.beginPath();ctx.arc(x,y,radius+7,0,Math.PI*2);ctx.stroke();ctx.restore(); }
+    if(p.iceSkinFreeze && p.frozen){
+      ctx.save();ctx.strokeStyle='#c9faff';ctx.lineWidth=1.55;ctx.lineCap='round';
+      for(let k=0;k<3;k++){
+        const phi=k*Math.PI*2/3+beamFxNow*.00125,rr=radius+9+2*Math.sin(beamFxNow*.004+k);
+        const sx=x+Math.cos(phi)*rr,sy=y+Math.sin(phi)*rr-3*Math.sin(beamFxNow*.003+k);
+        const size=3.4+(k%2)*1.1;ctx.globalAlpha=.60+.25*Math.sin(beamFxNow*.004+k);
+        for(let arm=0;arm<3;arm++){const th=arm*Math.PI/3;ctx.beginPath();ctx.moveTo(sx-Math.cos(th)*size,sy-Math.sin(th)*size);ctx.lineTo(sx+Math.cos(th)*size,sy+Math.sin(th)*size);ctx.stroke();}
+      }ctx.restore();
+    }
     if (p.stunned) { ctx.save(); ctx.lineWidth=5; ctx.strokeStyle='#684b00'; ctx.beginPath(); ctx.arc(x,y,radius+9,0,Math.PI*2); ctx.stroke(); ctx.lineWidth=2.8; ctx.strokeStyle='#e3a700'; ctx.beginPath(); ctx.arc(x,y,radius+9,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
     if (p.diaForm) {
       const dp=.68+.24*Math.sin(beamFxNow*.010 + x*.013);
@@ -5876,7 +6314,7 @@ function renderGame() {
     }
     const shieldLine = me.shield > 0 ? `<br>🛡️ 보호막 ${Math.ceil(me.shield)}/${Math.ceil(me.maxShield || me.shield)}${me.shieldMs > 0 ? ` · ${(me.shieldMs/1000).toFixed(1)}초` : ''}` : '';
     const stunLine = me.stunned ? '<br>💫 기절' : '';
-    const curseLine = me.cursed ? '<br>🔮 저주 (받는 피해 +25%)' : '';
+    const curseLine = me.cursed ? '<br>🔮 저주 (받는 피해 +30%)' : '';
     const ultDef = characterPublicDef(me.character);
     const ultCost = Math.max(0, Number(ultDef?.ultimateCost) || 0);
     const ultCharge = ultCost > 0 ? Math.max(0, Math.min(ultCost, Number(me.ultimateCharge) || 0)) : 0;
@@ -5894,7 +6332,7 @@ function renderGame() {
         ultInfoLine = `<span class="my-info-ultimate">⚡ ${ultName} ${ultPct}% · ${Math.floor(ultCharge)}/${Math.floor(ultCost)}</span>`;
       }
     }
-    const infoHtml = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}`;
+    const infoHtml = `<b>${m.icon} ${m.name}</b><br>HP ${Math.max(0,Math.ceil(me.hp))}/${me.maxHp}${shieldLine}<br>${me.team}팀${stunLine}${curseLine}${extra}${ultInfoLine}${personalStatsHudHtml(me.character)}${teamUltimateStatusHtml()}`;
     if ($('myInfo').innerHTML !== infoHtml) $('myInfo').innerHTML = infoHtml;
     $('respawn').textContent = me.alive ? '' : `부활 ${(me.respawnMs/1000).toFixed(1)}초`;
 

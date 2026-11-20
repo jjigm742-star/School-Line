@@ -8,7 +8,7 @@ const notes = JSON.parse(fs.readFileSync(path.join(__dirname, 'public/latest-pat
 const client = fs.readFileSync(path.join(__dirname, 'public/game.js'), 'utf8');
 
 assert.equal(Object.keys(c).length, 29, '29-person active roster');
-assert.equal(notes.version, '1.14');
+assert.equal(notes.version, '1.15');
 assert.equal(c.blade.ultimateName, '용검');
 assert.equal(c.blade.hp, 250);
 assert.equal(c.blade.speed, 6.5);
@@ -16,7 +16,7 @@ assert.equal(c.blade.attackType, 'melee');
 assert.equal(c.blade.meleeTargetMode, 'nearest');
 assert.equal(c.blade.ultimateMeleeTargetMode, 'all');
 assert.equal(c.blade.bladeDashMaxCharges, 2);
-assert.equal(c.blade.ultimateRange, 6);
+assert.equal(c.blade.ultimateRange, 8);
 assert.equal(c.flower.ultimateHeal, 100);
 assert.equal(c.water.ultimateHeal, 125);
 assert.equal(c.sniper.damage * c.sniper.fireRate, 90);
@@ -24,7 +24,7 @@ assert.equal(c.sniper.ultimateDamage * c.sniper.fireRate, 150);
 assert.equal(c.magnet.magnetProjectileRadius, .70);
 assert.equal(c.wind.ultimateCost, 1200);
 assert.equal(c.rescue.ultimateHeal, 100);
-assert.equal(s.publicCompetitiveStats().currentBuild.balanceVersion, '1.14');
+assert.equal(s.publicCompetitiveStats().currentBuild.balanceVersion, '1.15');
 assert.equal(s.publicCompetitiveStats().currentBuild.availableCharacters.length, 29);
 
 for (const file of [
@@ -206,14 +206,15 @@ personalCombatStats={k:3,d:2,a:7,damage:123.5,healing:456.8};
     assert.equal(raw.recentPurchases.length,3);
     assert.equal(raw.bySkin.find(s=>s.skinId==='rebel_blade').purchases,2);
     const presented=s.adminSkinSalesCatalogStats(raw);
-    assert.equal(presented.skins.length,9);
+    assert.equal(presented.skins.length,13);
     assert.equal(presented.skins.find(s=>s.id==='rebel_blade').coinsSpent,1200);
     assert.equal(presented.skins.find(s=>s.id==='track_runner').purchases,0);
     assert.equal(presented.recentPurchases[0].skinName,'반항아 블레이드');
-    console.log('PASS: 9-skin past-ledger admin sales, total/unique accounts, recent purchases');
+    console.log('PASS: 13-skin past-ledger admin sales, total/unique accounts, recent purchases');
   }).catch(err=>{console.error(err);process.exitCode=1;});
-  const notesBuff=notes.sections.find(x=>x.heading.includes('캐릭터 밸런스')).groups.find(g=>g.label.includes('버프')).items[0].text;
-  for (const source of [notes.markdown,notesBuff]) {
+  const notes114=JSON.parse(fs.readFileSync(path.join(__dirname,'data/patch_notes/1.14.json'),'utf8'));
+  const notesBuff=notes114.sections.find(x=>x.heading.includes('캐릭터 밸런스')).groups.find(g=>g.label.includes('버프')).items[0].text;
+  for (const source of [notes114.markdown,notesBuff]) {
     assert.ok(source.indexOf('🏃 **러너:**')<source.indexOf('💣 **캐논:**'));
     assert.ok(source.indexOf('💣 **캐논:**')<source.indexOf('💻 **해커:**'));
     assert.ok(source.indexOf('💻 **해커:**')<source.indexOf('🚑 **레스큐**'));
@@ -376,10 +377,19 @@ function fakeDatabase(){
   return {data,pool:{query,connect:async()=>({query,release(){}})}};
 }
 const skinCatalog=JSON.parse(fs.readFileSync(path.join(__dirname,'public/skins.json'),'utf8'));
-assert.equal(skinCatalog.length,9,'five existing plus four 1.14 skins');
-assert.equal(skinCatalog.filter(s=>s.tier==='일반'&&s.price===300).length,7);
-assert.equal(skinCatalog.filter(s=>s.tier==='특급'&&s.price===600).length,2);
+assert.equal(skinCatalog.length,13,'nine existing plus four 1.15 skins');
+assert.equal(skinCatalog.filter(s=>s.tier==='일반'&&s.price===300).length,9);
+assert.equal(skinCatalog.filter(s=>s.tier==='특급'&&s.price===600).length,4);
 assert.ok(skinCatalog.some(s=>s.characterId==='flower'),'Flower launched in v1.14');
+for(const [id,character,tier,index] of [
+ ['principal_solar','solar','특급',38],['transfer_student_light','light','일반',39],
+ ['infirmary_regular_reactor','reactor','특급',40],['vice_principal_witch','witch','일반',41]]){
+ const skin=skinCatalog.find(s=>s.id===id);
+ assert.ok(skin,`v1.15 skin ${id}`);assert.equal(skin.characterId,character);
+ assert.equal(skin.tier,tier);assert.equal(skin.tokenIndex,index);
+}
+assert.ok(skinCatalog.slice(0,4).every(s=>s.tier==='특급'),'premium skins grouped first');
+assert.ok(skinCatalog.slice(4).every(s=>s.tier==='일반'),'regular skins grouped second');
 const atlasFile=path.join(__dirname,'public/assets/characters/token_atlas.webp');
 assert.ok(fs.statSync(atlasFile).size>100000,'shared token atlas');
 assert.equal(fs.existsSync(path.join(__dirname,'public/assets/skins')),false,'no per-skin assets');
@@ -466,7 +476,7 @@ for(const skin of skinCatalog){
   assert.equal(await store.ownsSkin('student-b',regular.id),false);
   assert.equal(fake.data.rewards.size,16,'each of eight full matches awards once per connected account');
   assert.equal(fake.data.wallets.get('S010'),500500,'other match and purchase transactions do not alter the gift');
-  console.log('PASS: 9-skin catalog, wallet payouts, duplicate prevention, costs, purchase/inventory (simulated SQL)');
+  console.log('PASS: 13-skin catalog, wallet payouts, duplicate prevention, costs, purchase/inventory (simulated SQL)');
 
   const now=1800000000000;
   const makePlayer=(id,character,team='A',x=9,y=9)=>({
@@ -578,7 +588,7 @@ console.log('PASS: competitive reward toast never blocks exit or captures taps')
   const enemy=player('enemy','poison','B');
   const self=player('self','solar');
   room.players.set(enemy.id,enemy);room.players.set(self.id,self);
-  assert.equal(game.CHARACTERS.wind.tailwindSpeedBonus, 1.0, 'Wind 1.14 buff not yet applied');
+  assert.equal(game.CHARACTERS.wind.tailwindSpeedBonus, 1.5, 'Wind 1.15 tailwind improved');
   assert.equal(game.CHARACTERS.ice.slowSpeedDelta, -1.5, 'Ice slow adjusted in 1.14');
   assert.equal(game.CHARACTERS.blade.speed, 6.5, 'Blade movement adjusted in 1.14');
   assert.equal(game.CHARACTERS.flower.flowerThornsCooldown, 5, 'Flower two-shot ability has five-second cooldown');
@@ -850,45 +860,136 @@ console.log('PASS: competitive reward toast never blocks exit or captures taps')
   console.log('PASS: casual skin picker, DB ownership gate, mode-safe equip, match-start skin preservation');
 }
 
-// 1.14 final editorial patch note, four cosmetic skins, and unchanged atlas regression.
-assert.ok(typeof notes.markdown === 'string' && notes.markdown.startsWith('# 🎮 《스쿨라인》 1.14 패치노트'));
-assert.equal(notes.sections.length,5);
-assert.ok(notes.markdown.includes('## 🎀 5. 신규 학교 컨셉 스킨 4종 출시!'));
-assert.ok(notes.markdown.includes('**총 9종의 스킨**'));
-assert.ok(notes.markdown.includes('경쟁전과 일반전 모두에서 사용'));
-assert.ok(notes.markdown.includes('### 🐉 반항아 블레이드 — 특급 스킨'));
-assert.ok(notes.markdown.includes('### ❄️ 냉혈한 아이스'));
-assert.ok(notes.markdown.includes('### 🏃 육상부원 러너'));
-assert.ok(notes.markdown.includes('### 💗 퀸카 플라워'));
-assert.match(client,/className = 'latest-patch-markdown'/);
-console.log('PASS: 1.14 final Korean patch notes rendered, four new skins listed');
+// 1.15: preserve the complete 1.14 patch-note archive and original skins.
+const archived114 = JSON.parse(fs.readFileSync(path.join(__dirname,'data/patch_notes/1.14.json'),'utf8'));
+assert.equal(archived114.version,'1.14');
+assert.equal(notes.version,'1.15');
+assert.ok(notes.markdown.includes('과학실'));
+assert.ok(notes.markdown.includes('포격'));
+assert.equal(notes.sections.length,7);
+assert.equal(c.cannon.damage * c.cannon.fireRate,140);
+assert.equal(c.cannon.ultimateName,'포격');
+assert.equal(c.cannon.ultimateDamage * c.cannon.fireRate,300);
+assert.equal(c.hacker.damage * c.hacker.fireRate,100);
+assert.equal(c.dia.damage * c.dia.fireRate,60);
+assert.equal(c.dia.ultimateDamage,125);
+assert.equal(c.buffer.damageBoost,.25);
+assert.equal(c.flower.ultimateDamageBoost,.50);
+assert.equal(c.flower.ultimateAttackSpeedBoost,undefined);
+assert.equal(c.buffer.actionSpeedBoost,undefined);
+assert.equal(c.laser.beamDps,60);
+assert.equal(c.laser.ultimateMaxHpDamageRatio,.50);
+assert.equal(c.blade.range,6);
+assert.equal(c.blade.ultimateRange,8);
+assert.equal(c.reactor.projectileSpeed,28);
+assert.equal(c.mecha.ultimateSelfDamage,100);
+assert.equal(c.solar.beamDps,45);
+assert.equal(c.solar.ultimateSelfHealHps,40);
+assert.equal(c.wind.tailwindSpeedBonus,1.5);
+assert.equal(s.STATUS_DEFS.curse.damageTakenBonus,.30);
+assert.equal(s.publicCompetitiveStats().currentBuild.balanceVersion,'1.15');
+assert.equal(Object.keys(s.MAP_DEFS).length,3);
+assert.equal(s.MAP_DEFS.science_lab.healthPacks.length,0);
+assert.equal(s.MAP_DEFS.science_lab.objective.radius,8);
+assert.ok(client.includes('경합 중'));
+assert.ok(client.includes('buffer.bufferTargetId!==myId'));
+console.log('PASS: 1.15 roster, official release notes, archived 1.14 and Science Lab assets');
 
-// 1.14 final pre-season DPS correction. Must not accidentally enable proposed
-// 1.15 cannon 300-DPS ultimate or change any other class, skin, or stats series.
-assert.equal(c.cannon.fireRate, 10);
-assert.equal(c.cannon.damage, 14);
-assert.equal(c.cannon.damage * c.cannon.fireRate, 140);
-assert.equal(c.cannon.ultimateDamage, 20);
-assert.equal(c.cannon.ultimateDamage * c.cannon.fireRate, 200);
-assert.equal(c.hacker.fireRate, 5);
-assert.equal(c.hacker.damage, 20);
-assert.equal(c.hacker.damage * c.hacker.fireRate, 100);
-assert.equal(s.currentAttackDef({character:'cannon',ultimateUntil:0},Date.now()).damage,14);
-assert.equal(s.currentAttackDef({character:'hacker',ultimateUntil:0},Date.now()).damage,20);
-const ultimateCheckNow = Date.now();
-assert.equal(s.currentAttackDef({character:'cannon',ultimateUntil:ultimateCheckNow+5000},ultimateCheckNow).damage,20);
-assert.equal(s.publicCompetitiveStats().currentBuild.balanceVersion,'1.14');
-assert.ok(notes.markdown.includes('캐논:** 기본 공격 DPS **130 → 140**'));
-assert.ok(notes.markdown.includes('해커:** 기본 공격 DPS **90 → 100**'));
-assert.equal(notes.sections.length, 5, 'only five integrated 1.14 patch sections');
-assert.ok(notes.markdown.includes('### 📈 버프 — 8종'));
-assert.ok(!notes.markdown.includes('최종 추가 밸런스 조정'));
-assert.ok(!notes.markdown.includes('## ⚡ 6.'));
-assert.equal(notes.markdown.match(/💣 \*\*캐논:\*\*/g)?.length, 1);
-assert.equal(notes.markdown.match(/💻 \*\*해커:\*\*/g)?.length, 1);
-const balanceBuff = notes.sections.find(section=>section.heading.includes('캐릭터 밸런스 변경'))?.groups?.[0];
-assert.equal(balanceBuff?.label, '📈 버프 — 8종');
-assert.equal(balanceBuff.items[0].name, '📈 버프 — 8종');
-assert.match(balanceBuff.items[0].text,/캐논:\*\* 기본 공격 DPS \*\*130 → 140\*\*/);
-assert.match(balanceBuff.items[0].text,/해커:\*\* 기본 공격 DPS \*\*90 → 100\*\*/);
-console.log('PASS: cannon 140 DPS, hacker 100 DPS; cannon ultimate stays 200 DPS; v1.14 stats & patch notes');
+// Fully authoritative center-control scoring, anti-heal-independent damage boosts,
+// additive Buffer+Flower enhancement and temporary 24m Buffer link.
+{
+  const now=1900090000000;
+  const make=(id,character,team,x,y)=>({
+    id,name:id,character,team,x,y,aimX:x+4,aimY:y,
+    alive:true,connected:true,hp:c[character].hp,maxHp:c[character].hp,shield:0,
+    invulnerableUntil:0,statuses:Object.create(null),stats:s.makeMatchStats(character),
+    input:{up:false,down:false,left:false,right:false,fire:false},
+    ultimateUntil:0,ultimateCharge:0,damageContributors:Object.create(null),
+    supportContributors:Object.create(null),lastCombatAt:now,nextFireAt:0,lastPeriodicActionAt:0
+  });
+  const room=s.newRoom('LAB115',{displayNumber:1,mode:'casual'});
+  room.state='playing';room.matchMode='casual';room.mapId='science_lab';
+  room.matchStartedAt=now;room.matchEndAt=now+180000;room.nextUltimateAutoChargeAt=now+4000;
+  const a=make('a','cannon','A',21,34), b=make('b','water','B',21,49);
+  room.players.set(a.id,a);room.players.set(b.id,b);
+  s.updateRoom(room,.02,now+20);
+  assert.ok(room.scoreA>.019 && room.scoreA<.021,'A alone in center gains one point per second');
+  assert.equal(room.scoreB,0);
+  assert.ok(a.stats.objectiveSeconds>.019);
+  b.x=21;b.y=34;
+  const hold=room.scoreA;
+  s.updateRoom(room,.02,now+40);
+  assert.equal(room.scoreA,hold,'contested stops scoring');
+  assert.ok(a.stats.contestSeconds>.019 && b.stats.contestSeconds>.019);
+  a.x=21;a.y=10;
+  s.updateRoom(room,.02,now+60);
+  assert.ok(room.scoreB>.019,'B scores only when B alone in center');
+  assert.equal(a.stats.enemyZoneSeconds,0,'science objective does not count invasion time');
+  const objective=s.publicMapDefinitions().science_lab.objective;
+  assert.deepEqual(objective,{x:21,y:34,radius:8,pointsPerSecond:1});
+  assert.ok(s.getRoomWalls(room).length===8);
+
+  // Buff on-hit, no attack-speed alteration, no direct increase in healing.
+  const damageRoom=s.newRoom('BUFF115',{displayNumber:1,mode:'casual'});
+  damageRoom.state='playing';
+  const gun=make('gun','cannon','A',20,20);
+  const buffer=make('buffer','buffer','A',20,19);
+  const flower=make('flower','flower','A',20,18);
+  const enemy=make('enemy','water','B',20,22);
+  for(const p of [gun,buffer,flower,enemy]) damageRoom.players.set(p.id,p);
+  buffer.bufferTargetId='gun';
+  assert.equal(s.bufferLinkState(damageRoom,buffer,now).active,true);
+  assert.equal(s.periodicActionRateMultiplier(damageRoom,gun,now),1,'damage buffs do not speed firing');
+  s.applyStatus(damageRoom,flower,gun,'flower_bloom',8000,now,{speedDelta:2,damageBoost:.50});
+  const hit=s.dealDamageDetailed(damageRoom,'gun',enemy,100,now);
+  assert.ok(Math.abs(hit.hp-175)<1e-7,'Buffer+Flower additively = +75%');
+  enemy.hp=enemy.maxHp;
+  s.applyStatus(damageRoom,flower,enemy,'curse',2000,now);
+  const cursed=s.dealDamageDetailed(damageRoom,'gun',enemy,100,now);
+  assert.ok(Math.abs(cursed.hp-227.5)<1e-7,'incoming Curse +30% multiplies after outgoing +75%');
+  enemy.hp=enemy.maxHp;
+  assert.equal(s.applyHealing(damageRoom,buffer,gun,40,now),0,'full hp does not overheal');
+  gun.hp=100;
+  assert.equal(s.applyHealing(damageRoom,buffer,gun,40,now),40,'buffed gun still receives exactly 40 healing');
+  gun.x=20;gun.y=39; // 20m from Buffer -- outside the standard 16m but within upgraded 24m.
+  assert.equal(s.bufferLinkState(damageRoom,buffer,now).active,false);
+  buffer.ultimateUntil=now+8000;
+  assert.equal(s.bufferLinkState(damageRoom,buffer,now).active,true);
+  assert.equal(s.bufferLinkState(damageRoom,buffer,now+8001).active,false);
+  assert.equal(s.periodicActionRateMultiplier(damageRoom,{...gun,character:'drain'},now),1,'no Flower or Buffer attack speed');
+  assert.equal(c.drain.ultimateAttackSpeedBoost,.25,'independent Drain attack-speed ultimate retained');
+  console.log('PASS: 1.15 Science Lab scoring/contest, damage boosts, curse and Buffer range rollback');
+}
+
+// 1.15 follow-up: official stories and ready-only reading.  No ban/pick story UI.
+{
+  const vm = require('node:vm');
+  const storyStart=client.indexOf('const CHARACTER_STORIES = {');
+  const storyEnd=client.indexOf('\n};\n\nconst ROLE_ORDER', storyStart);
+  assert.ok(storyStart>=0 && storyEnd>storyStart,'client official stories present');
+  const storySource=client.slice(storyStart,storyEnd+3);
+  const stories=vm.runInNewContext(`${storySource}\nCHARACTER_STORIES`);
+  assert.equal(Object.keys(stories).length,29);
+  assert.match(stories.magnet.text,/버퍼와 같은 연구소/);
+  assert.match(stories.magnet.text,/메카/);
+  assert.match(stories.flower.text,/포이즌.*기술을 빼돌려/);
+  assert.match(stories.flower.text,/절교했다/);
+  assert.match(stories.blade.text,/아이언의 훈련장에서 쫓겨난 제자/);
+  assert.match(stories.blade.text,/돌격 능력을 익혔다/);
+  assert.match(client,/if \(draggable && p\.character && CHARACTER_STORIES\[p\.character\]\)/);
+  assert.match(client,/storyButton\.className='ready-story-button'/);
+  assert.match(client,/function openReadyCharacterStory\(\)/);
+  assert.match(client,/if \(spectatorMode \|\| state\?\.state !== 'ready'\) return/);
+  assert.match(client,/syncReadyCharacterStory\(\);/);
+  assert.match(client,/if \(character !== readyStoryCharacter\) displayCharacterStory\(character, 'ready'\)/);
+  const quickDraft=client.slice(client.indexOf('function renderDraftCharacterGrid('),client.indexOf('function renderReadyAssignments('));
+  assert.doesNotMatch(quickDraft,/ready-story-button|openReadyCharacterStory/,'ban/pick UI untouched');
+  const html=fs.readFileSync(path.join(__dirname,'public/index.html'),'utf8');
+  assert.match(html,/src="\/game.js\?v=1\.15-story-ready-1"/);
+  const styles=fs.readFileSync(path.join(__dirname,'public/style.css'),'utf8');
+  assert.match(styles,/\.ready-story-button/);
+  assert.ok(notes.markdown.includes('준비 단계 열람'));
+  assert.equal(fs.readFileSync(path.join(__dirname,'game.js'),'utf8'),client,'mirrored JS should match');
+  console.log('PASS: 1.15 updated 3 official stories, ready-only story button, swap sync, no ban/pick story changes');
+}
+
